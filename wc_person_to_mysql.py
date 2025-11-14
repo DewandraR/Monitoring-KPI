@@ -6,7 +6,9 @@
 # - Blacklist PERNR: hardcoded + ENV + file; opsi purge global
 # - Log: console + rotating harian + unique per-run; path fleksibel via ENV WC_LOG_DIR
 # - DB: selective delete per pasangan; collation utf8mb4_unicode_ci
-# - Tambahan: cek role NIK via Z_RFC_DISPLAY_NIK_CONF (PERNR saja) dan update kolom `role`
+# - Tambahan:
+#   - cek role NIK via Z_RFC_DISPLAY_NIK_CONF (PERNR saja) dan update kolom `role`
+#   - ambil deskripsi WC via Z_FM_GET_WC_DESC (IV_ARBPL/IV_WERKS) dan update kolom `desc`
 
 """
 Cara pakai ringkas
@@ -83,6 +85,7 @@ SAP_PASSWORD = os.environ.get("SAP_PASS", "11223344")
 
 RFC_NAME = "CR_PERSONS_OF_WORKCENTER"
 RFC_ROLE_NAME = "Z_RFC_DISPLAY_NIK_CONF"  # RFC kedua untuk cek role NIK (PERNR saja)
+RFC_DESC_NAME = "Z_FM_GET_WC_DESC"        # RFC ketiga untuk ambil deskripsi WC (ARBPL/WERKS)
 
 # ---------- MySQL ----------
 DB_HOST = os.environ.get("DB_HOST", "127.0.0.1")
@@ -431,6 +434,7 @@ CREATE TABLE IF NOT EXISTS `{TABLE}` (
   `arbpl`  VARCHAR(30) NOT NULL,
   `werks`  VARCHAR(10) NOT NULL,
   `role`   VARCHAR(20) NULL,
+  `desc`   VARCHAR(255) NULL,
   `source_rfc` VARCHAR(64) NOT NULL DEFAULT 'CR_PERSONS_OF_WORKCENTER',
   `inserted_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -491,6 +495,15 @@ def ensure_db_and_table():
             "ADD COLUMN `role` VARCHAR(20) NULL AFTER `werks`"
         )
         logger.info(f"[DB] Kolom 'role' ditambahkan ke {TABLE}.")
+
+    # Tambah kolom desc (deskripsi WC) kalau belum ada
+    cur2.execute(f"SHOW COLUMNS FROM `{TABLE}` LIKE 'desc'")
+    if not cur2.fetchone():
+        cur2.execute(
+            f"ALTER TABLE `{TABLE}` "
+            "ADD COLUMN `desc` VARCHAR(255) NULL AFTER `role`"
+        )
+        logger.info(f"[DB] Kolom 'desc' ditambahkan ke {TABLE}.")
 
     cur2.close()
     conn.commit()
@@ -556,6 +569,65 @@ def check_and_update_roles(
         logger.info(f"[ERROR] Update role di DB: {e}")
     finally:
         cur.close()
+
+
+# ---------- WC description via Z_FM_GET_WC_DESC ----------
+def update_wc_descriptions(
+    rfc: Connection,
+    db,
+    pairs: List[Tuple[str, str, str]],
+) -> None:
+    """
+    Ambil deskripsi WC (E_DESC) dari Z_FM_GET_WC_DESC untuk setiap pasangan
+    ARBPL/WERKS yang terlibat, lalu update kolom `desc` di tabel MySQL.
+    """
+    # Ambil pasangan unik ARBPL/WERKS saja
+    unique_pairs = sorted({(a, w) for (a, w, _d) in pairs})
+    if not unique_pairs:
+        return
+
+    title(f"UPDATE DESKRIPSI WC via {RFC_DESC_NAME}")
+
+    cur = db.cursor()
+    sql = f"UPDATE `{TABLE}` SET `desc`=%s WHERE `arbpl`=%s AND `werks`=%s"
+
+    total_updated = 0
+    total_pairs = len(unique_pairs)
+
+    for idx, (arbpl, werks) in enumerate(unique_pairs, start=1):
+        if idx == 1 or idx % 50 == 0:
+            logger.info(
+                f"  Progress desc {idx}/{total_pairs} ... "
+                f"(ARBPL={arbpl}, WERKS={werks})"
+            )
+
+        try:
+            # Panggil RFC: kirim ARBPL + WERKS
+            resp = rfc.call(RFC_DESC_NAME, IV_ARBPL=arbpl, IV_WERKS=werks)
+        except (ABAPApplicationError, ABAPRuntimeError, CommunicationError) as e:
+            logger.info(
+                f"  [WARN] RFC {RFC_DESC_NAME} ARBPL={arbpl} WERKS={werks}: {e}"
+            )
+            continue
+
+        desc_val = (resp.get("E_DESC") or "").strip()
+
+        # Kalau kosong, biarkan nilai lama apa adanya
+        if not desc_val:
+            continue
+
+        try:
+            cur.execute(sql, (desc_val, arbpl, werks))
+            db.commit()
+            total_updated += cur.rowcount
+        except mysql.connector.Error as e:
+            db.rollback()
+            logger.info(
+                f"  [ERROR] Update desc untuk ARBPL={arbpl}, WERKS={werks}: {e}"
+            )
+
+    cur.close()
+    logger.info(f"[DESC] Ter-update {total_updated} baris deskripsi WC.")
 
 
 # ---------- Main ----------
@@ -693,8 +765,12 @@ def main():
         ids = list(blacklist)
         logger.info("[PURGE] Menghapus baris PERNR blacklist dari tabel ...")
         for i in range(0, len(ids), CHUNK):
-            chunk = ids[i : i + CHUNK]
-            q = f"DELETE FROM `{TABLE}` WHERE `pernr` IN ({','.join(['%s']*len(chunk))})"
+            chunk = ids[i: i + CHUNK]
+            q = (
+                f"DELETE FROM `{TABLE}` WHERE `pernr` IN ("
+                + ",".join(["%s"] * len(chunk))
+                + ")"
+            )
             try:
                 cur.execute(q, chunk)
                 total_purged += cur.rowcount
@@ -782,7 +858,7 @@ def main():
         elif norm:
             try:
                 for i in range(0, len(norm), args.batch):
-                    chunk = norm[i : i + args.batch]
+                    chunk = norm[i: i + args.batch]
                     cur.executemany(UPSERT_SQL, chunk)
                     inserted_for_pair += len(chunk)
                 db.commit()
@@ -814,6 +890,13 @@ def main():
             check_and_update_roles(rfc, db, role_pernrs, role_value="INDUK")
         except Exception as e:
             logger.info(f"[WARN] Gagal update role dari {RFC_ROLE_NAME}: {e}")
+
+    # Setelah role selesai (INDUK atau kosong), update deskripsi WC
+    if not args.dry_run:
+        try:
+            update_wc_descriptions(rfc, db, pairs)
+        except Exception as e:
+            logger.info(f"[WARN] Gagal update deskripsi WC dari {RFC_DESC_NAME}: {e}")
 
     db.close()
 

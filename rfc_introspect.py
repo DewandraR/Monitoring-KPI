@@ -11,7 +11,7 @@ cara pakai cepat
 
 Lihat semua metadata di layar:
 
-python rfc_introspect.py --rfc CR_PERSONS_OF_WORKCENTER --dump
+python rfc_introspect.py --rfc Z_FM_GET_WC_DESC --dump
 
 
 Simpan metadata ke JSON (buat referensi / mapping ke DB):

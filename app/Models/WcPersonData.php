@@ -26,6 +26,8 @@ class WcPersonData extends Model
         'stext',
         'arbpl',
         'werks',
+        'desc',
+        'role',
     ];
 
     /** ====== BLACKLIST NIK (global) ====== */
@@ -170,8 +172,8 @@ class WcPersonData extends Model
             ->map(fn($t) => mb_strtolower(trim($t)))
             ->values();
 
-        // Deteksi nama multi-kata tanpa angka
-        if ($phrases->isEmpty() && preg_match('/^[\p{L}\s]+$/u', $q)) {
+        // Deteksi nama/deskripsi multi-kata tanpa angka → treat sebagai frasa
+        if ($phrases->isEmpty() && preg_match('/^[\p{L}\s\.]+$/u', $q)) {
             preg_match_all('/\p{L}+/u', $q, $words);
             if (count($words[0]) >= 2) {
                 $phrases = collect([mb_strtolower($q)]);
@@ -179,19 +181,26 @@ class WcPersonData extends Model
         }
 
         return $query->where(function (Builder $outer) use ($tokens, $phrases) {
-            // Frasa nama -> hanya short/stext
+            // Frasa nama / deskripsi (dalam kutip)
             foreach ($phrases as $p) {
                 $outer->orWhere(function (Builder $qq) use ($p) {
                     $qq->whereRaw('LOWER(short) LIKE ?', ["%{$p}%"])
-                        ->orWhereRaw('LOWER(stext) LIKE ?', ["%{$p}%"]);
+                        ->orWhereRaw('LOWER(stext) LIKE ?', ["%{$p}%"])
+                        // desc pakai backtick karena reserved word
+                        ->orWhereRaw('LOWER(`desc`) LIKE ?', ["%{$p}%"]);
                 });
             }
 
-            // Token umum -> OR ke semua kolom searchable (tanpa arbid)
+            // Token umum → OR ke semua kolom searchable (termasuk desc)
             foreach ($tokens as $t) {
                 $outer->orWhere(function (Builder $qq) use ($t) {
                     foreach (self::$searchable as $col) {
-                        $qq->orWhereRaw("LOWER($col) LIKE ?", ["%{$t}%"]);
+                        if ($col === 'desc') {
+                            // reserved word → pakai backtick
+                            $qq->orWhereRaw('LOWER(`desc`) LIKE ?', ["%{$t}%"]);
+                        } else {
+                            $qq->orWhereRaw("LOWER($col) LIKE ?", ["%{$t}%"]);
+                        }
                     }
                 });
             }

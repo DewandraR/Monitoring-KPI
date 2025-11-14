@@ -17,6 +17,10 @@ class ReportGenerator extends Component
     public $selectedPernr = null;
     public $detailData = [];
 
+    // <<< BARU: simpan pilihan user & list pernr di halaman saat ini >>>
+    public array $selectedPernrs = [];
+    public array $currentPagePernrs = [];
+
     private $aggregateColumns = [
         'total_jam',
         'mint2',
@@ -44,14 +48,12 @@ class ReportGenerator extends Component
         $start = Carbon::now()->startOfMonth();
         $end   = Carbon::now()->subDay();
 
-        // Jika hari ini tanggal 1, maka tidak ada rentang (biarkan kosong)
         if ($end->lt($start)) {
             $this->detailData = [];
             $this->showDetailModal = false;
             return;
         }
 
-        // Ambil data asli per hari di rentang itu
         $rows = ReportData::query()
             ->whereRaw('UPPER(TRIM(werks)) = ?', [$this->werks])
             ->where('pernr', $clickedPernr)
@@ -59,11 +61,9 @@ class ReportGenerator extends Component
             ->orderBy('begda', 'asc')
             ->get();
 
-        // Simpan per tanggal, dan ambil nama jika ada
         $byDate = $rows->keyBy('begda');
         $name   = optional($rows->first())->cname;
 
-        // Susun list lengkap 1..H-1; isi '-' jika tidak ada data
         $detail = [];
         $cursor = $start->copy();
         while ($cursor->lte($end)) {
@@ -106,6 +106,50 @@ class ReportGenerator extends Component
         $this->detailData = [];
     }
 
+    /** ==== EXPORT PDF / EXCEL (gunakan session) ==== */
+    public function export(string $format)
+    {
+        // pastikan unik & string
+        $pernrs = array_values(array_unique(
+            array_map('strval', $this->selectedPernrs ?? [])
+        ));
+
+        if (empty($pernrs)) {
+            return;
+        }
+
+        session()->put('report_export.pernrs', $pernrs);
+
+        if ($format === 'pdf') {
+            return redirect()->route('report-data.export-pdf', ['werks' => $this->werks]);
+        }
+
+        if ($format === 'excel') {
+            return redirect()->route('report-data.export-excel', ['werks' => $this->werks]);
+        }
+    }
+
+    /** ==== Toggle "Pilih semua" untuk baris yang sedang ditampilkan ==== */
+    public function toggleSelectAll()
+    {
+        $current = array_map('strval', $this->currentPagePernrs ?? []);
+        if (empty($current)) {
+            return;
+        }
+
+        $selected = array_map('strval', $this->selectedPernrs ?? []);
+
+        $allSelected = count(array_intersect($current, $selected)) === count($current);
+
+        if ($allSelected) {
+            // kalau semua baris di halaman ini sudah terpilih → unselect baris-baris ini saja
+            $this->selectedPernrs = array_values(array_diff($selected, $current));
+        } else {
+            // kalau belum semua → tambahkan semua baris di halaman ini
+            $this->selectedPernrs = array_values(array_unique(array_merge($selected, $current)));
+        }
+    }
+
     public function render()
     {
         $headers = [
@@ -125,13 +169,13 @@ class ReportGenerator extends Component
             'WC Personal',
             'WC Confirmasi',
             'Plant',
-            'Shift', // <— tambahkan ini
+            'Shift',
         ];
 
         $baseQuery = ReportData::query()
             ->whereRaw('UPPER(TRIM(werks)) = ?', [$this->werks]);
 
-        // === Parsing input: frasa nama (kutip) & token (NIK/WC) ===
+        // === Parsing input search seperti sebelumnya ===
         $raw = trim((string) $this->q);
 
         preg_match_all('/"([^"]+)"/u', $raw, $m);
@@ -141,6 +185,7 @@ class ReportGenerator extends Component
             ->values();
 
         $rest = preg_replace('/"([^"]+)"/u', ' ', $raw);
+
         $tokens = collect(preg_split('/[\s,]+/u', $rest))
             ->filter()
             ->map(fn($t) => trim($t))
@@ -151,23 +196,33 @@ class ReportGenerator extends Component
 
         if ($namePhrases->isEmpty() && $raw !== '' && preg_match('/^[\p{L}\s]+$/u', $raw)) {
             preg_match_all('/\p{L}+/u', $raw, $words);
-            if (count($words[0]) >= 2) $namePhrases = collect([mb_strtolower($raw)]);
+            if (count($words[0]) >= 2) {
+                $namePhrases = collect([mb_strtolower($raw)]);
+            }
         }
 
         $baseQuery->where(function ($q) use ($pernrTokens, $arbplTokens, $namePhrases) {
             if ($pernrTokens->isNotEmpty()) {
                 $q->where(function ($qq) use ($pernrTokens) {
-                    foreach ($pernrTokens as $t) $qq->orWhere('pernr', 'LIKE', "%{$t}%");
+                    foreach ($pernrTokens as $t) {
+                        $qq->orWhere('pernr', 'LIKE', "%{$t}%");
+                    }
                 });
             }
+
             if ($arbplTokens->isNotEmpty()) {
                 $q->where(function ($qq) use ($arbplTokens) {
-                    foreach ($arbplTokens as $t) $qq->orWhere('arbpl', 'LIKE', "%{$t}%");
+                    foreach ($arbplTokens as $t) {
+                        $qq->orWhere('arbpl', 'LIKE', "%{$t}%");
+                    }
                 });
             }
+
             if ($namePhrases->isNotEmpty()) {
                 $q->where(function ($qq) use ($namePhrases) {
-                    foreach ($namePhrases as $p) $qq->orWhereRaw('LOWER(cname) LIKE ?', ["%{$p}%"]);
+                    foreach ($namePhrases as $p) {
+                        $qq->orWhereRaw('LOWER(cname) LIKE ?', ["%{$p}%"]);
+                    }
                 });
             }
         });
@@ -182,6 +237,13 @@ class ReportGenerator extends Component
             ->selectRaw(implode(', ', $selects))
             ->groupBy('pernr')
             ->get();
+
+        // <<< BARU: simpan daftar pernr yang muncul di halaman ini >>>
+        $this->currentPagePernrs = $reportData
+            ->pluck('pernr')
+            ->map(fn($p) => (string) $p)
+            ->values()
+            ->all();
 
         return view('livewire.report-generator', [
             'reportData' => $reportData,

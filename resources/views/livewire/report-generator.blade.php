@@ -7,17 +7,75 @@
 
     // Header modal: "Pilih" + header asli (tanpa Shift) + "Shift"
     $headersModal = array_merge(['Pilih'], $headersNoShift, ['Shift']);
+
+    // Hitung berapa item yang sedang terseleksi
+    $selectedCount = is_iterable($selectedPernrs ?? []) ? count($selectedPernrs) : 0;
 @endphp
 
 <div
     class="bg-white overflow-hidden shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)] sm:rounded-xl p-8 border border-emerald-100/50">
-    <h3 class="text-3xl font-bold text-emerald-800 tracking-wide">
-        {{ __('Report Data - yppr058_data') }} (Ringkasan per Personal No.)
-    </h3>
-    <p class="mt-1 mb-6 text-sm text-gray-600">
-        Plant terpilih:
-        <span class="font-bold text-emerald-700">{{ $werks ?? request()->route('werks') }}</span>
-    </p>
+
+    {{-- HEADER + BUTTON EXPORT --}}
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-6">
+        <div>
+            <h3 class="text-3xl font-bold text-emerald-800 tracking-wide">
+                {{ __('Report Data - yppr058_data') }} (Ringkasan per Personal No.)
+            </h3>
+            <p class="mt-1 text-sm text-gray-600">
+                Plant terpilih:
+                <span class="font-bold text-emerald-700">{{ $werks ?? request()->route('werks') }}</span>
+            </p>
+            <p class="mt-1 text-xs text-gray-500">
+                Centang <span class="font-semibold">Personal No.</span> yang ingin di-export,
+                lalu klik tombol <span class="font-semibold">Export</span> di sebelah kanan.
+            </p>
+        </div>
+
+        <div class="flex flex-col items-end gap-1">
+            <div class="relative inline-block text-left">
+                {{-- Tombol utama Export (dropdown PDF / Excel) --}}
+                <button id="export-dropdown-button" type="button"
+                    class="inline-flex items-center gap-2 rounded-lg border border-emerald-600 bg-emerald-600 px-4 py-2
+                           text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 focus:outline-none
+                           focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4" />
+                    </svg>
+                    <span>Export</span>
+
+                    {{-- Badge jumlah terpilih --}}
+                    <span
+                        class="inline-flex items-center justify-center rounded-full bg-white/15 px-2 py-0.5 text-[11px] font-semibold">
+                        {{ $selectedCount }}
+                    </span>
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                    </svg>
+                </button>
+
+                {{-- Dropdown menu --}}
+                <div id="export-dropdown-menu"
+                    class="hidden origin-top-right absolute right-0 mt-2 w-40 rounded-md shadow-lg bg-white ring-1 ring-black/10 z-20">
+                    <div class="py-1">
+                        {{-- PDF --}}
+                        <button type="button" wire:click="export('pdf')"
+                            class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                            PDF
+                        </button>
+                        {{-- Excel --}}
+                        <button type="button" wire:click="export('excel')"
+                            class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                            Excel
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     {{-- ===== Filter ===== --}}
     <div class="mb-8 p-6 bg-emerald-50 rounded-lg shadow-inner border border-emerald-100">
@@ -37,17 +95,35 @@
                 @enderror
             </div>
         </div>
-        <div wire:loading class="mt-4 text-center text-emerald-700 font-semibold transition duration-150">
-            {{ __('Memuat data...') }}
-        </div>
+        {{-- wire:loading dihapus seperti permintaan --}}
     </div>
 
     {{-- ===== Ringkasan ===== --}}
     <div wire:key="summary-{{ md5(($werks ?? request()->route('werks')) . '|' . $q) }}">
+
         <div class="overflow-x-auto overflow-y-auto max-h-[75vh] shadow-xl sm:rounded-lg border border-gray-200/75">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="sticky top-0 z-10 bg-gradient-to-r from-emerald-700 to-green-800">
                     <tr>
+                        @php
+                            $pagePernrs = array_map('strval', $currentPagePernrs ?? []);
+                            $selectedP = array_map('strval', $selectedPernrs ?? []);
+                            $allCurrentSelected =
+                                !empty($pagePernrs) &&
+                                count(array_intersect($pagePernrs, $selectedP)) === count($pagePernrs);
+                        @endphp
+
+                        {{-- Kolom checkbox + label (select all) --}}
+                        <th scope="col"
+                            class="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">
+                            <label class="inline-flex items-center gap-2 select-none">
+                                <input id="check-all-summary" type="checkbox"
+                                    class="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                                    @checked($allCurrentSelected)>
+                                <span>Pilih</span>
+                            </label>
+                        </th>
+
                         @foreach ($headersSummary as $header)
                             <th scope="col"
                                 class="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">
@@ -62,43 +138,85 @@
                         <tr wire:key="report-row-{{ $data->pernr }}"
                             wire:click="showPernrDetail({{ \Illuminate\Support\Js::from((string) $data->pernr) }})"
                             class="odd:bg-white even:bg-emerald-50/60 hover:bg-emerald-100 transition-colors duration-200 ease-in-out cursor-pointer">
+
+                            {{-- Checkbox pilih NIK untuk export --}}
+                            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                <input type="checkbox" wire:model.live="selectedPernrs"
+                                    value="{{ (string) $data->pernr }}"
+                                    class="summary-check rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                                    wire:click.stop>
+                            </td>
+
+                            {{-- NO --}}
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-extrabold text-emerald-800">
                                 {{ $loop->iteration }}</td>
+
+                            {{-- PERSONAL NO --}}
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                                 {{ $data->pernr }}</td>
+
+                            {{-- RENTANG TANGGAL --}}
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                                 {{ Carbon::createFromFormat('Ymd', $data->min_begda)->isoFormat('YY-MM-DD') }} -
                                 {{ Carbon::createFromFormat('Ymd', $data->max_begda)->isoFormat('YY-MM-DD') }}
                             </td>
+
+                            {{-- MENIT HADIR --}}
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800 text-right font-mono">
                                 {{ number_format($data->total_jam, 1) }}</td>
+
+                            {{-- MENIT KERJA --}}
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800 text-right font-mono">
                                 {{ (int) $data->mint2 }}</td>
+
+                            {{-- TOTAL MENIT INSPECT --}}
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800 text-right font-mono">
                                 {{ (int) $data->mintu }}</td>
+
+                            {{-- TOTAL DETIK INSPECT --}}
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800 text-right font-mono">
                                 {{ (int) $data->mintu2 }}</td>
+
+                            {{-- TOTAL DETIK CONFIRMATION --}}
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800 text-right font-mono">
                                 {{ (int) $data->mintu3 }}</td>
+
+                            {{-- NAMA --}}
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                                 {{ $data->cname }}</td>
+
+                            {{-- UPAH HADIR --}}
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800 text-right font-mono">
                                 {{ number_format($data->gji, 2) }}</td>
+
+                            {{-- UPAH INSP --}}
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800 text-right font-mono">
                                 {{ number_format($data->gji2, 2) }}</td>
+
+                            {{-- VARIANT UPAH --}}
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800 text-right font-mono">
                                 {{ number_format($data->varnt, 2) }}</td>
+
+                            {{-- PROSENTASE UPAH --}}
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800 text-right font-mono">
                                 {{ number_format($data->varnt1, 2) }}</td>
+
+                            {{-- WC PERSONAL --}}
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{{ $data->arbpl }}</td>
+
+                            {{-- WC CONFIRMASI --}}
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{{ $data->arbpl2 }}</td>
+
+                            {{-- PLANT --}}
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{{ $data->werks }}</td>
+
+                            {{-- SHIFT --}}
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800 text-center font-mono">
                                 {{ is_null($data->shift) ? '-' : (int) $data->shift }}</td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="{{ count($headersSummary) }}"
+                            <td colspan="{{ count($headersSummary) + 1 }}"
                                 class="px-6 py-10 text-center text-lg text-gray-500 bg-gray-50">
                                 {{ __('Tidak ada data untuk filter saat ini.') }}
                             </td>
@@ -126,8 +244,8 @@
                             Detail Tanggal (Personal No.: {{ $selectedPernr }})
                         </h3>
                         <button wire:click="closeDetailModal" type="button" class="text-white hover:text-gray-200">
-                            <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                                stroke="currentColor" aria-hidden="true">
+                            <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none"
+                                viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                     d="M6 18L18 6M6 6l12 12" />
                             </svg>
@@ -166,6 +284,7 @@
                                     @foreach ($detailData as $data)
                                         <tr wire:key="detail-row-{{ $selectedPernr }}-{{ $data['begda'] ?? $loop->iteration }}"
                                             class="hover:bg-emerald-50/70 transition-colors duration-150 ease-in-out">
+
                                             {{-- PILIH --}}
                                             <td class="px-6 py-4 whitespace-nowrap text-sm">
                                                 <input type="checkbox"
@@ -299,7 +418,7 @@
         }
 
         /* GLOBAL: kalau ada proses refresh, SEMUA tombol refresh di mana pun
-                                           (modal baru sekalipun) kelihatan "dilarang" */
+                       (modal baru sekalipun) kelihatan "dilarang" */
         body.yppr058-refresh-busy #btn-refresh-sap,
         body.yppr058-refresh-busy #btn-refresh-sap:hover,
         body.yppr058-refresh-busy #btn-refresh-sap:focus {
@@ -313,7 +432,6 @@
         }
     </style>
 @endpush
-
 
 {{-- ======= SCRIPTS (dibind sekali) ======= --}}
 @once
@@ -331,6 +449,26 @@
                 const $ = (sel, root = document) => root.querySelector(sel);
                 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
+                // ===== Dropdown Export (PDF / Excel) =====
+                const exportBtn = document.getElementById('export-dropdown-button');
+                const exportMenu = document.getElementById('export-dropdown-menu');
+
+                if (exportBtn && exportMenu) {
+                    exportBtn.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        exportMenu.classList.toggle('hidden');
+                    });
+
+                    document.addEventListener('click', function(e) {
+                        if (!exportMenu.classList.contains('hidden') &&
+                            !exportBtn.contains(e.target) &&
+                            !exportMenu.contains(e.target)) {
+                            exportMenu.classList.add('hidden');
+                        }
+                    });
+                }
+
                 // ===== Toast helpers (progress & summary) =====
                 let toastStack;
 
@@ -346,7 +484,8 @@
                 function makeCard(html) {
                     ensureToastStack();
                     const card = document.createElement('div');
-                    card.className = 'pointer-events-auto w-[360px] rounded-xl border border-gray-200 bg-white shadow-2xl';
+                    card.className =
+                        'pointer-events-auto w-[360px] rounded-xl border border-gray-200 bg-white shadow-2xl';
                     card.innerHTML = html;
                     toastStack.appendChild(card);
                     return card;
@@ -401,15 +540,17 @@
 
                 function showSummaryToast(summary) {
                     const {
-                        ok = 0, fail = 0, total = 0, pernrs = []
+                        ok = 0,
+                            fail = 0,
+                            total = 0,
+                            pernrs = []
                     } = summary || {};
                     const html = `
       <div class="p-4">
         <div class="flex items-start gap-3">
           <div class="h-10 w-10 rounded-full ${fail ? 'bg-amber-100' : 'bg-emerald-100'} flex items-center justify-center">
             <svg class="h-6 w-6 ${fail ? 'text-amber-700' : 'text-emerald-700'}" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2a10 10 0 100 20 10 10 0 000-20zM11 6h2v8h-2V6zm0 10h2v2h-2v-2z"/>
-            </svg>
+              <path d="M12 2a10 10 0 100 20 10 10 0 000-20zM11 6h2v8h-2V6zm0 10h2v2h-2v-2z"/></svg>
           </div>
           <div class="flex-1">
             <div class="font-bold ${fail ? 'text-amber-800' : 'text-emerald-800'}">Refresh selesai</div>
@@ -423,12 +564,25 @@
                     setTimeout(() => card.remove(), 7000);
                 }
 
-                // ===== Checkbox select-all di modal =====
+                // ===== Checkbox select-all =====
                 function onChange(e) {
+                    // ceklis semua di modal detail
                     if (e.target && e.target.id === 'check-all-detail') {
                         const modal = $('#yppr058-modal') || document;
                         const checked = e.target.checked;
                         $$('.refresh-check', modal).forEach(cb => cb.checked = checked);
+                    }
+
+                    // ceklis semua di tabel ringkasan
+                    if (e.target && e.target.id === 'check-all-summary') {
+                        const checked = e.target.checked;
+                        $$('.summary-check').forEach(cb => {
+                            cb.checked = checked;
+                            // trigger change supaya Livewire update selectedPernrs
+                            cb.dispatchEvent(new Event('change', {
+                                bubbles: true
+                            }));
+                        });
                     }
                 }
                 document.addEventListener('change', onChange);
@@ -436,9 +590,7 @@
                 // ===== Single-running guard =====
                 let busy = false;
 
-                // Toggle state tombol (hanya tombol yang dapat cursor not-allowed)
                 function setButtonBusy(btn, on) {
-                    // tandai global di body → semua tombol refresh ikut kelihatan "mati"
                     document.body.classList.toggle('yppr058-refresh-busy', !!on);
 
                     if (!btn) return;
@@ -532,7 +684,6 @@
                         ts: Date.now()
                     }));
 
-                    // lepas kunci sebelum reload (kalau reload gagal, tombol kembali aktif)
                     setButtonBusy(btn, false);
                     busy = false;
 
@@ -556,8 +707,7 @@
                     refreshSelected();
                 }
 
-                document.addEventListener('click', onClick, true); // pakai capture supaya intercept duluan
-
+                document.addEventListener('click', onClick, true);
 
                 // ===== Setelah halaman reload: prefill search + tampilkan summary toast =====
                 function afterReloadTasks() {
@@ -586,7 +736,6 @@
                     }
                 }
 
-                // jalankan saat DOM siap (termasuk Livewire)
                 window.addEventListener('DOMContentLoaded', afterReloadTasks);
                 document.addEventListener('livewire:load', afterReloadTasks);
             })
