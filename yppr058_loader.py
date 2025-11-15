@@ -923,7 +923,7 @@ def main():
         yest = today - datetime.timedelta(days=1)
         first = yest.replace(day=1)
         logger.info(
-            f"MODE: default loop harian (descending) {yyyymmdd(yest)} ↓ {yyyymmdd(first)}"
+            f"MODE: default loop harian (descending) {yyyymmdd(yest)} -> {yyyymmdd(first)}"
         )
         total_all_ins = 0
         total_all_del = 0

@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Schedule;
 
 // --- Jadwal untuk YPPR079 (Sudah Ada & Synchronous) ---
 Schedule::command('Sync:wc_person')
-    ->dailyAt('02.00')
+    ->dailyAt('01.00')
     ->timezone('Asia/Jakarta')
     ->before(function () {
         echo now()->format('Y-m-d H:i:s') . ' Running ["artisan" Sync:wc_person]' . PHP_EOL;
@@ -16,7 +16,7 @@ Schedule::command('Sync:wc_person')
 
 // ðŸŒŸ --- Jadwal YSDR048 (Diubah menjadi Synchronous) ---
 Schedule::command('sync:yppr058')
-    ->dailyAt('02.00')
+    ->dailyAt('01.00')
     ->timezone('Asia/Jakarta')
     ->before(function () {
         echo now()->format('Y-m-d H:i:s') . ' Running ["sync:yppr058]' . PHP_EOL;

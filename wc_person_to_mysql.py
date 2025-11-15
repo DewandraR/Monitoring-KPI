@@ -711,7 +711,7 @@ def main():
         logger.info(f"Log tersimpan di: {RUN_LOG_FILE}")
         sys.exit(2)
     logger.info(
-        f"OK. DATE efektif untuk semua panggilan: {args.date_all} → {dats_const}\n"
+        f"OK. DATE efektif untuk semua panggilan: {args.date_all} -> {dats_const}\n"
     )
 
     # Blacklist

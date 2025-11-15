@@ -119,21 +119,20 @@ class WcPersonList extends Component
             return;
         }
 
+        // SIMPAN KE SESSION (akan dibaca di WcPersonExportController)
+        session()->put('wc_person_export.pernrs', $pernrs);
+        session()->put('wc_person_export.q', $this->q);
+
+        // Bangun URL TANPA parameter panjang
         if ($type === 'pdf') {
-            $url = route('wc-person.export-pdf', [
-                'pernrs' => $pernrs,
-                'q'      => $this->q,
-            ]);
+            $url = route('wc-person.export-pdf');
         } elseif ($type === 'excel') {
-            $url = route('wc-person.export-excel', [
-                'pernrs' => $pernrs,
-                'q'      => $this->q,
-            ]);
+            $url = route('wc-person.export-excel');
         } else {
             return; // tipe tidak dikenal
         }
 
-        // Livewire v3: kirim event ke browser
+        // Kirim ke browser → window.open(url, '_blank')
         $this->dispatch('wc-person-export', url: $url);
     }
 }

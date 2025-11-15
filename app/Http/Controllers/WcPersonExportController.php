@@ -11,17 +11,24 @@ use Maatwebsite\Excel\Facades\Excel;
 class WcPersonExportController extends Controller
 {
     /**
-     * Ambil data WC Person hanya untuk NIK yang disimpan di session.
+     * Ambil data WC Person hanya untuk NIK yang disimpan di session
+     * / atau dikirim lewat query string, TANPA duplikat pernr.
      */
-    protected function getRowsFromSession()
+    protected function getRows(Request $request)
     {
+        // 1) Prioritas: session
         $pernrs = session()->get('wc_person_export.pernrs', []);
+
+        // 2) Fallback: query string
+        if (!is_array($pernrs) || empty($pernrs)) {
+            $pernrs = $request->query('pernrs', []);
+        }
 
         if (!is_array($pernrs)) {
             $pernrs = [];
         }
 
-        // Rapikan & unik
+        // Rapikan & unik di level input
         $pernrs = array_values(array_unique(
             array_filter(array_map('strval', $pernrs))
         ));
@@ -30,11 +37,14 @@ class WcPersonExportController extends Controller
             return collect();
         }
 
+        // === PENTING: samakan dengan view → unik per NIK ===
         return WcPersonData::query()
             ->whereIn('pernr', $pernrs)
             ->orderByRaw('CAST(werks AS UNSIGNED), werks')
             ->orderBy('pernr')
-            ->get();
+            ->get()
+            ->unique('pernr')   // buang duplikat pernr dari DB
+            ->values();         // reset index collection
     }
 
     /**
@@ -43,13 +53,13 @@ class WcPersonExportController extends Controller
      */
     public function exportPdf(Request $request)
     {
-        $rows = $this->getRowsFromSession();
+        $rows = $this->getRows($request);
 
         if ($rows->isEmpty()) {
             abort(404, 'Tidak ada NIK yang dipilih untuk di-export atau data tidak ditemukan.');
         }
 
-        $q = (string) session()->get('wc_person_export.q', '');
+        $q = (string) session()->get('wc_person_export.q', $request->query('q', ''));
 
         $pdf = Pdf::loadView('pdf.wc-person', [
             'rows' => $rows,
@@ -65,13 +75,13 @@ class WcPersonExportController extends Controller
      */
     public function exportExcel(Request $request)
     {
-        $rows = $this->getRowsFromSession();
+        $rows = $this->getRows($request);
 
         if ($rows->isEmpty()) {
             abort(404, 'Tidak ada NIK yang dipilih untuk di-export atau data tidak ditemukan.');
         }
 
-        $q = (string) session()->get('wc_person_export.q', '');
+        $q = (string) session()->get('wc_person_export.q', $request->query('q', ''));
 
         return Excel::download(new WcPersonExport($rows, $q), 'wc-person.xlsx');
     }
