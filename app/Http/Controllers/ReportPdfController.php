@@ -31,10 +31,16 @@ class ReportPdfController extends Controller
             'varnt1',
         ];
 
-        $sumSelects     = array_map(fn($col) => "SUM($col) as $col", $aggregateColumns);
-        $nonAggSelects  = array_map(fn($col) => "MAX($col) as $col", ['cname', 'arbpl', 'arbpl2', 'werks']);
+        $sumSelects = array_map(fn($col) => "SUM($col) as $col", $aggregateColumns);
+
+        // ⬇️ DIUBAH: ikutkan 'desc' sebagai non-aggregate (MAX)
+        $nonAggSelects = array_map(
+            fn($col) => "MAX(`$col`) as `$col`",
+            ['cname', 'arbpl', 'desc', 'arbpl2', 'werks']
+        );
+
         $nonAggSelects[] = 'MIN(shift) as shift';
-        $dateRangeSel   = ['MIN(begda) as min_begda', 'MAX(begda) as max_begda'];
+        $dateRangeSel    = ['MIN(begda) as min_begda', 'MAX(begda) as max_begda'];
 
         $selects = array_merge(['pernr'], $dateRangeSel, $nonAggSelects, $sumSelects);
 

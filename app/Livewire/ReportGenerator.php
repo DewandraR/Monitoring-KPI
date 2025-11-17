@@ -86,6 +86,7 @@ class ReportGenerator extends Component
                     'varnt'     => null,
                     'varnt1'    => null,
                     'arbpl'     => null,
+                    'desc'      => null,          // <--- TAMBAHAN
                     'arbpl2'    => null,
                     'werks'     => $this->werks,
                     'shift'     => null,
@@ -166,8 +167,11 @@ class ReportGenerator extends Component
             'Upah Insp',
             'Variant Upah',
             'Prosentase Upah',
+
             'WC Personal',
+            'DESC WC',        // <--- TAMBAHAN
             'WC Confirmasi',
+
             'Plant',
             'Shift',
         ];
@@ -202,6 +206,7 @@ class ReportGenerator extends Component
         }
 
         $baseQuery->where(function ($q) use ($pernrTokens, $arbplTokens, $namePhrases) {
+            // NIK
             if ($pernrTokens->isNotEmpty()) {
                 $q->where(function ($qq) use ($pernrTokens) {
                     foreach ($pernrTokens as $t) {
@@ -210,26 +215,38 @@ class ReportGenerator extends Component
                 });
             }
 
+            // Token non-angka → WC code (arbpl) ATAU deskripsi WC (desc)
             if ($arbplTokens->isNotEmpty()) {
                 $q->where(function ($qq) use ($arbplTokens) {
                     foreach ($arbplTokens as $t) {
-                        $qq->orWhere('arbpl', 'LIKE', "%{$t}%");
+                        $qq->orWhere('arbpl', 'LIKE', "%{$t}%")
+                            ->orWhere('desc',  'LIKE', "%{$t}%");   // <--- cari DESC WC juga
                     }
                 });
             }
 
+            // Frasa di dalam tanda kutip (nama orang / DESC WC)
             if ($namePhrases->isNotEmpty()) {
                 $q->where(function ($qq) use ($namePhrases) {
                     foreach ($namePhrases as $p) {
-                        $qq->orWhereRaw('LOWER(cname) LIKE ?', ["%{$p}%"]);
+                        $qq->orWhereRaw('LOWER(cname) LIKE ?', ["%{$p}%"])
+                            ->orWhereRaw('LOWER(`desc`) LIKE ?',  ["%{$p}%"]); // <--- DESC WC pakai kutip
                     }
                 });
             }
         });
 
-        $sumSelects     = array_map(fn($col) => "SUM($col) as $col", $this->aggregateColumns);
-        $nonAggSelects  = array_map(fn($col) => "MAX($col) as $col", ['cname', 'arbpl', 'arbpl2', 'werks']);
+
+        $sumSelects = array_map(fn($col) => "SUM($col) as $col", $this->aggregateColumns);
+
+        // non-aggregate (diambil salah satu, misal MAX) termasuk DESC WC
+        $nonAggSelects = array_map(
+            fn($col) => "MAX(`$col`) as `$col`",
+            ['cname', 'arbpl', 'desc', 'arbpl2', 'werks']
+        );
+
         $nonAggSelects[] = 'MIN(shift) as shift';
+
         $dateRangeSel   = ['MIN(begda) as min_begda', 'MAX(begda) as max_begda'];
         $selects        = array_merge(['pernr'], $dateRangeSel, $nonAggSelects, $sumSelects);
 

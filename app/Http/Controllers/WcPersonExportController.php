@@ -64,7 +64,7 @@ class WcPersonExportController extends Controller
         $pdf = Pdf::loadView('pdf.wc-person', [
             'rows' => $rows,
             'q'    => $q,
-        ])->setPaper('a4', 'landscape');
+        ])->setPaper('a4', 'portrait');
 
         return $pdf->stream('wc-person.pdf');
     }

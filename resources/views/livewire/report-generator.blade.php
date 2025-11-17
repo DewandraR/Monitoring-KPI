@@ -12,98 +12,186 @@
     $selectedCount = is_iterable($selectedPernrs ?? []) ? count($selectedPernrs) : 0;
 @endphp
 
+{{-- ROOT ELEMENT --}}
 <div
-    class="bg-white overflow-hidden shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)] sm:rounded-xl p-8 border border-emerald-100/50">
+    class="bg-white overflow-hidden shadow-[0_25px_50px_-12px_rgba(0,0,0,0.15)] sm:rounded-xl p-8 border border-emerald-50 relative">
 
-    {{-- HEADER + BUTTON EXPORT --}}
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-6">
+    {{-- DEKORASI LATAR BELAKANG --}}
+    <div
+        class="absolute top-0 right-0 -mt-4 -mr-4 w-64 h-64 bg-gradient-to-br from-emerald-100/40 to-transparent rounded-full blur-3xl pointer-events-none">
+    </div>
+
+    {{-- ======================================================================== --}}
+    {{-- BAGIAN 1: HEADER MEWAH & TOMBOL EXPORT --}}
+    {{-- ======================================================================== --}}
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8 relative z-10">
+
+        {{-- JUDUL HALAMAN --}}
         <div>
-            <h3 class="text-3xl font-bold text-emerald-800 tracking-wide">
-                {{ __('Report Data - yppr058_data') }} (Ringkasan per Personal No.)
+            <h3
+                class="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-800 to-teal-600 tracking-tight drop-shadow-sm">
+                {{ __('Report Data') }} <span class="text-emerald-900/20 font-light">—</span> yppr058_data
             </h3>
-            <p class="mt-1 text-sm text-gray-600">
-                Plant terpilih:
-                <span class="font-bold text-emerald-700">{{ $werks ?? request()->route('werks') }}</span>
+            <p class="mt-1.5 text-sm text-slate-500">
+                Plant terpilih: <span
+                    class="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">{{ $werks ?? request()->route('werks') }}</span>
             </p>
-            <p class="mt-1 text-xs text-gray-500">
-                Centang <span class="font-semibold">Personal No.</span> yang ingin di-export,
-                lalu klik tombol <span class="font-semibold">Export</span> di sebelah kanan.
+            <p class="mt-0.5 text-xs text-gray-400">
+                (Ringkasan per Personal No.)
             </p>
         </div>
 
-        <div class="flex flex-col items-end gap-1">
-            <div class="relative inline-block text-left">
-                {{-- Tombol utama Export (dropdown PDF / Excel) --}}
+        {{-- TOMBOL EXPORT (LUXURY STYLE) --}}
+        <div class="flex flex-col items-end">
+            <div class="relative inline-block text-left group">
+
+                {{-- Tombol Utama --}}
                 <button id="export-dropdown-button" type="button"
-                    class="inline-flex items-center gap-2 rounded-lg border border-emerald-600 bg-emerald-600 px-4 py-2
-                           text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 focus:outline-none
-                           focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
-                        stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4" />
+                    class="group relative inline-flex items-center gap-3 rounded-full 
+                           bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 
+                           px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-emerald-600/30 
+                           ring-1 ring-white/20 transition-all duration-300 ease-out 
+                           hover:scale-[1.02] hover:shadow-emerald-600/50 hover:ring-white/40 hover:from-emerald-500 hover:to-teal-700
+                           focus:outline-none focus:ring-4 focus:ring-emerald-500/30">
+
+                    {{-- Animasi Kilau --}}
+                    <div
+                        class="absolute inset-0 rounded-full bg-gradient-to-r from-transparent via-white/20 to-transparent opacity-0 group-hover:animate-shine pointer-events-none">
+                    </div>
+
+                    {{-- Icon Download --}}
+                    <svg xmlns="http://www.w3.org/2000/svg"
+                        class="h-5 w-5 text-emerald-100 transition-transform duration-300 group-hover:-translate-y-0.5"
+                        fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                     </svg>
-                    <span>Export</span>
 
-                    {{-- Badge jumlah terpilih --}}
-                    <span
-                        class="inline-flex items-center justify-center rounded-full bg-white/15 px-2 py-0.5 text-[11px] font-semibold">
-                        {{ $selectedCount }}
-                    </span>
+                    <span class="tracking-wide text-shadow-sm">Export Report</span>
 
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
-                        stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                    {{-- Badge Jumlah Terpilih --}}
+                    @if ($selectedCount > 0)
+                        <span
+                            class="flex h-6 w-6 items-center justify-center rounded-full bg-white text-emerald-700 text-[10px] font-black shadow-inner shadow-gray-200 transition-transform duration-300 group-hover:scale-110">
+                            {{ $selectedCount }}
+                        </span>
+                    @endif
+
+                    {{-- Icon Chevron --}}
+                    <svg xmlns="http://www.w3.org/2000/svg"
+                        class="h-4 w-4 text-emerald-200/70 transition-transform duration-300 group-hover:rotate-180"
+                        fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
                     </svg>
                 </button>
 
-                {{-- Dropdown menu --}}
+                {{-- Dropdown Menu --}}
                 <div id="export-dropdown-menu"
-                    class="hidden origin-top-right absolute right-0 mt-2 w-40 rounded-md shadow-lg bg-white ring-1 ring-black/10 z-20">
-                    <div class="py-1">
-                        {{-- PDF --}}
-                        <button type="button" wire:click="export('pdf')"
-                            class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                            PDF
-                        </button>
-                        {{-- Excel --}}
-                        <button type="button" wire:click="export('excel')"
-                            class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                            Excel
-                        </button>
+                    class="hidden absolute right-0 mt-3 w-52 origin-top-right rounded-xl bg-white p-2 shadow-2xl shadow-emerald-900/10 ring-1 ring-black/5 focus:outline-none z-50 transform transition-all duration-200 border border-gray-100">
+
+                    <div
+                        class="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-gray-400 border-b border-gray-100 mb-1">
+                        Pilih Format
                     </div>
+
+                    {{-- PDF Option --}}
+                    <button type="button" wire:click="export('pdf')"
+                        class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 transition-all hover:bg-red-50 hover:text-red-700 group/item mb-1">
+                        <div
+                            class="flex h-8 w-8 items-center justify-center rounded-full bg-red-100 text-red-600 group-hover/item:bg-red-200 transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                                stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                            </svg>
+                        </div>
+                        <span>Download PDF</span>
+                    </button>
+
+                    {{-- Excel Option --}}
+                    <button type="button" wire:click="export('excel')"
+                        class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 transition-all hover:bg-emerald-50 hover:text-emerald-700 group/item">
+                        <div
+                            class="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 group-hover/item:bg-emerald-200 transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                                stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                        </div>
+                        <span>Download Excel</span>
+                    </button>
                 </div>
             </div>
         </div>
     </div>
 
-    {{-- ===== Filter ===== --}}
-    <div class="mb-8 p-6 bg-emerald-50 rounded-lg shadow-inner border border-emerald-100">
-        <p class="text-lg font-bold text-emerald-700 mb-4">{{ __('Filter Data Berdasarkan Kriteria:') }}</p>
+    {{-- ======================================================================== --}}
+    {{-- BAGIAN 2: FILTER PENCARIAN (DIPERBAIKI: INPUT LEBIH TINGGI) --}}
+    {{-- ======================================================================== --}}
+    <div class="mb-8 p-6 bg-emerald-50/50 rounded-xl shadow-inner border border-emerald-100/80 backdrop-blur-sm">
+        <p class="text-lg font-bold text-emerald-800 mb-4 flex items-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+            </svg>
+            {{ __('Filter Data Berdasarkan Kriteria:') }}
+        </p>
+
         <div class="grid grid-cols-1 gap-6">
-            <div class="relative">
-                {{-- id agar bisa diprefill setelah reload --}}
-                <x-text-input id="q-input" type="text" wire:model.live.debounce.500ms="q" placeholder=" "
-                    class="floating-input peer block w-full p-3 border-gray-300 focus:border-emerald-600 focus:ring-emerald-600 rounded-lg shadow-sm transition duration-150" />
-                <x-input-label for="q"
-                    value='Cari NIK / WC. Untuk nama tepat gunakan tanda kutip, contoh nama: "***** ****".'
-                    class="floating-label absolute text-gray-500 duration-300 transform -translate-y-4 scale-75 top-4 left-4 z-10 origin-[0]
-                           peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0
-                           peer-focus:scale-75 peer-focus:-translate-y-4" />
+            <div class="relative group">
+                {{-- INPUT: pt-6 agar teks turun ke bawah, h-14 agar cukup tinggi --}}
+                <input id="q-input" type="text" wire:model.live.debounce.500ms="q" placeholder=" "
+                    class="peer block w-full pt-6 pb-2 px-4 border-gray-300 text-gray-900 bg-white rounded-lg 
+                           shadow-sm focus:border-emerald-500 focus:ring-emerald-500 focus:ring-2 transition-all duration-200 h-14" />
+
+                {{-- LABEL: Diperpendek & Diposisikan di atas --}}
+                <label for="q-input"
+                    class="absolute text-gray-500 duration-300 transform 
+                           top-4 left-4 z-10 origin-[0] 
+                           
+                           /* State Normal (Floating) */
+                           -translate-y-3 scale-75 text-emerald-600 font-bold
+                           
+                           /* State Placeholder Shown (Turun ke tengah) */
+                           peer-placeholder-shown:scale-100 
+                           peer-placeholder-shown:translate-y-0 
+                           peer-placeholder-shown:text-gray-500
+                           peer-placeholder-shown:font-normal
+                           
+                           /* State Focus (Naik lagi) */
+                           peer-focus:scale-75 
+                           peer-focus:-translate-y-3 
+                           peer-focus:text-emerald-600
+                           peer-focus:font-bold">
+                    {{ __('Kata Kunci Pencarian') }}
+                </label>
+
+                {{-- HELPER TEXT: Instruksi dipindah ke sini --}}
+                <p class="mt-2 text-sm text-gray-500">
+                    Cari berdasarkan: <span class="font-semibold text-emerald-700">NIK</span>, <span
+                        class="font-semibold text-emerald-700">Work Center</span>, atau <span
+                        class="font-semibold text-emerald-700">Deskripsi</span>.
+                    <br>Gunakan tanda kutip untuk hasil tepat, contoh: <code
+                        class="bg-gray-100 px-1 rounded text-emerald-700 font-mono text-xs">"Nama Lengkap"</code> atau
+                    <code class="bg-gray-100 px-1 rounded text-emerald-700 font-mono text-xs">"DESC WC"</code>.
+                </p>
+
                 @error('q')
-                    <span class="text-xs text-red-500">{{ $message }}</span>
+                    <span class="text-xs text-red-500 mt-1 ml-1 block font-medium">{{ $message }}</span>
                 @enderror
             </div>
         </div>
-        {{-- wire:loading dihapus seperti permintaan --}}
     </div>
 
-    {{-- ===== Ringkasan ===== --}}
+    {{-- ======================================================================== --}}
+    {{-- BAGIAN 3: TABEL RINGKASAN --}}
+    {{-- ======================================================================== --}}
     <div wire:key="summary-{{ md5(($werks ?? request()->route('werks')) . '|' . $q) }}">
 
-        <div class="overflow-x-auto overflow-y-auto max-h-[75vh] shadow-xl sm:rounded-lg border border-gray-200/75">
+        <div class="overflow-x-auto overflow-y-auto max-h-[75vh] shadow-xl sm:rounded-xl border border-gray-200/75">
             <table class="min-w-full divide-y divide-gray-200">
-                <thead class="sticky top-0 z-10 bg-gradient-to-r from-emerald-700 to-green-800">
+                <thead class="sticky top-0 z-10 bg-gradient-to-r from-emerald-800 to-teal-900 text-white shadow-md">
                     <tr>
                         @php
                             $pagePernrs = array_map('strval', $currentPagePernrs ?? []);
@@ -114,111 +202,148 @@
                         @endphp
 
                         {{-- Kolom checkbox + label (select all) --}}
-                        <th scope="col"
-                            class="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">
-                            <label class="inline-flex items-center gap-2 select-none">
+                        <th scope="col" class="px-6 py-4 text-left text-sm font-bold uppercase tracking-wider w-10">
+                            <label class="inline-flex items-center gap-2 select-none cursor-pointer group">
                                 <input id="check-all-summary" type="checkbox"
-                                    class="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                                    class="rounded border-gray-300 text-emerald-500 focus:ring-emerald-500 transition-colors cursor-pointer bg-white/90 h-4 w-4"
                                     @checked($allCurrentSelected)>
-                                <span>Pilih</span>
+                                <span class="group-hover:text-emerald-100 transition-colors text-xs">Pilih</span>
                             </label>
                         </th>
 
                         @foreach ($headersSummary as $header)
                             <th scope="col"
-                                class="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">
+                                class="px-6 py-4 text-left text-sm font-bold uppercase tracking-wider whitespace-nowrap">
                                 {{ __($header) }}
                             </th>
                         @endforeach
                     </tr>
                 </thead>
 
-                <tbody class="bg-white divide-y divide-gray-200">
+                <tbody class="bg-white divide-y divide-gray-200 text-base">
                     @forelse ($reportData as $data)
                         <tr wire:key="report-row-{{ $data->pernr }}"
                             wire:click="showPernrDetail({{ \Illuminate\Support\Js::from((string) $data->pernr) }})"
-                            class="odd:bg-white even:bg-emerald-50/60 hover:bg-emerald-100 transition-colors duration-200 ease-in-out cursor-pointer">
+                            class="transition-all duration-200 ease-in-out hover:bg-emerald-50 cursor-pointer odd:bg-white even:bg-slate-50/50">
 
                             {{-- Checkbox pilih NIK untuk export --}}
-                            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                            <td class="px-6 py-4 whitespace-nowrap">
                                 <input type="checkbox" wire:model.live="selectedPernrs"
                                     value="{{ (string) $data->pernr }}"
-                                    class="summary-check rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                                    class="summary-check rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer h-5 w-5"
                                     wire:click.stop>
                             </td>
 
                             {{-- NO --}}
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-extrabold text-emerald-800">
-                                {{ $loop->iteration }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap font-extrabold text-emerald-800/80">
+                                {{ $loop->iteration }}
+                            </td>
 
                             {{-- PERSONAL NO --}}
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                {{ $data->pernr }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900">
+                                {{ $data->pernr }}
+                            </td>
 
                             {{-- RENTANG TANGGAL --}}
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                                {{ Carbon::createFromFormat('Ymd', $data->min_begda)->isoFormat('YY-MM-DD') }} -
+                            <td class="px-6 py-4 whitespace-nowrap text-gray-600 font-mono text-sm">
+                                {{ Carbon::createFromFormat('Ymd', $data->min_begda)->isoFormat('YY-MM-DD') }} <span
+                                    class="text-emerald-400 mx-1">➜</span>
                                 {{ Carbon::createFromFormat('Ymd', $data->max_begda)->isoFormat('YY-MM-DD') }}
                             </td>
 
                             {{-- MENIT HADIR --}}
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800 text-right font-mono">
-                                {{ number_format($data->total_jam, 1) }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-gray-800 text-right font-mono tracking-tight">
+                                {{ number_format($data->total_jam, 1) }}
+                            </td>
 
                             {{-- MENIT KERJA --}}
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800 text-right font-mono">
-                                {{ (int) $data->mint2 }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-gray-800 text-right font-mono tracking-tight">
+                                {{ (int) $data->mint2 }}
+                            </td>
 
                             {{-- TOTAL MENIT INSPECT --}}
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800 text-right font-mono">
-                                {{ (int) $data->mintu }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-gray-800 text-right font-mono tracking-tight">
+                                {{ (int) $data->mintu }}
+                            </td>
 
                             {{-- TOTAL DETIK INSPECT --}}
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800 text-right font-mono">
-                                {{ (int) $data->mintu2 }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-gray-800 text-right font-mono tracking-tight">
+                                {{ (int) $data->mintu2 }}
+                            </td>
 
                             {{-- TOTAL DETIK CONFIRMATION --}}
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800 text-right font-mono">
-                                {{ (int) $data->mintu3 }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-gray-800 text-right font-mono tracking-tight">
+                                {{ (int) $data->mintu3 }}
+                            </td>
 
                             {{-- NAMA --}}
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                {{ $data->cname }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap font-semibold text-slate-800 capitalize">
+                                {{ strtolower($data->cname) }}
+                            </td>
 
                             {{-- UPAH HADIR --}}
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800 text-right font-mono">
-                                {{ number_format($data->gji, 2) }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-emerald-700 font-medium text-right font-mono">
+                                {{ number_format($data->gji, 2) }}
+                            </td>
 
                             {{-- UPAH INSP --}}
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800 text-right font-mono">
-                                {{ number_format($data->gji2, 2) }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-emerald-700 font-medium text-right font-mono">
+                                {{ number_format($data->gji2, 2) }}
+                            </td>
 
                             {{-- VARIANT UPAH --}}
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800 text-right font-mono">
-                                {{ number_format($data->varnt, 2) }}</td>
+                            <td
+                                class="px-6 py-4 whitespace-nowrap text-right font-mono {{ $data->varnt < 0 ? 'text-red-600 font-bold' : 'text-gray-800' }}">
+                                {{ number_format($data->varnt, 2) }}
+                            </td>
 
                             {{-- PROSENTASE UPAH --}}
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800 text-right font-mono">
-                                {{ number_format($data->varnt1, 2) }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-right font-mono">
+                                <span
+                                    class="inline-flex items-center px-2.5 py-1 rounded text-sm font-medium {{ $data->varnt1 < 100 ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800' }}">
+                                    {{ number_format($data->varnt1, 2) }}%
+                                </span>
+                            </td>
 
                             {{-- WC PERSONAL --}}
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{{ $data->arbpl }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-slate-700 font-medium">
+                                {{ $data->arbpl }}
+                            </td>
+
+                            {{-- DESC WC --}}
+                            <td class="px-6 py-4 text-slate-600 text-sm min-w-[250px]">
+                                {{ Str::limit($data->desc, 40) }} {{-- Limit sedikit agar tabel tidak pecah --}}
+                            </td>
 
                             {{-- WC CONFIRMASI --}}
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{{ $data->arbpl2 }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-slate-700 font-medium">
+                                {{ $data->arbpl2 }}
+                            </td>
 
                             {{-- PLANT --}}
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{{ $data->werks }}</td>
+                            <td
+                                class="px-6 py-4 whitespace-nowrap text-slate-700 text-center font-mono bg-slate-50/50">
+                                {{ $data->werks }}
+                            </td>
 
                             {{-- SHIFT --}}
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800 text-center font-mono">
-                                {{ is_null($data->shift) ? '-' : (int) $data->shift }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-gray-800 text-center font-mono">
+                                {{ is_null($data->shift) ? '-' : (int) $data->shift }}
+                            </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="{{ count($headersSummary) + 1 }}"
-                                class="px-6 py-10 text-center text-lg text-gray-500 bg-gray-50">
-                                {{ __('Tidak ada data untuk filter saat ini.') }}
+                            <td colspan="{{ count($headersSummary) + 1 }}" class="px-6 py-16 text-center">
+                                <div class="flex flex-col items-center justify-center text-gray-400">
+                                    <svg class="w-16 h-16 mb-4 text-gray-300" fill="none" stroke="currentColor"
+                                        viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z">
+                                        </path>
+                                    </svg>
+                                    <span
+                                        class="text-xl font-medium text-gray-500">{{ __('Tidak ada data untuk filter saat ini.') }}</span>
+                                </div>
                             </td>
                         </tr>
                     @endforelse
@@ -227,23 +352,38 @@
         </div>
     </div>
 
-    {{-- ===== Modal Detail ===== --}}
+    {{-- ======================================================================== --}}
+    {{-- BAGIAN 4: MODAL DETAIL --}}
+    {{-- ======================================================================== --}}
     @if ($showDetailModal)
-        <div id="yppr058-modal" class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog"
-            aria-modal="true">
+        <div id="yppr058-modal" class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title"
+            role="dialog" aria-modal="true">
             <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-                <div class="fixed inset-0 bg-gray-900 bg-opacity-75 transition-opacity" aria-hidden="true"
+
+                {{-- Backdrop --}}
+                <div class="fixed inset-0 bg-slate-900/75 transition-opacity backdrop-blur-sm" aria-hidden="true"
                     wire:click="closeDetailModal"></div>
                 <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
 
+                {{-- Modal Panel --}}
                 <div
-                    class="inline-block align-bottom bg-gray-50 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-7xl sm:w-full">
+                    class="inline-block align-bottom bg-white rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-7xl sm:w-full border border-gray-200">
+
+                    {{-- Modal Header --}}
                     <div
-                        class="bg-gradient-to-r from-emerald-600 to-green-700 px-6 py-5 sm:px-8 flex justify-between items-center">
-                        <h3 class="text-xl leading-6 font-extrabold text-white" id="modal-title">
-                            Detail Tanggal (Personal No.: {{ $selectedPernr }})
+                        class="bg-gradient-to-r from-emerald-700 to-teal-800 px-6 py-4 sm:px-8 flex justify-between items-center">
+                        <h3 class="text-xl leading-6 font-bold text-white tracking-wide flex items-center gap-2"
+                            id="modal-title">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-emerald-200" fill="none"
+                                viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            Detail Tanggal <span
+                                class="text-emerald-200 font-mono bg-white/10 px-2 rounded ml-1 text-lg">{{ $selectedPernr }}</span>
                         </h3>
-                        <button wire:click="closeDetailModal" type="button" class="text-white hover:text-gray-200">
+                        <button wire:click="closeDetailModal" type="button"
+                            class="text-emerald-100 hover:text-white transition-colors focus:outline-none">
                             <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none"
                                 viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -252,29 +392,29 @@
                         </button>
                     </div>
 
-                    <div class="px-6 py-6 sm:px-8 sm:py-8">
+                    {{-- Modal Body --}}
+                    <div class="px-6 py-6 sm:px-8 sm:py-8 bg-slate-50">
                         <div
-                            class="overflow-x-auto overflow-y-auto max-h-[60vh] shadow-lg sm:rounded-lg bg-white border border-gray-200/75">
+                            class="overflow-x-auto overflow-y-auto max-h-[60vh] shadow-md sm:rounded-lg bg-white border border-gray-200">
                             <table class="min-w-full divide-y divide-gray-100">
-                                {{-- THEAD: checkbox pilih semua di kolom pertama --}}
-                                <thead class="sticky top-0 z-10 bg-white">
+                                <thead class="sticky top-0 z-10 bg-emerald-50">
                                     <tr>
                                         <th
-                                            class="px-6 py-4 text-left text-xs font-semibold text-emerald-700 uppercase tracking-wider border-b-2 border-gray-200">
+                                            class="px-6 py-4 text-left text-xs font-bold text-emerald-800 uppercase tracking-wider border-b-2 border-emerald-100">
                                             <label class="inline-flex items-center gap-2 select-none">
                                                 <input id="check-all-detail" type="checkbox"
-                                                    class="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500">
+                                                    class="rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500">
                                                 Pilih
                                             </label>
                                         </th>
                                         @foreach ($headersNoShift as $header)
                                             <th scope="col"
-                                                class="px-6 py-4 text-left text-xs font-semibold text-emerald-700 uppercase tracking-wider border-b-2 border-gray-200">
+                                                class="px-6 py-4 text-left text-xs font-bold text-emerald-800 uppercase tracking-wider border-b-2 border-emerald-100 whitespace-nowrap">
                                                 {{ __($header) }}
                                             </th>
                                         @endforeach
                                         <th scope="col"
-                                            class="px-6 py-4 text-left text-xs font-semibold text-emerald-700 uppercase tracking-wider border-b-2 border-gray-200">
+                                            class="px-6 py-4 text-left text-xs font-bold text-emerald-800 uppercase tracking-wider border-b-2 border-emerald-100">
                                             Shift
                                         </th>
                                     </tr>
@@ -283,12 +423,11 @@
                                 <tbody class="bg-white divide-y divide-gray-100">
                                     @foreach ($detailData as $data)
                                         <tr wire:key="detail-row-{{ $selectedPernr }}-{{ $data['begda'] ?? $loop->iteration }}"
-                                            class="hover:bg-emerald-50/70 transition-colors duration-150 ease-in-out">
+                                            class="hover:bg-emerald-50/50 transition-colors">
 
-                                            {{-- PILIH --}}
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                            <td class="px-6 py-3 whitespace-nowrap text-sm">
                                                 <input type="checkbox"
-                                                    class="refresh-check rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                                                    class="refresh-check rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                                                     title="{{ empty($data['arbpl']) || empty($data['werks']) ? 'WC/Plant kosong: server akan mencari otomatis' : 'Siap kirim' }}"
                                                     data-pernr="{{ $data['pernr'] ?? '' }}"
                                                     data-werks="{{ $data['werks'] ?? '' }}"
@@ -296,10 +435,9 @@
                                                     data-date="{{ $data['begda'] ?? '' }}">
                                             </td>
 
-                                            {{-- NO --}}
-                                            <td
-                                                class="px-6 py-4 whitespace-nowrap text-sm font-extrabold text-emerald-800">
-                                                {{ $loop->iteration }}</td>
+                                            <td class="px-6 py-3 whitespace-nowrap text-sm font-bold text-emerald-800">
+                                                {{ $loop->iteration }}
+                                            </td>
 
                                             @php
                                                 $detailColumns = [
@@ -316,6 +454,7 @@
                                                     'varnt',
                                                     'varnt1',
                                                     'arbpl',
+                                                    'desc',
                                                     'arbpl2',
                                                     'werks',
                                                     'shift',
@@ -324,53 +463,34 @@
 
                                             @foreach ($detailColumns as $column)
                                                 @php
-                                                    $value = $data[$column] ?? null;
-                                                    $isCurrency = in_array(
-                                                        $column,
-                                                        ['gji', 'gji2', 'varnt', 'varnt1'],
-                                                        true,
-                                                    );
-                                                    $isDecimal = $column === 'total_jam';
-                                                    $isInteger = in_array(
-                                                        $column,
-                                                        ['mint2', 'mintu', 'mintu2', 'mintu3', 'shift'],
-                                                        true,
-                                                    );
+                                                    $val = $data[$column] ?? null;
+                                                    $isMoney = in_array($column, ['gji', 'gji2', 'varnt', 'varnt1']);
+                                                    $isNum = in_array($column, [
+                                                        'mint2',
+                                                        'mintu',
+                                                        'mintu2',
+                                                        'mintu3',
+                                                        'shift',
+                                                    ]);
                                                     $isDate = $column === 'begda';
-                                                    $isPernr = $column === 'pernr';
-                                                    $isName = $column === 'cname';
-                                                    $isCode = in_array($column, ['arbpl', 'arbpl2', 'werks'], true);
                                                 @endphp
                                                 <td @class([
-                                                    'px-6 py-4 whitespace-nowrap text-sm',
-                                                    'font-mono text-right text-gray-800' =>
-                                                        $isCurrency || $isDecimal || $isInteger,
-                                                    'font-mono text-gray-700' => $isPernr,
-                                                    'font-mono text-gray-600' => $isDate,
-                                                    'font-medium text-gray-900' => $isName,
-                                                    'text-gray-600' => $isCode,
-                                                    'text-gray-800' => !(
-                                                        $isCurrency ||
-                                                        $isDecimal ||
-                                                        $isInteger ||
-                                                        $isPernr ||
-                                                        $isDate ||
-                                                        $isName ||
-                                                        $isCode
-                                                    ),
+                                                    'px-6 py-3 whitespace-nowrap text-sm',
+                                                    'text-right font-mono' => $isMoney || $isNum || $column === 'total_jam',
+                                                    'text-emerald-700 font-medium' => $isMoney,
                                                 ])>
-                                                    @if (is_null($value) || $value === '')
+                                                    @if ($val === '' || is_null($val))
                                                         -
-                                                    @elseif ($isCurrency)
-                                                        {{ number_format($value, 2) }}
-                                                    @elseif ($isDecimal)
-                                                        {{ number_format($value, 1) }}
-                                                    @elseif ($isInteger)
-                                                        {{ (int) $value }}
-                                                    @elseif ($isDate)
-                                                        {{ Carbon::createFromFormat('Ymd', $value)->isoFormat('YY-MM-DD') }}
+                                                    @elseif($isMoney)
+                                                        {{ number_format($val, 2) }}
+                                                    @elseif($column === 'total_jam')
+                                                        {{ number_format($val, 1) }}
+                                                    @elseif($isNum)
+                                                        {{ (int) $val }}
+                                                    @elseif($isDate)
+                                                        {{ Carbon::createFromFormat('Ymd', $val)->isoFormat('YY-MM-DD') }}
                                                     @else
-                                                        {{ $value }}
+                                                        {{ $val }}
                                                     @endif
                                                 </td>
                                             @endforeach
@@ -381,95 +501,105 @@
                         </div>
                     </div>
 
+                    {{-- Modal Footer --}}
                     <div
-                        class="bg-gray-50 px-6 py-4 sm:px-8 sm:flex sm:flex-row-reverse items-center gap-3 border-t border-gray-200">
+                        class="bg-white px-6 py-4 sm:px-8 sm:flex sm:flex-row-reverse items-center gap-3 border-t border-gray-200">
                         <button id="btn-refresh-sap" type="button"
-                            class="mt-3 w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-emerald-600 text-base font-semibold text-white hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm transition-all">
+                            class="w-full inline-flex justify-center items-center gap-2 rounded-lg border border-transparent shadow-lg shadow-emerald-200 px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-base font-bold text-white hover:from-emerald-700 hover:to-teal-700 focus:outline-none sm:w-auto sm:text-sm transition-all transform hover:scale-105">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
+                                viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
                             Refresh dari SAP (terpilih)
                         </button>
 
                         <button wire:click="closeDetailModal" type="button"
-                            class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm transition-all">
+                            class="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-5 py-2.5 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:mt-0 sm:w-auto sm:text-sm transition-all">
                             Tutup
                         </button>
 
-                        <div class="mt-3 sm:mt-0 sm:mr-auto text-sm text-gray-600">
-                            <span id="refresh-progress">Ready.</span>
+                        <div class="mt-3 sm:mt-0 sm:mr-auto text-sm text-gray-500 italic">
+                            <span id="refresh-progress">Siap memproses data...</span>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
     @endif
-</div>
 
-{{-- ======= STYLE kecil utk cursor not-allowed saat busy ======= --}}
+    {{-- CSS ANIMASI --}}
+    <style>
+        @keyframes shine {
+            0% {
+                transform: translateX(-150%) skewX(-20deg);
+            }
+
+            100% {
+                transform: translateX(150%) skewX(-20deg);
+            }
+        }
+
+        .animate-shine {
+            animation: shine 3s infinite;
+        }
+    </style>
+
+</div>
+{{-- END ROOT DIV --}}
+
+
+{{-- ======= STYLE & SCRIPT BAWAAN ======= --}}
 @push('styles')
     <style>
-        /* Tombol yang sedang diproses */
+        /* State Busy Button */
         #btn-refresh-sap.is-busy,
-        #btn-refresh-sap.is-busy:hover,
-        #btn-refresh-sap.is-busy:focus {
+        #btn-refresh-sap.is-busy:hover {
             cursor: not-allowed !important;
+            opacity: 0.7;
+            background: #6b7280;
+            /* Gray-500 */
+            transform: none;
+            box-shadow: none;
         }
 
-        #btn-refresh-sap.is-busy * {
-            pointer-events: none !important;
-        }
-
-        /* GLOBAL: kalau ada proses refresh, SEMUA tombol refresh di mana pun
-                       (modal baru sekalipun) kelihatan "dilarang" */
-        body.yppr058-refresh-busy #btn-refresh-sap,
-        body.yppr058-refresh-busy #btn-refresh-sap:hover,
-        body.yppr058-refresh-busy #btn-refresh-sap:focus {
-            cursor: not-allowed !important;
-            opacity: 0.6;
-        }
-
-        /* Anak-anak tombol juga tidak bisa diklik saat global busy */
-        body.yppr058-refresh-busy #btn-refresh-sap * {
-            pointer-events: none !important;
+        body.yppr058-refresh-busy * {
+            cursor: wait !important;
         }
     </style>
 @endpush
 
-{{-- ======= SCRIPTS (dibind sekali) ======= --}}
 @once
     @push('scripts')
         <script>
             (function() {
-                // cegah double binding setelah re-render livewire
                 if (window.__yppr058Bound) return;
                 window.__yppr058Bound = true;
 
                 const API_BASE = 'http://127.0.0.1:5010';
                 const LS_PREFILL = 'yppr058_prefill_q';
                 const LS_SUMMARY = 'yppr058_refresh_summary';
-
                 const $ = (sel, root = document) => root.querySelector(sel);
                 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
-                // ===== Dropdown Export (PDF / Excel) =====
+                // Dropdown Export Logic
                 const exportBtn = document.getElementById('export-dropdown-button');
                 const exportMenu = document.getElementById('export-dropdown-menu');
-
                 if (exportBtn && exportMenu) {
                     exportBtn.addEventListener('click', function(e) {
                         e.preventDefault();
                         e.stopPropagation();
                         exportMenu.classList.toggle('hidden');
                     });
-
                     document.addEventListener('click', function(e) {
-                        if (!exportMenu.classList.contains('hidden') &&
-                            !exportBtn.contains(e.target) &&
-                            !exportMenu.contains(e.target)) {
+                        if (!exportMenu.classList.contains('hidden') && !exportBtn.contains(e.target) && !exportMenu
+                            .contains(e.target)) {
                             exportMenu.classList.add('hidden');
                         }
                     });
                 }
 
-                // ===== Toast helpers (progress & summary) =====
+                // Toast Helpers
                 let toastStack;
 
                 function ensureToastStack() {
@@ -485,7 +615,7 @@
                     ensureToastStack();
                     const card = document.createElement('div');
                     card.className =
-                        'pointer-events-auto w-[360px] rounded-xl border border-gray-200 bg-white shadow-2xl';
+                        'pointer-events-auto w-[360px] rounded-xl border border-emerald-100 bg-white shadow-2xl ring-1 ring-black/5';
                     card.innerHTML = html;
                     toastStack.appendChild(card);
                     return card;
@@ -493,42 +623,27 @@
 
                 function progressCard(statusText) {
                     if (!window.__yppr058ProgressCard) {
-                        window.__yppr058ProgressCard = makeCard(`
-        <div class="p-4">
-          <div class="flex items-start gap-3">
-            <div class="h-10 w-10 rounded-full bg-emerald-100 flex items-center justify-center">
-              <svg class="animate-spin h-5 w-5 text-emerald-700" viewBox="0 0 24 24" fill="none">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
-              </svg>
-            </div>
-            <div class="flex-1">
-              <div class="font-bold text-emerald-800">Refreshing dari SAP…</div>
-              <div id="pc-msg" class="text-sm text-gray-700 mt-0.5"></div>
-            </div>
-            <button class="text-gray-400 hover:text-gray-600" onclick="this.closest('div.pointer-events-auto').remove()">✕</button>
-          </div>
-          <div class="mt-3 h-1.5 w-full bg-gray-100 rounded">
-            <div id="pc-bar" class="h-1.5 bg-emerald-500 rounded" style="width:0%"></div>
-          </div>
-        </div>`);
+                        window.__yppr058ProgressCard = makeCard(
+                            `
+                        <div class="p-4"><div class="flex items-start gap-3">
+                            <div class="h-10 w-10 rounded-full bg-emerald-100 flex items-center justify-center animate-pulse">
+                                <svg class="h-5 w-5 text-emerald-700" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
+                            </div>
+                            <div class="flex-1"><div class="font-bold text-emerald-900">Sinkronisasi SAP...</div><div id="pc-msg" class="text-sm text-slate-600 mt-0.5"></div></div>
+                        </div><div class="mt-3 h-1.5 w-full bg-gray-100 rounded-full overflow-hidden"><div id="pc-bar" class="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full transition-all duration-300" style="width:0%"></div></div></div>`
+                        );
                     }
                     const card = window.__yppr058ProgressCard;
-                    const msg = $('#pc-msg', card);
-                    if (msg) msg.textContent = statusText || '';
+                    $('#pc-msg', card).textContent = statusText || '';
                     return card;
                 }
 
                 function updateProgress(current, total) {
                     const card = window.__yppr058ProgressCard;
                     if (!card) return;
-                    const bar = $('#pc-bar', card);
-                    if (bar) {
-                        const pct = Math.round((current / Math.max(1, total)) * 100);
-                        bar.style.width = pct + '%';
-                    }
-                    const msg = $('#pc-msg', card);
-                    if (msg) msg.textContent = `Proses ${current}/${total}…`;
+                    const pct = Math.round((current / Math.max(1, total)) * 100);
+                    $('#pc-bar', card).style.width = pct + '%';
+                    $('#pc-msg', card).textContent = `Memproses ${current} dari ${total} data...`;
                 }
 
                 function hideProgress() {
@@ -540,101 +655,80 @@
 
                 function showSummaryToast(summary) {
                     const {
-                        ok = 0,
-                            fail = 0,
-                            total = 0,
-                            pernrs = []
+                        ok = 0, fail = 0, total = 0
                     } = summary || {};
                     const html = `
-      <div class="p-4">
-        <div class="flex items-start gap-3">
-          <div class="h-10 w-10 rounded-full ${fail ? 'bg-amber-100' : 'bg-emerald-100'} flex items-center justify-center">
-            <svg class="h-6 w-6 ${fail ? 'text-amber-700' : 'text-emerald-700'}" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2a10 10 0 100 20 10 10 0 000-20zM11 6h2v8h-2V6zm0 10h2v2h-2v-2z"/></svg>
-          </div>
-          <div class="flex-1">
-            <div class="font-bold ${fail ? 'text-amber-800' : 'text-emerald-800'}">Refresh selesai</div>
-            <div class="text-sm text-gray-700 mt-0.5">Berhasil: <b>${ok}</b> • Gagal: <b>${fail}</b> • Total: <b>${total}</b></div>
-            <div class="text-xs text-gray-500 mt-1">NIK: ${pernrs.join(', ')}</div>
-          </div>
-          <button class="text-gray-400 hover:text-gray-600" onclick="this.closest('div.pointer-events-auto').remove()">✕</button>
-        </div>
-      </div>`;
+                        <div class="p-4 border-l-4 ${fail ? 'border-amber-500' : 'border-emerald-500'}">
+                            <div class="flex items-start gap-3">
+                                <div class="flex-1">
+                                    <h4 class="font-bold text-gray-900">Sinkronisasi Selesai</h4>
+                                    <p class="text-sm text-gray-600 mt-1">Berhasil: <b class="text-emerald-600">${ok}</b> &bull; Gagal: <b class="text-red-600">${fail}</b></p>
+                                </div>
+                                <button class="text-gray-400 hover:text-gray-600" onclick="this.closest('div.pointer-events-auto').remove()">✕</button>
+                            </div>
+                        </div>`;
                     const card = makeCard(html);
-                    setTimeout(() => card.remove(), 7000);
+                    setTimeout(() => card.remove(), 6000);
                 }
 
-                // ===== Checkbox select-all =====
-                function onChange(e) {
-                    // ceklis semua di modal detail
+                // Checkbox Logic
+                document.addEventListener('change', function(e) {
                     if (e.target && e.target.id === 'check-all-detail') {
                         const modal = $('#yppr058-modal') || document;
-                        const checked = e.target.checked;
-                        $$('.refresh-check', modal).forEach(cb => cb.checked = checked);
+                        $$('.refresh-check', modal).forEach(cb => cb.checked = e.target.checked);
                     }
-
-                    // ceklis semua di tabel ringkasan
                     if (e.target && e.target.id === 'check-all-summary') {
-                        const checked = e.target.checked;
                         $$('.summary-check').forEach(cb => {
-                            cb.checked = checked;
-                            // trigger change supaya Livewire update selectedPernrs
+                            cb.checked = e.target.checked;
                             cb.dispatchEvent(new Event('change', {
                                 bubbles: true
                             }));
                         });
                     }
-                }
-                document.addEventListener('change', onChange);
+                });
 
-                // ===== Single-running guard =====
+                // Refresh Logic
                 let busy = false;
 
                 function setButtonBusy(btn, on) {
                     document.body.classList.toggle('yppr058-refresh-busy', !!on);
-
                     if (!btn) return;
-
                     if (on) {
                         btn.disabled = true;
-                        btn.classList.add('opacity-60', 'cursor-not-allowed', 'is-busy');
-                        btn.setAttribute('aria-busy', 'true');
-                        btn.title = 'Sedang memproses… tunggu selesai';
+                        btn.classList.add('is-busy');
+                        btn.innerHTML =
+                            '<svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg> Memproses...';
                     } else {
                         btn.disabled = false;
-                        btn.classList.remove('opacity-60', 'cursor-not-allowed', 'is-busy');
-                        btn.removeAttribute('aria-busy');
-                        btn.title = 'Refresh dari SAP (terpilih)';
+                        btn.classList.remove('is-busy');
+                        btn.innerHTML = 'Refresh dari SAP (terpilih)';
                     }
                 }
 
-                // ===== Kirim request 1 per 1 & kunci tombol selama proses =====
                 async function refreshSelected() {
                     if (busy) return;
                     const modal = $('#yppr058-modal') || document;
                     const btn = $('#btn-refresh-sap');
-
-                    const checks = $$('.refresh-check:checked', modal)
-                        .filter(el => el.dataset.pernr && el.dataset.date); // WC/Plant boleh kosong (server resolve)
+                    const checks = $$('.refresh-check:checked', modal).filter(el => el.dataset.pernr && el.dataset
+                        .date);
 
                     if (!checks.length) {
-                        alert('Pilih minimal satu baris.');
+                        alert('Pilih minimal satu baris data.');
                         return;
                     }
 
                     busy = true;
                     setButtonBusy(btn, true);
-
                     const total = checks.length;
                     let done = 0,
                         ok = 0,
                         fail = 0;
                     const nikSet = new Set();
 
-                    progressCard(`Menjalankan ${total} proses… (0/${total})`);
+                    progressCard(`Menyiapkan ${total} antrian...`);
 
                     for (const el of checks) {
-                        done += 1;
+                        done++;
                         nikSet.add(el.dataset.pernr);
                         updateProgress(done, total);
 
@@ -657,23 +751,20 @@
                                 }),
                             });
                             const data = await resp.json().catch(() => ({}));
-                            const okItem = resp.ok && data.ok && Array.isArray(data.results) && data.results[0]?.ok;
-                            if (okItem) {
+                            if (resp.ok && data.ok && Array.isArray(data.results) && data.results[0]?.ok) {
                                 ok++;
-                                el.closest('tr')?.classList.add('bg-emerald-50');
+                                el.closest('tr')?.classList.add('bg-emerald-100');
                             } else {
                                 fail++;
-                                el.closest('tr')?.classList.add('bg-red-50');
+                                el.closest('tr')?.classList.add('bg-red-100');
                             }
                         } catch {
                             fail++;
-                            el.closest('tr')?.classList.add('bg-red-50');
+                            el.closest('tr')?.classList.add('bg-red-100');
                         }
                     }
 
                     hideProgress();
-
-                    // Simpan ringkasan & prefill lalu reload
                     const pernrs = Array.from(nikSet);
                     localStorage.setItem(LS_PREFILL, pernrs.join(' '));
                     localStorage.setItem(LS_SUMMARY, JSON.stringify({
@@ -686,30 +777,20 @@
 
                     setButtonBusy(btn, false);
                     busy = false;
-
                     window.location.reload();
                 }
 
-                // tombol refresh (delegation yang tahan klik di child elemen)
-                function onClick(e) {
+                document.addEventListener('click', function(e) {
                     const targetBtn = e.target && e.target.closest && e.target.closest('#btn-refresh-sap');
                     if (!targetBtn) return;
-
-                    if (busy || targetBtn.disabled || targetBtn.getAttribute('aria-busy') === 'true') {
+                    if (busy || targetBtn.disabled) {
                         e.preventDefault();
                         e.stopPropagation();
-                        if (typeof e.stopImmediatePropagation === 'function') {
-                            e.stopImmediatePropagation();
-                        }
                         return;
                     }
-
                     refreshSelected();
-                }
+                }, true);
 
-                document.addEventListener('click', onClick, true);
-
-                // ===== Setelah halaman reload: prefill search + tampilkan summary toast =====
                 function afterReloadTasks() {
                     const qVal = localStorage.getItem(LS_PREFILL);
                     if (qVal) {
@@ -719,14 +800,9 @@
                             inp.dispatchEvent(new Event('input', {
                                 bubbles: true
                             }));
-                            try {
-                                inp.focus();
-                                inp.select();
-                            } catch {}
                         }
                         localStorage.removeItem(LS_PREFILL);
                     }
-
                     const ss = localStorage.getItem(LS_SUMMARY);
                     if (ss) {
                         try {

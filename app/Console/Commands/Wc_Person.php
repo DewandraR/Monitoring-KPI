@@ -12,7 +12,7 @@ class Wc_Person extends Command
      */
     private const TIMEOUT_SECONDS = 21600;
 
-    protected $signature = 'Sync:wc_person';
+    protected $signature = 'sync:wc_person';
     protected $description = 'Menjalankan proses sinkronisasi data Wc Person dari SAP ke database lokal dengan output real-time';
 
     public function handle(): int
