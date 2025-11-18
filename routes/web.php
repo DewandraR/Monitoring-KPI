@@ -31,14 +31,29 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->where('werks', '\d{3,4}')
         ->name('report-data');
 
+    // ====== EXPORT SUMMARY ======
+
     // Export PDF ringkasan (row yang dicentang)
     Route::get('/report-data/{werks}/export-pdf', [ReportPdfController::class, 'exportSelected'])
         ->where('werks', '\d{3,4}')
         ->name('report-data.export-pdf');
 
+    // Export Excel ringkasan
     Route::get('/report-data/{werks}/export-excel', [ReportPdfController::class, 'exportSelectedExcel'])
         ->where('werks', '\d{3,4}')
         ->name('report-data.export-excel');
+
+    // ====== EXPORT DETAIL (MULTI USER + MULTI TANGGAL) ======
+
+    // Detail PDF
+    Route::get('/report-data/{werks}/export-detail-pdf', [ReportPdfController::class, 'exportDetailSelected'])
+        ->where('werks', '\d{3,4}')
+        ->name('report-data.export-detail-pdf');
+
+    // Detail Excel
+    Route::get('/report-data/{werks}/export-detail-excel', [ReportPdfController::class, 'exportDetailSelectedExcel'])
+        ->where('werks', '\d{3,4}')
+        ->name('report-data.export-detail-excel');
 
     // WC Person (list & search all columns)
     Route::get('/wc-person', WcPersonList::class)->name('wc-person');

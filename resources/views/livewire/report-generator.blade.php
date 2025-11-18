@@ -1,15 +1,110 @@
 @php
     use Carbon\Carbon;
+    use Illuminate\Support\Str;
 
-    // Hilangkan "Shift" dari header asli lalu tambahkan sekali di ujung
-    $headersNoShift = array_values(array_filter($headers ?? [], fn($h) => mb_strtolower(trim($h)) !== 'shift'));
-    $headersSummary = array_merge($headersNoShift, ['Shift']);
+    // Header untuk tabel ringkasan (summary)
+    $headersSummary = [
+        'No',
+        'Personal No.',
+        'Rentang Tanggal',
+        'Nama',
+        'WC Personal',
+        'DESC WC',
+        'Menit Hadir',
+        'Menit Conf',
+        'Menit Inspect',
+        'Var Upah',
+        'Persentase Var',
+    ];
 
-    // Header modal: "Pilih" + header asli (tanpa Shift) + "Shift"
-    $headersModal = array_merge(['Pilih'], $headersNoShift, ['Shift']);
+    // Header untuk modal detail
+    $headersDetail = [
+        'No',
+        'Personal No.',
+        'Tanggal',
+        'Nama',
+        'WC Personal',
+        'DESC WC',
+        'Menit Hadir',
+        'Menit Conf',
+        'Menit Inspect',
+        'Var Upah',
+        'Persentase Var',
+    ];
 
-    // Hitung berapa item yang sedang terseleksi
+    // Hitung berapa NIK yang terseleksi di SUMMARY (untuk Export Report)
     $selectedCount = is_iterable($selectedPernrs ?? []) ? count($selectedPernrs) : 0;
+
+    // =====================================================================
+    // Hitung berapa "hari" yang akan di-export DETAIL
+    //  - NIK yang dicentang di summary  -> dihitung full range 1..H-1 (per NIK)
+    //  - Baris tanggal di modal         -> dihitung per baris (per tanggal),
+    //    tapi TIDAK dobel untuk NIK yang sudah ikut summary.
+    // =====================================================================
+
+    $detailSelectedCount = 0;
+
+    try {
+        // 1. Map: pernr => jumlah hari (berdasarkan min_begda & max_begda)
+        $pernrDaysMap = collect($reportData ?? [])->mapWithKeys(function ($row) {
+            try {
+                $start = Carbon::createFromFormat('Ymd', (string) $row->min_begda);
+                $end = Carbon::createFromFormat('Ymd', (string) $row->max_begda);
+
+                $days = $end->lt($start) ? 0 : $start->diffInDays($end) + 1;
+            } catch (\Throwable $e) {
+                $days = 0;
+            }
+
+            return [(string) $row->pernr => $days];
+        });
+
+        // 2. NIK yang dicentang di SUMMARY
+        $summaryPernrs = collect($selectedPernrs ?? [])
+            ->map(fn($p) => trim((string) $p))
+            ->filter()
+            ->unique();
+
+        // Total hari dari summary (tiap NIK full range min_begda..max_begda)
+        $summaryTotalDays = $summaryPernrs->map(fn($p) => $pernrDaysMap->get($p, 0))->sum();
+
+        // 3. Baris DETAIL yang dicentang di modal: pernr|begda
+        $detailPairs = collect($selectedDetailKeys ?? [])
+            ->map(function ($key) {
+                if (!is_string($key) || $key === '') {
+                    return null;
+                }
+
+                [$pernr, $begda] = array_pad(explode('|', (string) $key, 2), 2, '');
+                $pernr = trim((string) $pernr);
+                $begda = trim((string) $begda);
+
+                if ($pernr === '' || $begda === '') {
+                    return null;
+                }
+
+                return [
+                    'pernr' => $pernr,
+                    'begda' => $begda,
+                    'key' => $pernr . '|' . $begda,
+                ];
+            })
+            ->filter()
+            ->unique('key'); // unik per (pernr, begda)
+
+        // Hitung jumlah tanggal per NIK dari modal
+        $detailByPernr = $detailPairs->groupBy('pernr')->map(function ($items) {
+            return collect($items)->pluck('begda')->unique()->count();
+        });
+
+        // 4. Detail ONLY = NIK yang tidak dicentang di summary
+        $detailOnlyTotal = $detailByPernr->except($summaryPernrs->all())->sum();
+
+        // 5. Total untuk badge
+        $detailSelectedCount = $summaryTotalDays + $detailOnlyTotal;
+    } catch (\Throwable $e) {
+        $detailSelectedCount = 0;
+    }
 @endphp
 
 {{-- ROOT ELEMENT --}}
@@ -33,7 +128,8 @@
                 {{ __('Report Data') }} <span class="text-emerald-900/20 font-light">—</span> yppr058_data
             </h3>
             <p class="mt-1.5 text-sm text-slate-500">
-                Plant terpilih: <span
+                Plant terpilih:
+                <span
                     class="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">{{ $werks ?? request()->route('werks') }}</span>
             </p>
             <p class="mt-0.5 text-xs text-gray-400">
@@ -41,93 +137,167 @@
             </p>
         </div>
 
-        {{-- TOMBOL EXPORT (LUXURY STYLE) --}}
+        {{-- TOMBOL EXPORT (SUMMARY + DETAIL) --}}
         <div class="flex flex-col items-end">
-            <div class="relative inline-block text-left group">
+            <div class="flex flex-col sm:flex-row items-end gap-3">
 
-                {{-- Tombol Utama --}}
-                <button id="export-dropdown-button" type="button"
-                    class="group relative inline-flex items-center gap-3 rounded-full 
-                           bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 
-                           px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-emerald-600/30 
-                           ring-1 ring-white/20 transition-all duration-300 ease-out 
-                           hover:scale-[1.02] hover:shadow-emerald-600/50 hover:ring-white/40 hover:from-emerald-500 hover:to-teal-700
-                           focus:outline-none focus:ring-4 focus:ring-emerald-500/30">
+                {{-- EXPORT SUMMARY --}}
+                <div class="relative inline-block text-left group">
+                    {{-- Tombol Utama --}}
+                    <button id="export-dropdown-button" type="button"
+                        class="group relative inline-flex items-center gap-3 rounded-full 
+                               bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 
+                               px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-emerald-600/30 
+                               ring-1 ring-white/20 transition-all duration-300 ease-out 
+                               hover:scale-[1.02] hover:shadow-emerald-600/50 hover:ring-white/40 hover:from-emerald-500 hover:to-teal-700
+                               focus:outline-none focus:ring-4 focus:ring-emerald-500/30">
 
-                    {{-- Animasi Kilau --}}
-                    <div
-                        class="absolute inset-0 rounded-full bg-gradient-to-r from-transparent via-white/20 to-transparent opacity-0 group-hover:animate-shine pointer-events-none">
-                    </div>
-
-                    {{-- Icon Download --}}
-                    <svg xmlns="http://www.w3.org/2000/svg"
-                        class="h-5 w-5 text-emerald-100 transition-transform duration-300 group-hover:-translate-y-0.5"
-                        fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round"
-                            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                    </svg>
-
-                    <span class="tracking-wide text-shadow-sm">Export Report</span>
-
-                    {{-- Badge Jumlah Terpilih --}}
-                    @if ($selectedCount > 0)
-                        <span
-                            class="flex h-6 w-6 items-center justify-center rounded-full bg-white text-emerald-700 text-[10px] font-black shadow-inner shadow-gray-200 transition-transform duration-300 group-hover:scale-110">
-                            {{ $selectedCount }}
-                        </span>
-                    @endif
-
-                    {{-- Icon Chevron --}}
-                    <svg xmlns="http://www.w3.org/2000/svg"
-                        class="h-4 w-4 text-emerald-200/70 transition-transform duration-300 group-hover:rotate-180"
-                        fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-                    </svg>
-                </button>
-
-                {{-- Dropdown Menu --}}
-                <div id="export-dropdown-menu"
-                    class="hidden absolute right-0 mt-3 w-52 origin-top-right rounded-xl bg-white p-2 shadow-2xl shadow-emerald-900/10 ring-1 ring-black/5 focus:outline-none z-50 transform transition-all duration-200 border border-gray-100">
-
-                    <div
-                        class="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-gray-400 border-b border-gray-100 mb-1">
-                        Pilih Format
-                    </div>
-
-                    {{-- PDF Option --}}
-                    <button type="button" wire:click="export('pdf')"
-                        class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 transition-all hover:bg-red-50 hover:text-red-700 group/item mb-1">
+                        {{-- Animasi Kilau --}}
                         <div
-                            class="flex h-8 w-8 items-center justify-center rounded-full bg-red-100 text-red-600 group-hover/item:bg-red-200 transition-colors">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
-                                stroke="currentColor" stroke-width="2">
-                                <path stroke-linecap="round" stroke-linejoin="round"
-                                    d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                            </svg>
+                            class="absolute inset-0 rounded-full bg-gradient-to-r from-transparent via-white/20 to-transparent opacity-0 group-hover:animate-shine pointer-events-none">
                         </div>
-                        <span>Download PDF</span>
+
+                        {{-- Icon Download --}}
+                        <svg xmlns="http://www.w3.org/2000/svg"
+                            class="h-5 w-5 text-emerald-100 transition-transform duration-300 group-hover:-translate-y-0.5"
+                            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+
+                        <span class="tracking-wide text-shadow-sm">Export Report</span>
+
+                        {{-- Badge Jumlah Terpilih (summary) --}}
+                        @if ($selectedCount > 0)
+                            <span
+                                class="flex h-6 w-6 items-center justify-center rounded-full bg-white text-emerald-700 text-[10px] font-black shadow-inner shadow-gray-200 transition-transform duration-300 group-hover:scale-110">
+                                {{ $selectedCount }}
+                            </span>
+                        @endif
+
+                        {{-- Icon Chevron --}}
+                        <svg xmlns="http://www.w3.org/2000/svg"
+                            class="h-4 w-4 text-emerald-200/70 transition-transform duration-300 group-hover:rotate-180"
+                            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                        </svg>
                     </button>
 
-                    {{-- Excel Option --}}
-                    <button type="button" wire:click="export('excel')"
-                        class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 transition-all hover:bg-emerald-50 hover:text-emerald-700 group/item">
+                    {{-- Dropdown Menu --}}
+                    <div id="export-dropdown-menu"
+                        class="hidden absolute right-0 mt-3 w-52 origin-top-right rounded-xl bg-white p-2 shadow-2xl shadow-emerald-900/10 ring-1 ring-black/5 focus:outline-none z-50 transform transition-all duration-200 border border-gray-100">
+
                         <div
-                            class="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 group-hover/item:bg-emerald-200 transition-colors">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
-                                stroke="currentColor" stroke-width="2">
-                                <path stroke-linecap="round" stroke-linejoin="round"
-                                    d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
+                            class="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-gray-400 border-b border-gray-100 mb-1">
+                            Summary Report
                         </div>
-                        <span>Download Excel</span>
-                    </button>
+
+                        {{-- PDF Option --}}
+                        <button type="button" wire:click="export('pdf')"
+                            class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 transition-all hover:bg-red-50 hover:text-red-700 group/item mb-1">
+                            <div
+                                class="flex h-8 w-8 items-center justify-center rounded-full bg-red-100 text-red-600 group-hover/item:bg-red-200 transition-colors">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
+                                    viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                </svg>
+                            </div>
+                            <span>Download PDF</span>
+                        </button>
+
+                        {{-- Excel Option --}}
+                        <button type="button" wire:click="export('excel')"
+                            class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 transition-all hover:bg-emerald-50 hover:text-emerald-700 group/item">
+                            <div
+                                class="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 group-hover/item:bg-emerald-200 transition-colors">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
+                                    viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                            </div>
+                            <span>Download Excel</span>
+                        </button>
+                    </div>
                 </div>
+
+                {{-- EXPORT DETAIL (di luar modal) --}}
+                <div class="relative inline-block text-left group">
+                    <button id="export-detail-dropdown-button" type="button"
+                        class="group relative inline-flex items-center gap-3 rounded-full 
+                               bg-gradient-to-br from-slate-600 via-slate-700 to-slate-800 
+                               px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-slate-600/30 
+                               ring-1 ring-white/20 transition-all duration-300 ease-out 
+                               hover:scale-[1.02] hover:shadow-slate-600/50 hover:ring-white/40 hover:from-slate-500 hover:to-slate-700
+                               focus:outline-none focus:ring-4 focus:ring-slate-500/30">
+
+                        <svg xmlns="http://www.w3.org/2000/svg"
+                            class="h-5 w-5 text-emerald-100 transition-transform duration-300 group-hover:-translate-y-0.5"
+                            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+
+                        <span class="tracking-wide text-shadow-sm">Export Detail</span>
+
+                        {{-- Badge jumlah NIK untuk detail --}}
+                        @if ($detailSelectedCount > 0)
+                            <span
+                                class="flex h-6 w-6 items-center justify-center rounded-full bg-white text-slate-700 text-[10px] font-black shadow-inner shadow-gray-200 transition-transform duration-300 group-hover:scale-110">
+                                {{ $detailSelectedCount }}
+                            </span>
+                        @endif
+
+                        <svg xmlns="http://www.w3.org/2000/svg"
+                            class="h-4 w-4 text-emerald-200/70 transition-transform duration-300 group-hover:rotate-180"
+                            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
+
+                    <div id="export-detail-dropdown-menu"
+                        class="hidden absolute right-0 mt-3 w-60 origin-top-right rounded-xl bg-white p-2 shadow-2xl shadow-slate-900/10 ring-1 ring-black/5 focus:outline-none z-50 transform transition-all duration-200 border border-gray-100">
+
+                        <div
+                            class="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-gray-400 border-b border-gray-100 mb-1">
+                            Detail Tanggal (multi NIK)
+                        </div>
+
+                        <button type="button" wire:click="exportDetail('pdf')"
+                            class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 transition-all hover:bg-red-50 hover:text-red-700 group/item mb-1">
+                            <div
+                                class="flex h-8 w-8 items-center justify-center rounded-full bg-red-100 text-red-600 group-hover/item:bg-red-200 transition-colors">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
+                                    viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                </svg>
+                            </div>
+                            <span>Export Detail PDF</span>
+                        </button>
+
+                        <button type="button" wire:click="exportDetail('excel')"
+                            class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 transition-all hover:bg-emerald-50 hover:text-emerald-700 group/item">
+                            <div
+                                class="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 group-hover/item:bg-emerald-200 transition-colors">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
+                                    viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                            </div>
+                            <span>Export Detail Excel</span>
+                        </button>
+                    </div>
+                </div>
+
             </div>
         </div>
     </div>
 
     {{-- ======================================================================== --}}
-    {{-- BAGIAN 2: FILTER PENCARIAN (DIPERBAIKI: INPUT LEBIH TINGGI) --}}
+    {{-- BAGIAN 2: FILTER PENCARIAN --}}
     {{-- ======================================================================== --}}
     <div class="mb-8 p-6 bg-emerald-50/50 rounded-xl shadow-inner border border-emerald-100/80 backdrop-blur-sm">
         <p class="text-lg font-bold text-emerald-800 mb-4 flex items-center gap-2">
@@ -140,26 +310,20 @@
 
         <div class="grid grid-cols-1 gap-6">
             <div class="relative group">
-                {{-- INPUT: pt-6 agar teks turun ke bawah, h-14 agar cukup tinggi --}}
+                {{-- INPUT --}}
                 <input id="q-input" type="text" wire:model.live.debounce.500ms="q" placeholder=" "
                     class="peer block w-full pt-6 pb-2 px-4 border-gray-300 text-gray-900 bg-white rounded-lg 
                            shadow-sm focus:border-emerald-500 focus:ring-emerald-500 focus:ring-2 transition-all duration-200 h-14" />
 
-                {{-- LABEL: Diperpendek & Diposisikan di atas --}}
+                {{-- LABEL --}}
                 <label for="q-input"
                     class="absolute text-gray-500 duration-300 transform 
                            top-4 left-4 z-10 origin-[0] 
-                           
-                           /* State Normal (Floating) */
                            -translate-y-3 scale-75 text-emerald-600 font-bold
-                           
-                           /* State Placeholder Shown (Turun ke tengah) */
                            peer-placeholder-shown:scale-100 
                            peer-placeholder-shown:translate-y-0 
                            peer-placeholder-shown:text-gray-500
                            peer-placeholder-shown:font-normal
-                           
-                           /* State Focus (Naik lagi) */
                            peer-focus:scale-75 
                            peer-focus:-translate-y-3 
                            peer-focus:text-emerald-600
@@ -167,13 +331,14 @@
                     {{ __('Kata Kunci Pencarian') }}
                 </label>
 
-                {{-- HELPER TEXT: Instruksi dipindah ke sini --}}
                 <p class="mt-2 text-sm text-gray-500">
-                    Cari berdasarkan: <span class="font-semibold text-emerald-700">NIK</span>, <span
-                        class="font-semibold text-emerald-700">Work Center</span>, atau <span
-                        class="font-semibold text-emerald-700">Deskripsi</span>.
-                    <br>Gunakan tanda kutip untuk hasil tepat, contoh: <code
-                        class="bg-gray-100 px-1 rounded text-emerald-700 font-mono text-xs">"Nama Lengkap"</code> atau
+                    Cari berdasarkan:
+                    <span class="font-semibold text-emerald-700">NIK</span>,
+                    <span class="font-semibold text-emerald-700">Work Center</span>, atau
+                    <span class="font-semibold text-emerald-700">Deskripsi</span>.
+                    <br>Gunakan tanda kutip untuk hasil tepat, contoh:
+                    <code class="bg-gray-100 px-1 rounded text-emerald-700 font-mono text-xs">"Nama Lengkap"</code>
+                    atau
                     <code class="bg-gray-100 px-1 rounded text-emerald-700 font-mono text-xs">"DESC WC"</code>.
                 </p>
 
@@ -202,7 +367,8 @@
                         @endphp
 
                         {{-- Kolom checkbox + label (select all) --}}
-                        <th scope="col" class="px-6 py-4 text-left text-sm font-bold uppercase tracking-wider w-10">
+                        <th scope="col"
+                            class="px-6 py-4 text-left text-sm font-bold uppercase tracking-wider w-10">
                             <label class="inline-flex items-center gap-2 select-none cursor-pointer group">
                                 <input id="check-all-summary" type="checkbox"
                                     class="rounded border-gray-300 text-emerald-500 focus:ring-emerald-500 transition-colors cursor-pointer bg-white/90 h-4 w-4"
@@ -246,63 +412,14 @@
 
                             {{-- RENTANG TANGGAL --}}
                             <td class="px-6 py-4 whitespace-nowrap text-gray-600 font-mono text-sm">
-                                {{ Carbon::createFromFormat('Ymd', $data->min_begda)->isoFormat('YY-MM-DD') }} <span
-                                    class="text-emerald-400 mx-1">➜</span>
+                                {{ Carbon::createFromFormat('Ymd', $data->min_begda)->isoFormat('YY-MM-DD') }}
+                                <span class="text-emerald-400 mx-1">➜</span>
                                 {{ Carbon::createFromFormat('Ymd', $data->max_begda)->isoFormat('YY-MM-DD') }}
-                            </td>
-
-                            {{-- MENIT HADIR --}}
-                            <td class="px-6 py-4 whitespace-nowrap text-gray-800 text-right font-mono tracking-tight">
-                                {{ number_format($data->total_jam, 1) }}
-                            </td>
-
-                            {{-- MENIT KERJA --}}
-                            <td class="px-6 py-4 whitespace-nowrap text-gray-800 text-right font-mono tracking-tight">
-                                {{ (int) $data->mint2 }}
-                            </td>
-
-                            {{-- TOTAL MENIT INSPECT --}}
-                            <td class="px-6 py-4 whitespace-nowrap text-gray-800 text-right font-mono tracking-tight">
-                                {{ (int) $data->mintu }}
-                            </td>
-
-                            {{-- TOTAL DETIK INSPECT --}}
-                            <td class="px-6 py-4 whitespace-nowrap text-gray-800 text-right font-mono tracking-tight">
-                                {{ (int) $data->mintu2 }}
-                            </td>
-
-                            {{-- TOTAL DETIK CONFIRMATION --}}
-                            <td class="px-6 py-4 whitespace-nowrap text-gray-800 text-right font-mono tracking-tight">
-                                {{ (int) $data->mintu3 }}
                             </td>
 
                             {{-- NAMA --}}
                             <td class="px-6 py-4 whitespace-nowrap font-semibold text-slate-800 capitalize">
                                 {{ strtolower($data->cname) }}
-                            </td>
-
-                            {{-- UPAH HADIR --}}
-                            <td class="px-6 py-4 whitespace-nowrap text-emerald-700 font-medium text-right font-mono">
-                                {{ number_format($data->gji, 2) }}
-                            </td>
-
-                            {{-- UPAH INSP --}}
-                            <td class="px-6 py-4 whitespace-nowrap text-emerald-700 font-medium text-right font-mono">
-                                {{ number_format($data->gji2, 2) }}
-                            </td>
-
-                            {{-- VARIANT UPAH --}}
-                            <td
-                                class="px-6 py-4 whitespace-nowrap text-right font-mono {{ $data->varnt < 0 ? 'text-red-600 font-bold' : 'text-gray-800' }}">
-                                {{ number_format($data->varnt, 2) }}
-                            </td>
-
-                            {{-- PROSENTASE UPAH --}}
-                            <td class="px-6 py-4 whitespace-nowrap text-right font-mono">
-                                <span
-                                    class="inline-flex items-center px-2.5 py-1 rounded text-sm font-medium {{ $data->varnt1 < 100 ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800' }}">
-                                    {{ number_format($data->varnt1, 2) }}%
-                                </span>
                             </td>
 
                             {{-- WC PERSONAL --}}
@@ -312,23 +429,36 @@
 
                             {{-- DESC WC --}}
                             <td class="px-6 py-4 text-slate-600 text-sm min-w-[250px]">
-                                {{ Str::limit($data->desc, 40) }} {{-- Limit sedikit agar tabel tidak pecah --}}
+                                {{ Str::limit($data->desc, 40) }}
                             </td>
 
-                            {{-- WC CONFIRMASI --}}
-                            <td class="px-6 py-4 whitespace-nowrap text-slate-700 font-medium">
-                                {{ $data->arbpl2 }}
+                            {{-- MENIT HADIR (total_jam) --}}
+                            <td class="px-6 py-4 whitespace-nowrap text-gray-800 text-right font-mono tracking-tight">
+                                {{ number_format($data->total_jam, 1) }}
                             </td>
 
-                            {{-- PLANT --}}
+                            {{-- MENIT CONF (mintu3) --}}
+                            <td class="px-6 py-4 whitespace-nowrap text-gray-800 text-right font-mono tracking-tight">
+                                {{ (int) $data->mintu3 }}
+                            </td>
+
+                            {{-- MENIT INSPECT (mintu) --}}
+                            <td class="px-6 py-4 whitespace-nowrap text-gray-800 text-right font-mono tracking-tight">
+                                {{ (int) $data->mintu }}
+                            </td>
+
+                            {{-- VAR UPAH (varnt) --}}
                             <td
-                                class="px-6 py-4 whitespace-nowrap text-slate-700 text-center font-mono bg-slate-50/50">
-                                {{ $data->werks }}
+                                class="px-6 py-4 whitespace-nowrap text-right font-mono {{ $data->varnt < 0 ? 'text-red-600 font-bold' : 'text-gray-800' }}">
+                                {{ number_format($data->varnt, 2) }}
                             </td>
 
-                            {{-- SHIFT --}}
-                            <td class="px-6 py-4 whitespace-nowrap text-gray-800 text-center font-mono">
-                                {{ is_null($data->shift) ? '-' : (int) $data->shift }}
+                            {{-- PERSENTASE VAR (varnt1) --}}
+                            <td class="px-6 py-4 whitespace-nowrap text-right font-mono">
+                                <span
+                                    class="inline-flex items-center px-2.5 py-1 rounded text-sm font-medium {{ $data->varnt1 < 100 ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800' }}">
+                                    {{ number_format($data->varnt1, 2) }}%
+                                </span>
                             </td>
                         </tr>
                     @empty
@@ -379,7 +509,8 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                     d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                             </svg>
-                            Detail Tanggal <span
+                            Detail Tanggal
+                            <span
                                 class="text-emerald-200 font-mono bg-white/10 px-2 rounded ml-1 text-lg">{{ $selectedPernr }}</span>
                         </h3>
                         <button wire:click="closeDetailModal" type="button"
@@ -407,16 +538,12 @@
                                                 Pilih
                                             </label>
                                         </th>
-                                        @foreach ($headersNoShift as $header)
+                                        @foreach ($headersDetail as $header)
                                             <th scope="col"
                                                 class="px-6 py-4 text-left text-xs font-bold text-emerald-800 uppercase tracking-wider border-b-2 border-emerald-100 whitespace-nowrap">
                                                 {{ __($header) }}
                                             </th>
                                         @endforeach
-                                        <th scope="col"
-                                            class="px-6 py-4 text-left text-xs font-bold text-emerald-800 uppercase tracking-wider border-b-2 border-emerald-100">
-                                            Shift
-                                        </th>
                                     </tr>
                                 </thead>
 
@@ -432,7 +559,9 @@
                                                     data-pernr="{{ $data['pernr'] ?? '' }}"
                                                     data-werks="{{ $data['werks'] ?? '' }}"
                                                     data-arbpl="{{ $data['arbpl'] ?? '' }}"
-                                                    data-date="{{ $data['begda'] ?? '' }}">
+                                                    data-date="{{ $data['begda'] ?? '' }}"
+                                                    wire:model.live="selectedDetailKeys"
+                                                    value="{{ ($data['pernr'] ?? '') . '|' . ($data['begda'] ?? '') }}">
                                             </td>
 
                                             <td class="px-6 py-3 whitespace-nowrap text-sm font-bold text-emerald-800">
@@ -441,37 +570,24 @@
 
                                             @php
                                                 $detailColumns = [
-                                                    'pernr',
-                                                    'begda',
-                                                    'total_jam',
-                                                    'mint2',
-                                                    'mintu',
-                                                    'mintu2',
-                                                    'mintu3',
-                                                    'cname',
-                                                    'gji',
-                                                    'gji2',
-                                                    'varnt',
-                                                    'varnt1',
-                                                    'arbpl',
-                                                    'desc',
-                                                    'arbpl2',
-                                                    'werks',
-                                                    'shift',
+                                                    'pernr', // Personal No.
+                                                    'begda', // Tanggal
+                                                    'cname', // Nama
+                                                    'arbpl', // WC Personal
+                                                    'desc', // DESC WC
+                                                    'total_jam', // Menit Hadir
+                                                    'mintu3', // Menit Conf
+                                                    'mintu', // Menit Inspect
+                                                    'varnt', // Var Upah
+                                                    'varnt1', // Persentase Var
                                                 ];
                                             @endphp
 
                                             @foreach ($detailColumns as $column)
                                                 @php
                                                     $val = $data[$column] ?? null;
-                                                    $isMoney = in_array($column, ['gji', 'gji2', 'varnt', 'varnt1']);
-                                                    $isNum = in_array($column, [
-                                                        'mint2',
-                                                        'mintu',
-                                                        'mintu2',
-                                                        'mintu3',
-                                                        'shift',
-                                                    ]);
+                                                    $isMoney = in_array($column, ['varnt', 'varnt1']);
+                                                    $isNum = in_array($column, ['mintu', 'mintu3']);
                                                     $isDate = $column === 'begda';
                                                 @endphp
                                                 <td @class([
@@ -504,20 +620,25 @@
                     {{-- Modal Footer --}}
                     <div
                         class="bg-white px-6 py-4 sm:px-8 sm:flex sm:flex-row-reverse items-center gap-3 border-t border-gray-200">
-                        <button id="btn-refresh-sap" type="button"
-                            class="w-full inline-flex justify-center items-center gap-2 rounded-lg border border-transparent shadow-lg shadow-emerald-200 px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-base font-bold text-white hover:from-emerald-700 hover:to-teal-700 focus:outline-none sm:w-auto sm:text-sm transition-all transform hover:scale-105">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
-                                viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                            </svg>
-                            Refresh dari SAP (terpilih)
-                        </button>
 
-                        <button wire:click="closeDetailModal" type="button"
-                            class="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-5 py-2.5 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:mt-0 sm:w-auto sm:text-sm transition-all">
-                            Tutup
-                        </button>
+                        <div class="flex flex-col sm:flex-row-reverse gap-2 w-full sm:w-auto">
+                            {{-- REFRESH DARI SAP --}}
+                            <button id="btn-refresh-sap" type="button"
+                                class="w-full inline-flex justify-center items-center gap-2 rounded-lg border border-transparent shadow-lg shadow-emerald-200 px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-base font-bold text-white hover:from-emerald-700 hover:to-teal-700 focus:outline-none sm:w-auto sm:text-sm transition-all transform hover:scale-105">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
+                                    viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                                Refresh dari SAP (terpilih)
+                            </button>
+
+                            {{-- TUTUP --}}
+                            <button wire:click="closeDetailModal" type="button"
+                                class="mt-3 sm:mt-0 w-full inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-5 py-2.5 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:w-auto sm:text-sm transition-all">
+                                Tutup
+                            </button>
+                        </div>
 
                         <div class="mt-3 sm:mt-0 sm:mr-auto text-sm text-gray-500 italic">
                             <span id="refresh-progress">Siap memproses data...</span>
@@ -544,10 +665,7 @@
             animation: shine 3s infinite;
         }
     </style>
-
 </div>
-{{-- END ROOT DIV --}}
-
 
 {{-- ======= STYLE & SCRIPT BAWAAN ======= --}}
 @push('styles')
@@ -582,7 +700,7 @@
                 const $ = (sel, root = document) => root.querySelector(sel);
                 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
-                // Dropdown Export Logic
+                // Dropdown Export Summary
                 const exportBtn = document.getElementById('export-dropdown-button');
                 const exportMenu = document.getElementById('export-dropdown-menu');
                 if (exportBtn && exportMenu) {
@@ -592,9 +710,26 @@
                         exportMenu.classList.toggle('hidden');
                     });
                     document.addEventListener('click', function(e) {
-                        if (!exportMenu.classList.contains('hidden') && !exportBtn.contains(e.target) && !exportMenu
-                            .contains(e.target)) {
+                        if (!exportMenu.classList.contains('hidden') && !exportBtn.contains(e.target) &&
+                            !exportMenu.contains(e.target)) {
                             exportMenu.classList.add('hidden');
+                        }
+                    });
+                }
+
+                // Dropdown Export Detail
+                const exportDetailBtn = document.getElementById('export-detail-dropdown-button');
+                const exportDetailMenu = document.getElementById('export-detail-dropdown-menu');
+                if (exportDetailBtn && exportDetailMenu) {
+                    exportDetailBtn.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        exportDetailMenu.classList.toggle('hidden');
+                    });
+                    document.addEventListener('click', function(e) {
+                        if (!exportDetailMenu.classList.contains('hidden') && !exportDetailBtn.contains(e.target) &&
+                            !exportDetailMenu.contains(e.target)) {
+                            exportDetailMenu.classList.add('hidden');
                         }
                     });
                 }
@@ -675,7 +810,13 @@
                 document.addEventListener('change', function(e) {
                     if (e.target && e.target.id === 'check-all-detail') {
                         const modal = $('#yppr058-modal') || document;
-                        $$('.refresh-check', modal).forEach(cb => cb.checked = e.target.checked);
+                        $$('.refresh-check', modal).forEach(cb => {
+                            cb.checked = e.target.checked;
+                            // trigger event supaya wire:model selectedDetailKeys ikut update
+                            cb.dispatchEvent(new Event('change', {
+                                bubbles: true
+                            }));
+                        });
                     }
                     if (e.target && e.target.id === 'check-all-summary') {
                         $$('.summary-check').forEach(cb => {

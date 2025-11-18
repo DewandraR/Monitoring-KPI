@@ -9,10 +9,7 @@ use App\Models\WcPersonData;
 #[Layout('layouts.app')]
 class WcPersonList extends Component
 {
-    /** kata kunci pencarian */
     public string $q = '';
-
-    /** daftar NIK yang dipilih (dipakai untuk export) */
     public array $selectedPernrs = [];
 
     public function render()
@@ -22,7 +19,7 @@ class WcPersonList extends Component
             'NIK',
             'Tgl Mulai',
             'Nama',
-            'Role',                // <--- baru
+            'Role',
             'Work Center',
             'Deskripsi Work Center',
             'Plant',
@@ -30,34 +27,28 @@ class WcPersonList extends Component
 
         $rows = WcPersonData::query()
             ->search($this->q)
+            // URUTAN: 1) PLANT, 2) WC, 3) NIK
             ->orderByRaw('CAST(werks AS UNSIGNED), werks')
+            ->orderBy('arbpl')
             ->orderBy('pernr')
             ->get();
 
         return view('livewire.wc-person-list', [
             'headers'        => $headers,
             'rows'           => $rows,
-            // supaya Blade punya akses ke array ini
             'selectedPernrs' => $this->selectedPernrs,
         ]);
     }
 
-    /**
-     * Klik checkbox per baris.
-     * Kalau sudah ada di selectedPernrs -> lepas.
-     * Kalau belum -> tambahkan.
-     */
     public function togglePernr(string $pernr): void
     {
         $pernr = (string) $pernr;
 
         if (in_array($pernr, $this->selectedPernrs, true)) {
-            // lepas dari selection
             $this->selectedPernrs = array_values(
                 array_diff($this->selectedPernrs, [$pernr])
             );
         } else {
-            // tambahkan ke selection
             $this->selectedPernrs[] = $pernr;
             $this->selectedPernrs = array_values(
                 array_unique($this->selectedPernrs)
@@ -65,18 +56,15 @@ class WcPersonList extends Component
         }
     }
 
-    /**
-     * Klik checkbox header "Pilih".
-     * Bekerja berdasarkan hasil filter saat ini ($this->q).
-     */
     public function toggleSelectAll(): void
     {
         $query = WcPersonData::query()
             ->search($this->q)
+            // HARUS SAMA DENGAN render():
             ->orderByRaw('CAST(werks AS UNSIGNED), werks')
+            ->orderBy('arbpl')
             ->orderBy('pernr');
 
-        // semua NIK di hasil filter saat ini
         $currentPernrs = $query->pluck('pernr')
             ->map(fn($p) => (string) $p)
             ->all();
@@ -86,30 +74,23 @@ class WcPersonList extends Component
         }
 
         $selected = $this->selectedPernrs;
-
-        // cek apakah SEMUA NIK di hasil filter sudah ada di selection
         $diff = array_diff($currentPernrs, $selected);
 
         if (empty($diff)) {
-            // semua sudah terpilih -> unselect semua NIK di hasil filter ini
+            // semua di hasil filter sudah kepilih -> unselect semua di hasil filter
             $this->selectedPernrs = array_values(
                 array_diff($selected, $currentPernrs)
             );
         } else {
-            // masih ada yang belum -> tambahkan semua NIK hasil filter ke selection
+            // masih ada yang belum -> tambahkan semuanya
             $this->selectedPernrs = array_values(
                 array_unique(array_merge($selected, $currentPernrs))
             );
         }
     }
 
-    /**
-     * Dipanggil dari tombol Export (PDF / Excel).
-     * Mengirim URL ke JS lewat event browser.
-     */
     public function export(string $type): void
     {
-        // rapikan & unik
         $pernrs = array_values(
             array_unique(array_map('strval', $this->selectedPernrs))
         );
@@ -119,20 +100,17 @@ class WcPersonList extends Component
             return;
         }
 
-        // SIMPAN KE SESSION (akan dibaca di WcPersonExportController)
         session()->put('wc_person_export.pernrs', $pernrs);
         session()->put('wc_person_export.q', $this->q);
 
-        // Bangun URL TANPA parameter panjang
         if ($type === 'pdf') {
             $url = route('wc-person.export-pdf');
         } elseif ($type === 'excel') {
             $url = route('wc-person.export-excel');
         } else {
-            return; // tipe tidak dikenal
+            return;
         }
 
-        // Kirim ke browser → window.open(url, '_blank')
         $this->dispatch('wc-person-export', url: $url);
     }
 }

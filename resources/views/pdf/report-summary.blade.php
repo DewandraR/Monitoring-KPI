@@ -1,4 +1,5 @@
 {{-- resources/views/pdf/report-summary.blade.php --}}
+
 @php
     use Carbon\Carbon;
 @endphp
@@ -65,7 +66,7 @@
         table.data-table thead th {
             background-color: #065f46;
             color: #ffffff;
-            text-align: left;
+            text-align: center;
             font-weight: bold;
             font-size: 6.5pt;
             text-transform: uppercase;
@@ -121,40 +122,37 @@
 
         /** KOLOM WIDTH CONFIGURATION **/
         .col-no {
-            width: 3%;
+            width: 4%;
         }
 
         .col-pernr {
-            width: 7%;
+            width: 8%;
         }
 
         .col-range {
-            width: 9%;
-        }
-
-        .col-menit {
-            width: 5%;
-        }
-
-        .col-nama {
             width: 12%;
         }
 
-        .col-upah {
-            width: 7%;
+        .col-nama {
+            width: 20%;
         }
 
         .col-wc {
-            width: 5%;
+            width: 14%;
         }
 
-        .col-plant {
-            width: 4%;
+        .col-menit {
+            width: 8%;
+        }
+
+        .col-upah {
+            width: 8%;
         }
     </style>
 </head>
 
 <body>
+
     <div class="header-container">
         <table class="header-table">
             <tr>
@@ -163,9 +161,13 @@
                     <div class="header-subtitle">Sistem Personalia WC-Person &bull; yppr058_data</div>
                 </td>
                 <td style="vertical-align: bottom;" class="header-meta">
-                    <div><strong>PLANT:</strong> <span
-                            style="font-size: 11pt; color: #059669;">{{ $werks }}</span></div>
-                    <div style="margin-top: 2px;">Dicetak: {{ Carbon::now()->isoFormat('D MMMM Y, HH:mm') }}</div>
+                    <div>
+                        <strong>PLANT:</strong>
+                        <span style="font-size: 11pt; color: #059669;">{{ $werks }}</span>
+                    </div>
+                    <div style="margin-top: 2px;">
+                        Dicetak: {{ Carbon::now()->isoFormat('D MMMM Y, HH:mm') }}
+                    </div>
                 </td>
             </tr>
         </table>
@@ -174,29 +176,21 @@
     <table class="data-table">
         <thead>
             <tr>
-                <th class="col-no text-center">No</th>
-                <th class="col-pernr text-left">Personal No</th>
-                <th class="col-range text-left">Periode</th>
+                <th class="col-no">No</th>
+                <th class="col-pernr">Personal No</th>
+                <th class="col-range">Rentang Tanggal</th>
 
-                {{-- WAKTU (Header Center) --}}
-                <th class="col-menit text-center">Hadir<br>(Menit)</th>
-                <th class="col-menit text-center">Kerja<br>(Menit)</th>
-                <th class="col-menit text-center">Insp<br>(Menit)</th>
-                <th class="col-menit text-center">Insp<br>(Detik)</th>
-                <th class="col-menit text-center">Conf<br>(Detik)</th>
+                <th class="col-nama">Nama</th>
 
-                <th class="col-nama text-left">Nama Karyawan</th>
+                <th class="col-wc">WC Personal</th>
+                <th class="col-wc">DESC WC</th>
 
-                {{-- UPAH (Header Center) --}}
-                <th class="col-upah text-center">Upah<br>Hadir</th>
-                <th class="col-upah text-center">Upah<br>Insp</th>
-                <th class="col-upah text-center">Var.<br>Upah</th>
-                <th class="col-upah text-center">%<br>Upah</th>
+                <th class="col-menit">Menit Hadir</th>
+                <th class="col-menit">Menit Conf</th>
+                <th class="col-menit">Menit Inspect</th>
 
-                <th class="col-wc text-left">WC<br>Pers</th>
-                <th class="col-wc text-left">Desc<br>WC</th>
-                <th class="col-wc text-left">WC<br>Conf</th>
-                <th class="col-plant text-center">Plant</th>
+                <th class="col-upah">Var Upah</th>
+                <th class="col-upah">% Var</th>
             </tr>
         </thead>
         <tbody>
@@ -206,43 +200,54 @@
                     <td class="text-center text-gray">{{ $i + 1 }}</td>
 
                     {{-- PERSONAL NO --}}
-                    <td class="font-bold text-emerald">{{ $data->pernr }}</td>
+                    <td class="font-bold text-emerald text-center">{{ $data->pernr }}</td>
 
                     {{-- RENTANG TANGGAL --}}
-                    <td class="text-gray" style="font-size: 6pt;">
-                        {{ Carbon::createFromFormat('Ymd', $data->min_begda)->format('d/m/y') }} -
+                    <td class="text-center text-gray" style="font-size: 6pt;">
+                        {{ Carbon::createFromFormat('Ymd', $data->min_begda)->format('d/m/y') }}
+                        -
                         {{ Carbon::createFromFormat('Ymd', $data->max_begda)->format('d/m/y') }}
                     </td>
 
-                    {{-- ANGKA WAKTU (Masih Rata Kanan - Standard Waktu) --}}
-                    <td class="text-right font-mono">{{ number_format($data->total_jam, 1) }}</td>
-                    <td class="text-right font-mono">{{ (int) $data->mint2 }}</td>
-                    <td class="text-right font-mono">{{ (int) $data->mintu }}</td>
-                    <td class="text-right font-mono">{{ (int) $data->mintu2 }}</td>
-                    <td class="text-right font-mono">{{ (int) $data->mintu3 }}</td>
-
                     {{-- NAMA --}}
-                    <td style="text-transform: capitalize;">
+                    <td class="text-left" style="text-transform: capitalize;">
                         {{ strtolower($data->cname) }}
                     </td>
 
-                    {{-- UPAH & VARIANT & PERSEN (SEKARANG RATA TENGAH) --}}
-                    <td class="text-center font-mono">{{ number_format($data->gji, 0, ',', '.') }}</td>
-                    <td class="text-center font-mono">{{ number_format($data->gji2, 0, ',', '.') }}</td>
+                    {{-- WC PERSONAL --}}
+                    <td class="text-center text-gray" style="font-size: 6pt;">
+                        {{ $data->arbpl }}
+                    </td>
 
-                    <td class="text-center font-mono" style="color: {{ $data->varnt < 0 ? '#dc2626' : '#333' }}">
+                    {{-- DESC WC (FULL, TANPA "...") --}}
+                    <td class="text-left text-gray" style="font-size: 6pt;">
+                        {{ $data->desc }}
+                    </td>
+
+                    {{-- MENIT HADIR (total_jam) --}}
+                    <td class="text-center font-mono">
+                        {{ number_format($data->total_jam, 1) }}
+                    </td>
+
+                    {{-- MENIT CONF (mintu3) --}}
+                    <td class="text-center font-mono">
+                        {{ (int) $data->mintu3 }}
+                    </td>
+
+                    {{-- MENIT INSPECT (mintu) --}}
+                    <td class="text-center font-mono">
+                        {{ (int) $data->mintu }}
+                    </td>
+
+                    {{-- VAR UPAH (varnt) --}}
+                    <td class="text-center font-mono" style="color: {{ $data->varnt < 0 ? '#dc2626' : '#333' }};">
                         {{ number_format($data->varnt, 0, ',', '.') }}
                     </td>
 
-                    <td class="text-center font-mono">{{ number_format($data->varnt1, 2) }}%</td>
-
-                    {{-- KODE WC --}}
-                    <td class="text-gray" style="font-size: 6pt;">{{ $data->arbpl }}</td>
-                    <td class="text-gray" style="font-size: 6pt;">{{ Str::limit($data->desc, 15) }}</td>
-                    <td class="text-gray" style="font-size: 6pt;">{{ $data->arbpl2 }}</td>
-
-                    {{-- PLANT --}}
-                    <td class="text-center font-bold text-gray">{{ $data->werks }}</td>
+                    {{-- PERSENTASE VAR (varnt1) --}}
+                    <td class="text-center font-mono">
+                        {{ number_format($data->varnt1, 2) }}%
+                    </td>
                 </tr>
             @endforeach
         </tbody>
@@ -254,9 +259,17 @@
             $size = 6;
             $font = $fontMetrics->getFont("Helvetica", "italic");
             $width = $fontMetrics->getTextWidth($text, $font, $size);
-            $pdf->page_text($pdf->get_width() - $width - 30, $pdf->get_height() - 20, $text, $font, $size, array(0.6, 0.6, 0.6));
+            $pdf->page_text(
+                $pdf->get_width() - $width - 30,
+                $pdf->get_height() - 20,
+                $text,
+                $font,
+                $size,
+                [0.6, 0.6, 0.6]
+            );
         }
     </script>
+
 </body>
 
 </html>

@@ -32,6 +32,69 @@ class ReportGenerator extends Component
         'varnt',
         'varnt1',
     ];
+    public array $selectedDetailKeys = [];   // pernr|begda yang dicentang di modal
+
+    public function exportDetail(string $format)
+    {
+        // Kumpulkan semua NIK dari:
+        // 1) checkbox detail (selectedDetailKeys: "pernr|begda")
+        // 2) checkbox summary (selectedPernrs)
+        // Per NIK -> selalu export FULL range tanggal (1..H-1), bukan hanya tanggal yang dicentang.
+
+        $pernrSet = [];
+
+        // Dari DETAIL
+        foreach ($this->selectedDetailKeys as $key) {
+            if (!is_string($key) || $key === '') {
+                continue;
+            }
+
+            [$pernr] = array_pad(explode('|', $key, 2), 2, '');
+            $pernr = trim((string) $pernr);
+
+            if ($pernr === '') {
+                continue;
+            }
+
+            $pernrSet[$pernr] = true;
+        }
+
+        // Dari SUMMARY
+        foreach ($this->selectedPernrs as $p) {
+            $p = trim((string) $p);
+            if ($p === '') {
+                continue;
+            }
+            $pernrSet[$p] = true;
+        }
+
+        if (empty($pernrSet)) {
+            // tidak ada apapun yang dipilih
+            return;
+        }
+
+        // Normalisasi: jadikan array items,
+        // dates = []  => artinya "semua tanggal" (full range) akan di-handle di controller
+        $items = [];
+        foreach (array_keys($pernrSet) as $pernr) {
+            $items[] = [
+                'pernr' => $pernr,
+                'dates' => [],   // selalu full range
+            ];
+        }
+
+        // Simpan ke session untuk dibaca controller export detail
+        session()->put('report_export_detail.items', $items);
+
+        if ($format === 'pdf') {
+            return redirect()->route('report-data.export-detail-pdf', ['werks' => $this->werks]);
+        }
+
+        if ($format === 'excel') {
+            return redirect()->route('report-data.export-detail-excel', ['werks' => $this->werks]);
+        }
+    }
+
 
     public function mount($werks)
     {
@@ -157,56 +220,52 @@ class ReportGenerator extends Component
             'No',
             'Personal No.',
             'Rentang Tanggal',
-            'Menit Hadir',
-            'Menit Kerja',
-            'Total Menit Inspect',
-            'Total Detik Inspect',
-            'Total Detik Confirmation',
             'Nama',
-            'Upah Hadir',
-            'Upah Insp',
-            'Variant Upah',
-            'Prosentase Upah',
-
             'WC Personal',
-            'DESC WC',        // <--- TAMBAHAN
-            'WC Confirmasi',
-
-            'Plant',
-            'Shift',
+            'DESC WC',
+            'Menit Hadir',
+            'Menit Conf',
+            'Menit Inspect',
+            'Var Upah',
+            'Persentase Var',
         ];
 
         $baseQuery = ReportData::query()
             ->whereRaw('UPPER(TRIM(werks)) = ?', [$this->werks]);
 
-        // === Parsing input search seperti sebelumnya ===
+        // === Parsing input search ===
         $raw = trim((string) $this->q);
 
+        // 1) ambil semua yang di dalam tanda kutip -> $namePhrases
         preg_match_all('/"([^"]+)"/u', $raw, $m);
         $namePhrases = collect($m[1] ?? [])
             ->map(fn($p) => mb_strtolower(trim($p)))
             ->filter()
             ->values();
 
+        // buang yang di-kutip dari string mentah
         $rest = preg_replace('/"([^"]+)"/u', ' ', $raw);
 
+        // 2) token sisa (dipisah spasi/koma)
         $tokens = collect(preg_split('/[\s,]+/u', $rest))
             ->filter()
             ->map(fn($t) => trim($t))
             ->values();
 
+        // token numerik (NIK)
         $pernrTokens = $tokens->filter(fn($t) => preg_match('/^\d{6,}$/', $t));
+        // token lain (kode WC, nama, desc, dll)
         $arbplTokens = $tokens->diff($pernrTokens)->values();
 
+        // 3) fallback: kalau belum ada frasa di-kutip,
+        //    dan input hanya terdiri dari huruf & spasi (tidak ada angka),
+        //    maka anggap seluruh input sebagai frasa nama/desc
         if ($namePhrases->isEmpty() && $raw !== '' && preg_match('/^[\p{L}\s]+$/u', $raw)) {
-            preg_match_all('/\p{L}+/u', $raw, $words);
-            if (count($words[0]) >= 2) {
-                $namePhrases = collect([mb_strtolower($raw)]);
-            }
+            $namePhrases = collect([mb_strtolower($raw)]);
         }
 
         $baseQuery->where(function ($q) use ($pernrTokens, $arbplTokens, $namePhrases) {
-            // NIK
+            // --- NIK (pernr) ---
             if ($pernrTokens->isNotEmpty()) {
                 $q->where(function ($qq) use ($pernrTokens) {
                     foreach ($pernrTokens as $t) {
@@ -215,31 +274,33 @@ class ReportGenerator extends Component
                 });
             }
 
-            // Token non-angka → WC code (arbpl) ATAU deskripsi WC (desc)
+            // --- Token non-angka: cari WC code, DESC WC, dan NAMA (cname) ---
             if ($arbplTokens->isNotEmpty()) {
                 $q->where(function ($qq) use ($arbplTokens) {
                     foreach ($arbplTokens as $t) {
+                        $lower = mb_strtolower($t);
                         $qq->orWhere('arbpl', 'LIKE', "%{$t}%")
-                            ->orWhere('desc',  'LIKE', "%{$t}%");   // <--- cari DESC WC juga
+                            ->orWhere('desc',  'LIKE', "%{$t}%")
+                            ->orWhereRaw('LOWER(cname) LIKE ?', ["%{$lower}%"]);
                     }
                 });
             }
 
-            // Frasa di dalam tanda kutip (nama orang / DESC WC)
+            // --- Frasa di dalam tanda kutip (lebih spesifik) ---
             if ($namePhrases->isNotEmpty()) {
                 $q->where(function ($qq) use ($namePhrases) {
                     foreach ($namePhrases as $p) {
                         $qq->orWhereRaw('LOWER(cname) LIKE ?', ["%{$p}%"])
-                            ->orWhereRaw('LOWER(`desc`) LIKE ?',  ["%{$p}%"]); // <--- DESC WC pakai kutip
+                            ->orWhereRaw('LOWER(`desc`) LIKE ?',  ["%{$p}%"]);
                     }
                 });
             }
         });
 
-
+        // === Aggregate per pernr (summary) ===
         $sumSelects = array_map(fn($col) => "SUM($col) as $col", $this->aggregateColumns);
 
-        // non-aggregate (diambil salah satu, misal MAX) termasuk DESC WC
+        // non-aggregate (MAX) termasuk DESC WC
         $nonAggSelects = array_map(
             fn($col) => "MAX(`$col`) as `$col`",
             ['cname', 'arbpl', 'desc', 'arbpl2', 'werks']
@@ -247,15 +308,15 @@ class ReportGenerator extends Component
 
         $nonAggSelects[] = 'MIN(shift) as shift';
 
-        $dateRangeSel   = ['MIN(begda) as min_begda', 'MAX(begda) as max_begda'];
-        $selects        = array_merge(['pernr'], $dateRangeSel, $nonAggSelects, $sumSelects);
+        $dateRangeSel = ['MIN(begda) as min_begda', 'MAX(begda) as max_begda'];
+        $selects      = array_merge(['pernr'], $dateRangeSel, $nonAggSelects, $sumSelects);
 
         $reportData = $baseQuery
             ->selectRaw(implode(', ', $selects))
             ->groupBy('pernr')
             ->get();
 
-        // <<< BARU: simpan daftar pernr yang muncul di halaman ini >>>
+        // simpan daftar pernr yang muncul di halaman ini
         $this->currentPagePernrs = $reportData
             ->pluck('pernr')
             ->map(fn($p) => (string) $p)

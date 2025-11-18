@@ -6,7 +6,7 @@
 
 import os, re, json, datetime, calendar
 from decimal import Decimal
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Optional
 
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify
@@ -110,7 +110,6 @@ def to_dats(s: str) -> str:
         return s
     raise ValueError(f"Invalid date format: {s}")
 
-
 def month_range(dats: str) -> Tuple[str, str]:
     y = int(dats[0:4])
     m = int(dats[4:6])
@@ -118,7 +117,6 @@ def month_range(dats: str) -> Tuple[str, str]:
     last = calendar.monthrange(y, m)[1]
     end = f"{y:04d}{m:02d}{last:02d}"
     return start, end
-
 
 def get_mysql():
     return mysql.connector.connect(
@@ -130,12 +128,10 @@ def get_mysql():
         autocommit=False,
     )
 
-
 def acquire_pair_lock(cur, arbpl: str, werks: str, timeout: int = 120) -> bool:
     cur.execute("SELECT GET_LOCK(CONCAT('yppr058:', %s, ':', %s), %s)", (arbpl, werks, timeout))
     row = cur.fetchone()
     return bool(row and row[0] == 1)
-
 
 def release_pair_lock(cur, arbpl: str, werks: str):
     try:
@@ -143,7 +139,6 @@ def release_pair_lock(cur, arbpl: str, werks: str):
         cur.fetchone()
     except Exception:
         pass
-
 
 def norm_val(x):
     if x is None:
@@ -155,8 +150,30 @@ def norm_val(x):
     except Exception:
         return x
 
+# <<< BARU: ambil deskripsi WC dari wc_person_data, sama seperti di loader >>>
+def get_wc_desc(conn, arbpl: str, werks: str) -> Optional[str]:
+    """
+    Ambil deskripsi WC dari tabel wc_person_data (kolom `desc`)
+    berdasarkan pasangan ARBPL/WERKS.
+    """
+    sql = (
+        f"SELECT `desc` FROM `{WC_TABLE}` "
+        "WHERE arbpl=%s AND werks=%s AND `desc` IS NOT NULL AND `desc`<>'' "
+        "LIMIT 1"
+    )
+    cur = conn.cursor()
+    try:
+        cur.execute(sql, (arbpl, werks))
+        row = cur.fetchone()
+        return row[0] if row else None
+    except mysql.connector.Error as e:
+        logger.warning(f"[WARN] gagal ambil desc WC {arbpl}/{werks}: {e}")
+        return None
+    finally:
+        cur.close()
 
-def normalize_tdata(row: Dict[str, Any], arbpl: str, werks: str) -> Dict[str, Any]:
+# <<< DIUBAH: tambahkan desc_value, dan set field `desc` >>>
+def normalize_tdata(row: Dict[str, Any], arbpl: str, werks: str, desc_value: Optional[str]) -> Dict[str, Any]:
     S = lambda v: "" if v is None else str(v)
     I = lambda v: None if (S(v) == "") else int(S(v))
     D = lambda v: None if v in (None, "") else norm_val(v)
@@ -177,20 +194,16 @@ def normalize_tdata(row: Dict[str, Any], arbpl: str, werks: str) -> Dict[str, An
         "arbpl2": S(row.get("ARBPL2")),
         "shift": I(row.get("SHIFT")),
         "werks": werks,
+        "desc": desc_value,
     }
 
-
-DELETE_SQL = f"""
-DELETE FROM `{OUT_TABLE}`
-WHERE `arbpl`=%s AND `werks`=%s AND `begda` BETWEEN %s AND %s
-"""
-
+# <<< DIUBAH: tambah kolom `desc` di INSERT & UPDATE >>>
 UPSERT_SQL = f"""
 INSERT INTO `{OUT_TABLE}`
 (`pernr`,`begda`,`total_jam`,`mint2`,`mintu`,`mintu2`,`mintu3`,
- `cname`,`gji`,`gji2`,`varnt`,`varnt1`,`arbpl`,`arbpl2`,`shift`,`werks`,`source_rfc`)
+ `cname`,`gji`,`gji2`,`varnt`,`varnt1`,`arbpl`,`arbpl2`,`shift`,`werks`,`desc`,`source_rfc`)
 VALUES (%(pernr)s,%(begda)s,%(total_jam)s,%(mint2)s,%(mintu)s,%(mintu2)s,%(mintu3)s,
-        %(cname)s,%(gji)s,%(gji2)s,%(varnt)s,%(varnt1)s,%(arbpl)s,%(arbpl2)s,%(shift)s,%(werks)s,'{RFC_NAME}')
+        %(cname)s,%(gji)s,%(gji2)s,%(varnt)s,%(varnt1)s,%(arbpl)s,%(arbpl2)s,%(shift)s,%(werks)s,%(desc)s,'{RFC_NAME}')
 ON DUPLICATE KEY UPDATE
   `total_jam`=VALUES(`total_jam`),
   `mint2`=VALUES(`mint2`),
@@ -204,9 +217,29 @@ ON DUPLICATE KEY UPDATE
   `varnt1`=VALUES(`varnt1`),
   `arbpl2`=VALUES(`arbpl2`),
   `shift`=VALUES(`shift`),
+  `desc`=VALUES(`desc`),
   `inserted_at`=CURRENT_TIMESTAMP
 """
 
+# <<< BARU: delete hanya untuk pernr yang ikut di-refresh >>>
+def delete_old_rows(cur, arbpl: str, werks: str, begda: str, endda: str, pernrs: List[str]) -> int:
+    """
+    Hapus data lama hanya untuk pernr-pernr tertentu di WC/Plant + range tanggal.
+    """
+    if not pernrs:
+        return 0
+
+    placeholders = ",".join(["%s"] * len(pernrs))
+    sql = f"""
+        DELETE FROM `{OUT_TABLE}`
+        WHERE `arbpl`=%s
+          AND `werks`=%s
+          AND `begda` BETWEEN %s AND %s
+          AND `pernr` IN ({placeholders})
+    """
+    params = [arbpl, werks, begda, endda] + list(pernrs)
+    cur.execute(sql, params)
+    return cur.rowcount
 
 def call_rfc(conn: Connection, arbpl: str, werks: str, begda: str, endda: str, pernrs: List[str]):
     return conn.call(
@@ -219,11 +252,9 @@ def call_rfc(conn: Connection, arbpl: str, werks: str, begda: str, endda: str, p
         T_PERNR=[{"PERNR": p} for p in pernrs],
     )
 
-
 # -------- Pair resolver --------
 def month_range_for_sql(dats: str) -> Tuple[str, str]:
     return month_range(dats)
-
 
 def resolve_pairs(cur, pernr: str, dats: str) -> Tuple[str, List[Tuple[str, str]]]:
     """Kembalikan (strategy, [(arbpl, werks), ...]) untuk pernr di tanggal dats."""
@@ -255,7 +286,6 @@ def resolve_pairs(cur, pernr: str, dats: str) -> Tuple[str, List[Tuple[str, str]
 
     return "none", []
 
-
 def pernr_has_confirm(cur, pernr: str, dats: str) -> bool:
     """
     Cek apakah di yppr058_data untuk pernr + tanggal itu sudah ada WC Konfirmasi (arbpl2).
@@ -263,7 +293,6 @@ def pernr_has_confirm(cur, pernr: str, dats: str) -> bool:
     cur.execute(CHECK_CONFIRM_SQL, (pernr, dats))
     row = cur.fetchone()
     return bool(row and row[0] > 0)
-
 
 def find_induk_for_pair(cur, arbpl: str, werks: str, dats: str) -> List[str]:
     """
@@ -281,16 +310,13 @@ def find_induk_for_pair(cur, arbpl: str, werks: str, dats: str) -> List[str]:
         pernrs.append(s.zfill(8) if s.isdigit() else s)
     return pernrs
 
-
 # ---------------- Flask App ----------------
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
-
 @app.get("/health")
 def health():
     return {"ok": True, "service": "yppr058_refresh", "time": datetime.datetime.now().isoformat()}
-
 
 @app.post("/api/yppr058/refresh")
 def api_refresh():
@@ -412,6 +438,9 @@ def api_refresh():
                                 f"tambah induk={extra} untuk {arbpl}/{werks}"
                             )
 
+                # <<< BARU: ambil DESC WC untuk pasangan ini >>>
+                desc_for_pair = get_wc_desc(db, arbpl, werks)
+
                 # Penting #2: CALL RFC DULU
                 try:
                     logger.info(
@@ -435,7 +464,7 @@ def api_refresh():
 
                 t_data = resp.get("T_DATA") or []
                 sap_rows = len(t_data)
-                rows = [normalize_tdata(r, arbpl, werks) for r in t_data]
+                rows = [normalize_tdata(r, arbpl, werks, desc_for_pair) for r in t_data]
                 logger.info(
                     f"[SAP] rows={sap_rows} for {pernr}@{arbpl}/{werks} {begda}"
                 )
@@ -457,13 +486,12 @@ def api_refresh():
                     )
                     continue
 
-                # Mulai transaksi: hapus lama utk range tsb lalu isi baru
+                # Mulai transaksi: hapus lama hanya utk pernr-pernr yang ikut di-refresh
                 try:
-                    cur.execute(DELETE_SQL, (arbpl, werks, begda, endda))
-                    deleted = cur.rowcount
+                    deleted = delete_old_rows(cur, arbpl, werks, begda, endda, pernrs_for_rfc)
                     db.commit()
                     logger.info(
-                        f"[DB] deleted={deleted} for {arbpl}/{werks} {begda}..{endda}"
+                        f"[DB] deleted={deleted} for {pernrs_for_rfc} @ {arbpl}/{werks} {begda}..{endda}"
                     )
                 except mysql.connector.Error as e:
                     db.rollback()
@@ -539,7 +567,6 @@ def api_refresh():
         pass
 
     return jsonify({"ok": True, "results": results})
-
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5010, debug=False)

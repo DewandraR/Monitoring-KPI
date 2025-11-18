@@ -31,52 +31,45 @@ class ReportSummaryExport implements FromCollection, WithHeadings, ShouldAutoSiz
     public function headings(): array
     {
         return [
+            'No',
             'Personal No.',
             'Rentang Tanggal',
-            'Menit Hadir',
-            'Menit Kerja',
-            'Total Menit Inspect',
-            'Total Detik Inspect',
-            'Total Detik Confirmation',
             'Nama',
-            'Upah Hadir',
-            'Upah Insp',
-            'Variant Upah',
-            'Prosentase Upah',
             'WC Personal',
             'DESC WC',
-            'WC Confirmasi',
-            'Plant',
-            'Shift',
+            'Menit Hadir',
+            'Menit Conf',
+            'Menit Inspect',
+            'Var Upah',
+            'Persentase Var',
         ];
     }
 
     public function collection(): Collection
     {
-        return $this->rows->map(function ($row) {
+        // Kita generate kolom "No" (1,2,3,...) manual
+        $i = 0;
+
+        return $this->rows->map(function ($row) use (&$i) {
+            $i++;
+
             $rentangTanggal =
                 Carbon::createFromFormat('Ymd', $row->min_begda)->isoFormat('YY-MM-DD') .
                 ' - ' .
                 Carbon::createFromFormat('Ymd', $row->max_begda)->isoFormat('YY-MM-DD');
 
             return [
-                $row->pernr,            // A
-                $rentangTanggal,        // B
-                (float) $row->total_jam, // C
-                (int) $row->mint2,      // D
-                (int) $row->mintu,      // E
-                (int) $row->mintu2,     // F
-                (int) $row->mintu3,     // G
-                $row->cname,            // H
-                (float) $row->gji,      // I
-                (float) $row->gji2,     // J
-                (float) $row->varnt,    // K
-                (float) $row->varnt1,   // L
-                $row->arbpl,            // M
-                $row->desc,             // N
-                $row->arbpl2,           // O
-                $row->werks,            // P
-                is_null($row->shift) ? null : (int) $row->shift, // Q
+                $i,                     // A: No
+                $row->pernr,            // B: Personal No.
+                $rentangTanggal,        // C: Rentang Tanggal
+                $row->cname,            // D: Nama
+                $row->arbpl,            // E: WC Personal
+                $row->desc,             // F: DESC WC
+                (float) $row->total_jam, // G: Menit Hadir
+                (int) $row->mintu3,     // H: Menit Conf
+                (int) $row->mintu,      // I: Menit Inspect
+                (float) $row->varnt,    // J: Var Upah
+                (float) $row->varnt1,   // K: Persentase Var (angka 100 = 100.00)
             ];
         });
     }
@@ -107,20 +100,17 @@ class ReportSummaryExport implements FromCollection, WithHeadings, ShouldAutoSiz
     }
 
     /**
-     * 2. Format Angka (Agar Excel membacanya sebagai angka/uang, bukan teks)
+     * 2. Format Angka
      */
     public function columnFormats(): array
     {
         return [
-            'C' => '#,##0.0',  // Menit Hadir (1 desimal)
-            'D' => '#,##0',    // Menit Kerja (Bulat)
-            'E' => '#,##0',    // Menit Inspect
-            'F' => '#,##0',    // Detik Inspect
-            'G' => '#,##0',    // Detik Conf
-            'I' => '#,##0.00', // Upah Hadir (2 desimal)
-            'J' => '#,##0.00', // Upah Insp
-            'K' => '#,##0.00', // Variant
-            'L' => '0.00%',    // Prosentase (langsung format %)
+            'G' => '#,##0.0',  // Menit Hadir (1 desimal)
+            'H' => '#,##0',    // Menit Conf
+            'I' => '#,##0',    // Menit Inspect
+            'J' => '#,##0.00', // Var Upah
+            // K: Persentase Var -> kita biarkan sebagai angka biasa 2 desimal
+            'K' => '0.00',
         ];
     }
 
@@ -132,51 +122,50 @@ class ReportSummaryExport implements FromCollection, WithHeadings, ShouldAutoSiz
         return [
             AfterSheet::class => function (AfterSheet $event) {
                 $sheet = $event->sheet->getDelegate();
-                $rowCount = $this->rows->count() + 1; // +1 karena ada header
-                $lastColumn = 'Q'; // Kolom terakhir (Shift)
+                $rowCount = $this->rows->count() + 1; // +1 header
+                $lastColumn = 'K'; // Kolom terakhir
 
                 // Range seluruh tabel data
                 $tableRange = 'A1:' . $lastColumn . $rowCount;
 
-                // a. Tambahkan AutoFilter di Header
+                // a. AutoFilter di header
                 $sheet->setAutoFilter('A1:' . $lastColumn . '1');
 
-                // b. Freeze Header (Biar header tetap terlihat saat scroll ke bawah)
+                // b. Freeze header
                 $sheet->freezePane('A2');
 
-                // c. Berikan Border Tipis ke seluruh data
+                // c. Border tipis semua sel
                 $sheet->getStyle($tableRange)->applyFromArray([
                     'borders' => [
                         'allBorders' => [
                             'borderStyle' => Border::BORDER_THIN,
-                            'color' => ['argb' => 'FFD1D5DB'], // Abu-abu muda
+                            'color' => ['argb' => 'FFD1D5DB'],
                         ],
                     ],
                 ]);
 
-                // d. Atur Alignment Kolom secara spesifik
+                // d. Alignment kolom
 
-                // Rata Tengah: NIK (A), Codes (M, O, P, Q)
+                // Rata tengah: No (A), Personal No (B), WC Personal (E)
                 $sheet->getStyle('A2:A' . $rowCount)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-                $sheet->getStyle('M2:Q' . $rowCount)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $sheet->getStyle('B2:B' . $rowCount)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $sheet->getStyle('E2:E' . $rowCount)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
-                // Rata Kiri: Nama (H), Desc (N)
-                $sheet->getStyle('H2:H' . $rowCount)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
-                $sheet->getStyle('N2:N' . $rowCount)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+                // Rata kiri: Rentang Tanggal (C), Nama (D), DESC WC (F)
+                $sheet->getStyle('C2:C' . $rowCount)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+                $sheet->getStyle('D2:D' . $rowCount)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+                $sheet->getStyle('F2:F' . $rowCount)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
 
-                // Rata Kanan: Angka (C, D, E, F, G, I, J, K, L)
-                // (Sebenarnya format angka otomatis rata kanan, tapi kita paksa biar rapi)
-                $sheet->getStyle('C2:G' . $rowCount)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
-                $sheet->getStyle('I2:L' . $rowCount)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+                // Rata kanan: angka Menit & Var (G-K)
+                $sheet->getStyle('G2:K' . $rowCount)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
 
-                // e. Opsional: Zebra Striping (Warna selang-seling)
-                // Loop dari baris 2 sampai akhir
+                // e. Zebra striping
                 for ($i = 2; $i <= $rowCount; $i++) {
-                    if ($i % 2 == 0) { // Baris Genap
+                    if ($i % 2 == 0) { // Baris genap
                         $sheet->getStyle('A' . $i . ':' . $lastColumn . $i)->applyFromArray([
                             'fill' => [
                                 'fillType' => Fill::FILL_SOLID,
-                                'startColor' => ['argb' => 'FFECFDF5'], // Emerald 50 (Sangat muda)
+                                'startColor' => ['argb' => 'FFECFDF5'], // Emerald 50
                             ],
                         ]);
                     }

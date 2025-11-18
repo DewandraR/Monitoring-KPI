@@ -3,10 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Exports\ReportSummaryExport;
+use App\Exports\ReportDetailExport; // <<< TAMBAHAN: export khusus detail
 use App\Models\ReportData;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Facades\Excel;
+use Carbon\Carbon;
 
 class ReportPdfController extends Controller
 {
@@ -17,7 +20,7 @@ class ReportPdfController extends Controller
      * @param  string $werks
      * @return \Illuminate\Support\Collection
      */
-    protected function getSummaryRows(array $pernrs, string $werks)
+    protected function getSummaryRows(array $pernrs, string $werks): Collection
     {
         $aggregateColumns = [
             'total_jam',
@@ -33,7 +36,7 @@ class ReportPdfController extends Controller
 
         $sumSelects = array_map(fn($col) => "SUM($col) as $col", $aggregateColumns);
 
-        // ⬇️ DIUBAH: ikutkan 'desc' sebagai non-aggregate (MAX)
+        // non-aggregate (diambil salah satu, misal MAX) termasuk DESC WC
         $nonAggSelects = array_map(
             fn($col) => "MAX(`$col`) as `$col`",
             ['cname', 'arbpl', 'desc', 'arbpl2', 'werks']
@@ -54,7 +57,61 @@ class ReportPdfController extends Controller
     }
 
     /**
-     * Export PDF untuk NIK terpilih.
+     * PARSER untuk key detail "pernr|begda" dari session.
+     *
+     * @param  array  $keys
+     * @return \Illuminate\Support\Collection [ ['pernr' => ..., 'begda' => ...], ... ]
+     */
+    protected function parseDetailKeys(array $keys): Collection
+    {
+        return collect($keys)
+            ->map(function ($key) {
+                [$pernr, $begda] = array_pad(explode('|', (string) $key, 2), 2, null);
+
+                $pernr = trim((string) $pernr);
+                $begda = trim((string) $begda);
+
+                if ($pernr === '' || $begda === '') {
+                    return null;
+                }
+
+                return ['pernr' => $pernr, 'begda' => $begda];
+            })
+            ->filter()
+            ->unique(fn($row) => $row['pernr'] . '|' . $row['begda'])
+            ->values();
+    }
+
+    /**
+     * Ambil DETAIL rows berdasarkan pasangan pernr+begda (multi user, multi tanggal).
+     *
+     * @param  array  $pairs  format: [ ['pernr' => '10000001', 'begda' => '20251101'], ... ]
+     * @param  string $werks
+     * @return \Illuminate\Support\Collection
+     */
+    protected function getDetailRows(array $pairs, string $werks): Collection
+    {
+        if (empty($pairs)) {
+            return collect();
+        }
+
+        return ReportData::query()
+            ->whereRaw('UPPER(TRIM(werks)) = ?', [$werks])
+            ->where(function ($q) use ($pairs) {
+                foreach ($pairs as $row) {
+                    $q->orWhere(function ($qq) use ($row) {
+                        $qq->where('pernr', $row['pernr'])
+                            ->where('begda', $row['begda']);
+                    });
+                }
+            })
+            ->orderBy('pernr')
+            ->orderBy('begda')
+            ->get();
+    }
+
+    /**
+     * Export PDF untuk NIK terpilih (SUMMARY).
      * Route: GET /report-data/{werks}/export-pdf
      */
     public function exportSelected(Request $request, string $werks)
@@ -89,7 +146,7 @@ class ReportPdfController extends Controller
     }
 
     /**
-     * Export Excel (.xlsx) untuk NIK terpilih.
+     * Export Excel (.xlsx) untuk NIK terpilih (SUMMARY).
      * Route: GET /report-data/{werks}/export-excel
      */
     public function exportSelectedExcel(Request $request, string $werks)
@@ -118,5 +175,102 @@ class ReportPdfController extends Controller
         $filename = "report-data-{$werks}.xlsx";
 
         return Excel::download(new ReportSummaryExport($rows, $werks), $filename);
+    }
+
+    /**
+     * EXPORT DETAIL PDF (multi user + multi tanggal).
+     * Route: GET /report-data/{werks}/export-detail-pdf
+     *
+     * Livewire menyimpan pilihan di session 'report_export.details'
+     * berupa array key "pernr|begda".
+     */
+    public function exportDetailSelected(Request $request, string $werks)
+    {
+        // BACA dari session yang di-set Livewire
+        $items = (array) $request->session()->get('report_export_detail.items', []);
+
+        // Ambil daftar pernr unik
+        $pernrs = collect($items)
+            ->map(fn($row) => trim((string) ($row['pernr'] ?? '')))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($pernrs)) {
+            abort(404, 'Tidak ada data detail yang dipilih untuk di-export.');
+        }
+
+        $werks = strtoupper(trim($werks));
+
+        // Range tanggal: 1 s/d kemarin, sama dengan showPernrDetail()
+        $start = Carbon::now()->startOfMonth()->format('Ymd');
+        $end   = Carbon::now()->subDay()->format('Ymd');
+
+        $rows = ReportData::query()
+            ->whereRaw('UPPER(TRIM(werks)) = ?', [$werks])
+            ->whereIn('pernr', $pernrs)
+            ->whereBetween('begda', [$start, $end])
+            ->orderBy('pernr')
+            ->orderBy('begda')
+            ->get();
+
+        if ($rows->isEmpty()) {
+            abort(404, 'Data detail tidak ditemukan untuk pilihan tersebut.');
+        }
+
+        // bersihkan session
+        $request->session()->forget('report_export_detail.items');
+
+        $pdf = Pdf::loadView('pdf.report-detail', [
+            'rows'  => $rows,
+            'werks' => $werks,
+        ])->setPaper('a4', 'landscape');
+
+        return $pdf->download("report-data-detail-{$werks}.pdf");
+    }
+
+    /**
+     * EXPORT DETAIL Excel (.xlsx) (multi user + full range tanggal bulan berjalan).
+     * Route: GET /report-data/{werks}/export-detail-excel
+     */
+    public function exportDetailSelectedExcel(Request $request, string $werks)
+    {
+        $items = (array) $request->session()->get('report_export_detail.items', []);
+
+        $pernrs = collect($items)
+            ->map(fn($row) => trim((string) ($row['pernr'] ?? '')))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($pernrs)) {
+            abort(404, 'Tidak ada data detail yang dipilih untuk di-export.');
+        }
+
+        $werks = strtoupper(trim($werks));
+
+        $start = Carbon::now()->startOfMonth()->format('Ymd');
+        $end   = Carbon::now()->subDay()->format('Ymd');
+
+        $rows = ReportData::query()
+            ->whereRaw('UPPER(TRIM(werks)) = ?', [$werks])
+            ->whereIn('pernr', $pernrs)
+            ->whereBetween('begda', [$start, $end])
+            ->orderBy('pernr')
+            ->orderBy('begda')
+            ->get();
+
+        if ($rows->isEmpty()) {
+            abort(404, 'Data detail tidak ditemukan untuk pilihan tersebut.');
+        }
+
+        // bersihkan session
+        $request->session()->forget('report_export_detail.items');
+
+        $filename = "report-data-detail-{$werks}.xlsx";
+
+        return Excel::download(new ReportDetailExport($rows, $werks), $filename);
     }
 }
