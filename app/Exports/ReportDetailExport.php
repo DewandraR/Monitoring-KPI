@@ -31,40 +31,58 @@ class ReportDetailExport implements FromCollection, WithHeadings, ShouldAutoSize
     public function headings(): array
     {
         return [
-            'Personal No.',
-            'Tanggal',
-            'Nama',
-            'WC Personal',
-            'DESC WC',
-            'Menit Hadir',
-            'Menit Conf',
-            'Menit Inspect',
-            'Var Upah',
-            'Persentase Upah',
-            'WC Confirmasi',
-            'Plant',
-            'Shift',
+            'Personal No.',      // A
+            'Tanggal',           // B
+            'Nama',              // C
+            'WC Personal',       // D
+            'DESC WC',           // E
+            'Menit Hadir',       // F
+            'Menit Conf',        // G
+            'Menit Inspect',     // H
+            'Detik Inspect',     // I
+            'Detik Konfirmasi',  // J
+            'Var Upah',          // K
+            'Persentase Upah',   // L
+            'Plant',             // M
         ];
     }
 
     public function collection(): Collection
     {
         return $this->rows->map(function ($row) {
+
+            // Pastikan null → 0 supaya TIDAK kosong di Excel
+            $totalJam  = (float) ($row->total_jam ?? 0);
+            $mint2     = (int)   ($row->mint2 ?? 0);
+            $mintu     = (int)   ($row->mintu ?? 0);
+            $mintu2    = (int)   ($row->mintu2 ?? 0);
+            $mintu3    = (int)   ($row->mintu3 ?? 0);
+            $varnt     = (float) ($row->varnt ?? 0);
+            $gji       = (float) ($row->gji ?? 0);
+
+            // Persentase = Var Upah / Upah Hadir * 100
+            $persentase = 0.0;
+            if ($gji != 0.0) {
+                $persentase = ($varnt / $gji) * 100;
+            }
+
             return [
-                $row->pernr,                                  // A
+                (string) ($row->pernr ?? ''),                    // A: Personal No.
                 Carbon::createFromFormat('Ymd', $row->begda)
-                    ->isoFormat('YY-MM-DD'),                  // B
-                $row->cname,                                  // C
-                $row->arbpl,                                  // D
-                $row->desc,                                   // E
-                (float) $row->total_jam,                      // F
-                (int) $row->mintu3,                           // G
-                (int) $row->mintu,                            // H
-                (float) $row->varnt,                          // I
-                (float) $row->varnt1,                         // J
-                $row->arbpl2,                                 // K
-                $row->werks,                                  // L
-                is_null($row->shift) ? null : (int) $row->shift, // M
+                    ->isoFormat('YY-MM-DD'),                     // B: Tanggal
+                (string) ($row->cname ?? ''),                    // C: Nama
+                (string) ($row->arbpl ?? ''),                    // D: WC Personal
+                (string) ($row->desc ?? ''),                     // E: DESC WC
+
+                $totalJam,                                       // F: Menit Hadir
+                $mint2,                                          // G: Menit Conf
+                $mintu,                                          // H: Menit Inspect
+                $mintu2,                                         // I: Detik Inspect
+                $mintu3,                                         // J: Detik Konfirmasi
+
+                $varnt,                                          // K: Var Upah
+                $persentase,                                     // L: Persentase Upah (angka, sudah x100)
+                (string) ($row->werks ?? ''),                    // M: Plant
             ];
         });
     }
@@ -93,11 +111,14 @@ class ReportDetailExport implements FromCollection, WithHeadings, ShouldAutoSize
     public function columnFormats(): array
     {
         return [
-            'F' => '#,##0.0',  // Menit Hadir
-            'G' => '#,##0',    // Menit Conf
-            'H' => '#,##0',    // Menit Inspect
-            'I' => '#,##0.00', // Var Upah
-            'J' => '0.00%',    // Persentase
+            'F' => '#,##0.0',   // Menit Hadir
+            'G' => '#,##0',     // Menit Conf
+            'H' => '#,##0',     // Menit Inspect
+            'I' => '#,##0',     // Detik Inspect
+            'J' => '#,##0',     // Detik Konfirmasi
+            'K' => '#,##0.00',  // Var Upah
+            // Persentase: 8.18 -> tampil 8.18%
+            'L' => '0.00"%"',   // Persentase Upah
         ];
     }
 
@@ -107,15 +128,15 @@ class ReportDetailExport implements FromCollection, WithHeadings, ShouldAutoSize
             AfterSheet::class => function (AfterSheet $event) {
                 $sheet     = $event->sheet->getDelegate();
                 $rowCount  = $this->rows->count() + 1;
-                $lastCol   = 'M';
+                $lastCol   = 'M'; // kolom terakhir
+
                 $tableRange = "A1:{$lastCol}{$rowCount}";
 
-                // AutoFilter
+                // AutoFilter & freeze header
                 $sheet->setAutoFilter("A1:{$lastCol}1");
-                // Freeze header
                 $sheet->freezePane('A2');
 
-                // Border
+                // Border tipis semua sel
                 $sheet->getStyle($tableRange)->applyFromArray([
                     'borders' => [
                         'allBorders' => [
@@ -125,23 +146,27 @@ class ReportDetailExport implements FromCollection, WithHeadings, ShouldAutoSize
                     ],
                 ]);
 
-                // Alignments
+                // Alignment kolom
                 $sheet->getStyle("A2:A{$rowCount}")
-                    ->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                    ->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER); // Personal No.
+
+                $sheet->getStyle("B2:B{$rowCount}")
+                    ->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER); // Tanggal
 
                 $sheet->getStyle("D2:D{$rowCount}")
-                    ->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                    ->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER); // WC Personal
 
-                $sheet->getStyle("K2:M{$rowCount}")
-                    ->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $sheet->getStyle("M2:M{$rowCount}")
+                    ->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER); // Plant
 
                 $sheet->getStyle("C2:C{$rowCount}")
-                    ->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+                    ->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);   // Nama
 
                 $sheet->getStyle("E2:E{$rowCount}")
-                    ->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+                    ->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);   // DESC WC
 
-                $sheet->getStyle("F2:J{$rowCount}")
+                // Semua angka menit/detik/var/persen
+                $sheet->getStyle("F2:L{$rowCount}")
                     ->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
                 // Zebra striping

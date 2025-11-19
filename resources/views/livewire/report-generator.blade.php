@@ -10,11 +10,13 @@
         'Nama',
         'WC Personal',
         'DESC WC',
-        'Menit Hadir',
-        'Menit Conf',
-        'Menit Inspect',
-        'Var Upah',
-        'Persentase Var',
+        'Menit Hadir', // total_jam
+        'Menit Conf', // mint2
+        'Menit Inspect', // mintu
+        'Detik Inspect', // mintu2
+        'Detik Konfirmasi', // mintu3
+        'Var Upah', // varnt
+        'Persentase Var', // varnt1
     ];
 
     // Header untuk modal detail
@@ -25,11 +27,13 @@
         'Nama',
         'WC Personal',
         'DESC WC',
-        'Menit Hadir',
-        'Menit Conf',
-        'Menit Inspect',
-        'Var Upah',
-        'Persentase Var',
+        'Menit Hadir', // total_jam
+        'Menit Conf', // mint2
+        'Menit Inspect', // mintu
+        'Detik Inspect', // mintu2
+        'Detik Konfirmasi', // mintu3
+        'Var Upah', // varnt
+        'Persentase Var', // varnt1
     ];
 
     // Hitung berapa NIK yang terseleksi di SUMMARY (untuk Export Report)
@@ -437,14 +441,24 @@
                                 {{ number_format($data->total_jam, 1) }}
                             </td>
 
-                            {{-- MENIT CONF (mintu3) --}}
+                            {{-- MENIT CONF (mint2) --}}
                             <td class="px-6 py-4 whitespace-nowrap text-gray-800 text-right font-mono tracking-tight">
-                                {{ (int) $data->mintu3 }}
+                                {{ (int) $data->mint2 }}
                             </td>
 
                             {{-- MENIT INSPECT (mintu) --}}
                             <td class="px-6 py-4 whitespace-nowrap text-gray-800 text-right font-mono tracking-tight">
                                 {{ (int) $data->mintu }}
+                            </td>
+
+                            {{-- DETIK INSPECT (mintu2) --}}
+                            <td class="px-6 py-4 whitespace-nowrap text-gray-800 text-right font-mono tracking-tight">
+                                {{ (int) $data->mintu2 }}
+                            </td>
+
+                            {{-- DETIK KONFIRMASI (mintu3) --}}
+                            <td class="px-6 py-4 whitespace-nowrap text-gray-800 text-right font-mono tracking-tight">
+                                {{ (int) $data->mintu3 }}
                             </td>
 
                             {{-- VAR UPAH (varnt) --}}
@@ -575,9 +589,13 @@
                                                     'cname', // Nama
                                                     'arbpl', // WC Personal
                                                     'desc', // DESC WC
-                                                    'total_jam', // Menit Hadir
-                                                    'mintu3', // Menit Conf
-                                                    'mintu', // Menit Inspect
+
+                                                    'total_jam', // Menit Hadir (TOTAL_JAM)
+                                                    'mint2', // Menit Conf (MINT2)
+                                                    'mintu', // Menit Inspect (MINTU)
+                                                    'mintu2', // Detik Inspect (MINTU2)
+                                                    'mintu3', // Detik Konfirmasi (MINTU3)
+
                                                     'varnt', // Var Upah
                                                     'varnt1', // Persentase Var
                                                 ];
@@ -586,10 +604,25 @@
                                             @foreach ($detailColumns as $column)
                                                 @php
                                                     $val = $data[$column] ?? null;
+
+                                                    // KHUSUS varnt1: hitung dari varnt & gji
+                                                    if ($column === 'varnt1') {
+                                                        $gji = isset($data['gji']) ? (float) $data['gji'] : 0;
+                                                        $varnt = isset($data['varnt']) ? (float) $data['varnt'] : 0;
+
+                                                        if ($gji != 0) {
+                                                            $val = ($varnt / $gji) * 100;
+                                                        } else {
+                                                            // kalau upah hadir 0, anggap 0% (atau bisa null kalau mau "-")
+                                                            $val = 0;
+                                                        }
+                                                    }
+
                                                     $isMoney = in_array($column, ['varnt', 'varnt1']);
-                                                    $isNum = in_array($column, ['mintu', 'mintu3']);
+                                                    $isNum = in_array($column, ['mint2', 'mintu', 'mintu2', 'mintu3']);
                                                     $isDate = $column === 'begda';
                                                 @endphp
+
                                                 <td @class([
                                                     'px-6 py-3 whitespace-nowrap text-sm',
                                                     'text-right font-mono' => $isMoney || $isNum || $column === 'total_jam',
@@ -597,19 +630,22 @@
                                                 ])>
                                                     @if ($val === '' || is_null($val))
                                                         -
-                                                    @elseif($isMoney)
-                                                        {{ number_format($val, 2) }}
-                                                    @elseif($column === 'total_jam')
+                                                    @elseif ($column === 'total_jam')
                                                         {{ number_format($val, 1) }}
-                                                    @elseif($isNum)
+                                                    @elseif ($column === 'varnt1')
+                                                        {{ number_format($val, 2) }}%
+                                                    @elseif ($isMoney)
+                                                        {{ number_format($val, 2) }}
+                                                    @elseif ($isNum)
                                                         {{ (int) $val }}
-                                                    @elseif($isDate)
+                                                    @elseif ($isDate)
                                                         {{ Carbon::createFromFormat('Ymd', $val)->isoFormat('YY-MM-DD') }}
                                                     @else
                                                         {{ $val }}
                                                     @endif
                                                 </td>
                                             @endforeach
+
                                         </tr>
                                     @endforeach
                                 </tbody>

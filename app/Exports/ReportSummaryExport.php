@@ -40,6 +40,8 @@ class ReportSummaryExport implements FromCollection, WithHeadings, ShouldAutoSiz
             'Menit Hadir',
             'Menit Conf',
             'Menit Inspect',
+            'Detik Inspect',
+            'Detik Konfirmasi',
             'Var Upah',
             'Persentase Var',
         ];
@@ -47,7 +49,6 @@ class ReportSummaryExport implements FromCollection, WithHeadings, ShouldAutoSiz
 
     public function collection(): Collection
     {
-        // Kita generate kolom "No" (1,2,3,...) manual
         $i = 0;
 
         return $this->rows->map(function ($row) use (&$i) {
@@ -59,17 +60,21 @@ class ReportSummaryExport implements FromCollection, WithHeadings, ShouldAutoSiz
                 Carbon::createFromFormat('Ymd', $row->max_begda)->isoFormat('YY-MM-DD');
 
             return [
-                $i,                     // A: No
-                $row->pernr,            // B: Personal No.
-                $rentangTanggal,        // C: Rentang Tanggal
-                $row->cname,            // D: Nama
-                $row->arbpl,            // E: WC Personal
-                $row->desc,             // F: DESC WC
-                (float) $row->total_jam, // G: Menit Hadir
-                (int) $row->mintu3,     // H: Menit Conf
-                (int) $row->mintu,      // I: Menit Inspect
-                (float) $row->varnt,    // J: Var Upah
-                (float) $row->varnt1,   // K: Persentase Var (angka 100 = 100.00)
+                $i,                             // A: No
+                $row->pernr,                    // B: Personal No.
+                $rentangTanggal,                // C: Rentang Tanggal
+                $row->cname,                    // D: Nama
+                $row->arbpl,                    // E: WC Personal
+                $row->desc,                     // F: DESC WC
+
+                (float) $row->total_jam,        // G: Menit Hadir
+                (int) $row->mint2,              // H: Menit Conf
+                (int) $row->mintu,              // I: Menit Inspect
+                (int) $row->mintu2,             // J: Detik Inspect
+                (int) $row->mintu3,             // K: Detik Konfirmasi
+
+                (float) $row->varnt,            // L: Var Upah
+                (float) $row->varnt1,           // M: Persentase Var (rata-rata harian, 0-∞)
             ];
         });
     }
@@ -105,14 +110,16 @@ class ReportSummaryExport implements FromCollection, WithHeadings, ShouldAutoSiz
     public function columnFormats(): array
     {
         return [
-            'G' => '#,##0.0',  // Menit Hadir (1 desimal)
+            'G' => '#,##0.0',  // Menit Hadir
             'H' => '#,##0',    // Menit Conf
             'I' => '#,##0',    // Menit Inspect
-            'J' => '#,##0.00', // Var Upah
-            // K: Persentase Var -> kita biarkan sebagai angka biasa 2 desimal
-            'K' => '0.00',
+            'J' => '#,##0',    // Detik Inspect
+            'K' => '#,##0',    // Detik Konfirmasi
+            'L' => '#,##0.00', // Var Upah
+            'M' => '0.00',     // Persentase Var (angka 0-∞, tanpa % kedua kalinya)
         ];
     }
+
 
     /**
      * 3. Event Listener untuk Styling Lanjutan (Border, Alignment Kolom, Freeze Pane)
@@ -123,49 +130,31 @@ class ReportSummaryExport implements FromCollection, WithHeadings, ShouldAutoSiz
             AfterSheet::class => function (AfterSheet $event) {
                 $sheet = $event->sheet->getDelegate();
                 $rowCount = $this->rows->count() + 1; // +1 header
-                $lastColumn = 'K'; // Kolom terakhir
-
-                // Range seluruh tabel data
+                $lastColumn = 'M'; // dari 'K' → 'M'
                 $tableRange = 'A1:' . $lastColumn . $rowCount;
 
-                // a. AutoFilter di header
                 $sheet->setAutoFilter('A1:' . $lastColumn . '1');
 
-                // b. Freeze header
-                $sheet->freezePane('A2');
-
-                // c. Border tipis semua sel
-                $sheet->getStyle($tableRange)->applyFromArray([
-                    'borders' => [
-                        'allBorders' => [
-                            'borderStyle' => Border::BORDER_THIN,
-                            'color' => ['argb' => 'FFD1D5DB'],
-                        ],
-                    ],
-                ]);
-
-                // d. Alignment kolom
-
-                // Rata tengah: No (A), Personal No (B), WC Personal (E)
+                // rata tengah No, Personal No, WC
                 $sheet->getStyle('A2:A' . $rowCount)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
                 $sheet->getStyle('B2:B' . $rowCount)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
                 $sheet->getStyle('E2:E' . $rowCount)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
-                // Rata kiri: Rentang Tanggal (C), Nama (D), DESC WC (F)
+                // kiri: rentang tanggal, nama, desc
                 $sheet->getStyle('C2:C' . $rowCount)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
                 $sheet->getStyle('D2:D' . $rowCount)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
                 $sheet->getStyle('F2:F' . $rowCount)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
 
-                // Rata kanan: angka Menit & Var (G-K)
-                $sheet->getStyle('G2:K' . $rowCount)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+                // kanan: semua angka (G..M)
+                $sheet->getStyle('G2:M' . $rowCount)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
 
-                // e. Zebra striping
+                // zebra striping pakai $lastColumn
                 for ($i = 2; $i <= $rowCount; $i++) {
-                    if ($i % 2 == 0) { // Baris genap
+                    if ($i % 2 == 0) {
                         $sheet->getStyle('A' . $i . ':' . $lastColumn . $i)->applyFromArray([
                             'fill' => [
                                 'fillType' => Fill::FILL_SOLID,
-                                'startColor' => ['argb' => 'FFECFDF5'], // Emerald 50
+                                'startColor' => ['argb' => 'FFECFDF5'],
                             ],
                         ]);
                     }

@@ -11,7 +11,7 @@
     <meta charset="UTF-8">
     <title>Report Data - yppr058_data</title>
     <style>
-        /** * GLOBAL SETTINGS */
+        /** GLOBAL SETTINGS */
         @page {
             margin: 1cm 1cm;
         }
@@ -142,7 +142,7 @@
         }
 
         .col-menit {
-            width: 8%;
+            width: 7%;
         }
 
         .col-upah {
@@ -188,6 +188,8 @@
                 <th class="col-menit">Menit Hadir</th>
                 <th class="col-menit">Menit Conf</th>
                 <th class="col-menit">Menit Inspect</th>
+                <th class="col-menit">Detik Inspect</th>
+                <th class="col-menit">Detik Konf</th>
 
                 <th class="col-upah">Var Upah</th>
                 <th class="col-upah">% Var</th>
@@ -219,7 +221,7 @@
                         {{ $data->arbpl }}
                     </td>
 
-                    {{-- DESC WC (FULL, TANPA "...") --}}
+                    {{-- DESC WC (FULL) --}}
                     <td class="text-left text-gray" style="font-size: 6pt;">
                         {{ $data->desc }}
                     </td>
@@ -229,9 +231,9 @@
                         {{ number_format($data->total_jam, 1) }}
                     </td>
 
-                    {{-- MENIT CONF (mintu3) --}}
+                    {{-- MENIT CONF (mint2) --}}
                     <td class="text-center font-mono">
-                        {{ (int) $data->mintu3 }}
+                        {{ (int) $data->mint2 }}
                     </td>
 
                     {{-- MENIT INSPECT (mintu) --}}
@@ -239,12 +241,22 @@
                         {{ (int) $data->mintu }}
                     </td>
 
+                    {{-- DETIK INSPECT (mintu2) --}}
+                    <td class="text-center font-mono">
+                        {{ (int) $data->mintu2 }}
+                    </td>
+
+                    {{-- DETIK KONFIRMASI (mintu3) --}}
+                    <td class="text-center font-mono">
+                        {{ (int) $data->mintu3 }}
+                    </td>
+
                     {{-- VAR UPAH (varnt) --}}
                     <td class="text-center font-mono" style="color: {{ $data->varnt < 0 ? '#dc2626' : '#333' }};">
                         {{ number_format($data->varnt, 0, ',', '.') }}
                     </td>
 
-                    {{-- PERSENTASE VAR (varnt1) --}}
+                    {{-- PERSENTASE VAR (varnt1, hasil AVG dari controller) --}}
                     <td class="text-center font-mono">
                         {{ number_format($data->varnt1, 2) }}%
                     </td>

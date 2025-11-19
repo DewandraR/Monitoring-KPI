@@ -29,9 +29,9 @@ class ReportGenerator extends Component
         'mintu3',
         'gji',
         'gji2',
-        'varnt',
-        'varnt1',
+        'varnt',   // varnt1 dihilangkan, nanti dihitung manual
     ];
+
     public array $selectedDetailKeys = [];   // pernr|begda yang dicentang di modal
 
     public function exportDetail(string $format)
@@ -309,13 +309,23 @@ class ReportGenerator extends Component
         $nonAggSelects[] = 'MIN(shift) as shift';
 
         $dateRangeSel = ['MIN(begda) as min_begda', 'MAX(begda) as max_begda'];
-        $selects      = array_merge(['pernr'], $dateRangeSel, $nonAggSelects, $sumSelects);
+
+        // RATA-RATA PERSENTASE VAR PER HARI:
+        //   AVG( (varnt / gji) * 100 )  -> kalau gji = 0, anggap 0%
+        $persenVarExpr = 'AVG(CASE WHEN gji <> 0 THEN (varnt / gji) * 100 ELSE 0 END) as varnt1';
+
+        $selects = array_merge(
+            ['pernr'],
+            $dateRangeSel,
+            $nonAggSelects,
+            $sumSelects,
+            [$persenVarExpr]
+        );
 
         $reportData = $baseQuery
             ->selectRaw(implode(', ', $selects))
             ->groupBy('pernr')
             ->get();
-
         // simpan daftar pernr yang muncul di halaman ini
         $this->currentPagePernrs = $reportData
             ->pluck('pernr')

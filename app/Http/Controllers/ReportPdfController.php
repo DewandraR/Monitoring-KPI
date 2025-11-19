@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Exports\ReportSummaryExport;
-use App\Exports\ReportDetailExport; // <<< TAMBAHAN: export khusus detail
+use App\Exports\ReportDetailExport;
 use App\Models\ReportData;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
@@ -22,6 +22,7 @@ class ReportPdfController extends Controller
      */
     protected function getSummaryRows(array $pernrs, string $werks): Collection
     {
+        // kolom yang di-SUM
         $aggregateColumns = [
             'total_jam',
             'mint2',
@@ -31,21 +32,31 @@ class ReportPdfController extends Controller
             'gji',
             'gji2',
             'varnt',
-            'varnt1',
+            // varnt1 sengaja TIDAK dimasukkan, kita hitung manual
         ];
 
         $sumSelects = array_map(fn($col) => "SUM($col) as $col", $aggregateColumns);
 
-        // non-aggregate (diambil salah satu, misal MAX) termasuk DESC WC
+        // non-aggregate (ambil MAX atau MIN)
         $nonAggSelects = array_map(
             fn($col) => "MAX(`$col`) as `$col`",
             ['cname', 'arbpl', 'desc', 'arbpl2', 'werks']
         );
-
         $nonAggSelects[] = 'MIN(shift) as shift';
-        $dateRangeSel    = ['MIN(begda) as min_begda', 'MAX(begda) as max_begda'];
 
-        $selects = array_merge(['pernr'], $dateRangeSel, $nonAggSelects, $sumSelects);
+        $dateRangeSel = ['MIN(begda) as min_begda', 'MAX(begda) as max_begda'];
+
+        // RATA-RATA PERSENTASE VAR:
+        // AVG( (varnt / gji) * 100 ) per hari; kalau gji=0 → 0
+        $persenVarExpr = 'AVG(CASE WHEN gji <> 0 THEN (varnt / gji) * 100 ELSE 0 END) as varnt1';
+
+        $selects = array_merge(
+            ['pernr'],
+            $dateRangeSel,
+            $nonAggSelects,
+            $sumSelects,
+            [$persenVarExpr]
+        );
 
         return ReportData::query()
             ->whereRaw('UPPER(TRIM(werks)) = ?', [$werks])
@@ -116,10 +127,8 @@ class ReportPdfController extends Controller
      */
     public function exportSelected(Request $request, string $werks)
     {
-        // ambil dari session yang di-set Livewire
         $pernrs = (array) $request->session()->get('report_export.pernrs', []);
 
-        // rapikan
         $pernrs = array_values(array_filter(array_map('strval', $pernrs)));
 
         if (empty($pernrs)) {
@@ -134,7 +143,6 @@ class ReportPdfController extends Controller
             abort(404, 'Data tidak ditemukan untuk pilihan tersebut.');
         }
 
-        // opsional: bersihkan session supaya kalau halaman di-refresh tidak pakai data lama
         $request->session()->forget('report_export.pernrs');
 
         $pdf = Pdf::loadView('pdf.report-summary', [
@@ -151,10 +159,8 @@ class ReportPdfController extends Controller
      */
     public function exportSelectedExcel(Request $request, string $werks)
     {
-        // ambil dari session yang di-set Livewire
         $pernrs = (array) $request->session()->get('report_export.pernrs', []);
 
-        // rapikan
         $pernrs = array_values(array_filter(array_map('strval', $pernrs)));
 
         if (empty($pernrs)) {
@@ -169,7 +175,6 @@ class ReportPdfController extends Controller
             abort(404, 'Data tidak ditemukan untuk pilihan tersebut.');
         }
 
-        // bersihkan session
         $request->session()->forget('report_export.pernrs');
 
         $filename = "report-data-{$werks}.xlsx";
@@ -180,16 +185,11 @@ class ReportPdfController extends Controller
     /**
      * EXPORT DETAIL PDF (multi user + multi tanggal).
      * Route: GET /report-data/{werks}/export-detail-pdf
-     *
-     * Livewire menyimpan pilihan di session 'report_export.details'
-     * berupa array key "pernr|begda".
      */
     public function exportDetailSelected(Request $request, string $werks)
     {
-        // BACA dari session yang di-set Livewire
         $items = (array) $request->session()->get('report_export_detail.items', []);
 
-        // Ambil daftar pernr unik
         $pernrs = collect($items)
             ->map(fn($row) => trim((string) ($row['pernr'] ?? '')))
             ->filter()
@@ -203,7 +203,6 @@ class ReportPdfController extends Controller
 
         $werks = strtoupper(trim($werks));
 
-        // Range tanggal: 1 s/d kemarin, sama dengan showPernrDetail()
         $start = Carbon::now()->startOfMonth()->format('Ymd');
         $end   = Carbon::now()->subDay()->format('Ymd');
 
@@ -219,7 +218,6 @@ class ReportPdfController extends Controller
             abort(404, 'Data detail tidak ditemukan untuk pilihan tersebut.');
         }
 
-        // bersihkan session
         $request->session()->forget('report_export_detail.items');
 
         $pdf = Pdf::loadView('pdf.report-detail', [
@@ -266,7 +264,6 @@ class ReportPdfController extends Controller
             abort(404, 'Data detail tidak ditemukan untuk pilihan tersebut.');
         }
 
-        // bersihkan session
         $request->session()->forget('report_export_detail.items');
 
         $filename = "report-data-detail-{$werks}.xlsx";

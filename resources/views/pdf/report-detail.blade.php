@@ -106,15 +106,19 @@
         }
 
         .col-tgl {
-            width: 8%;
-        }
-
-        .col-wc {
             width: 7%;
         }
 
+        .col-nama {
+            width: 13%;
+        }
+
+        .col-wc {
+            width: 8%;
+        }
+
         .col-desc {
-            width: 22%;
+            width: 20%;
         }
 
         .col-men {
@@ -126,7 +130,7 @@
         }
 
         .col-plant {
-            width: 5%;
+            width: 6%;
         }
 
         .group-header-row td {
@@ -175,18 +179,20 @@
             <tr>
                 <th class="col-no">No</th>
                 <th class="col-tgl">Tanggal</th>
-                <th class="col-wc">WC<br>Pers</th>
+                <th class="col-nama">Nama</th>
+                <th class="col-wc">WC<br>Personal</th>
                 <th class="col-desc text-left">DESC WC</th>
 
                 <th class="col-men">Menit<br>Hadir</th>
                 <th class="col-men">Menit<br>Conf</th>
                 <th class="col-men">Menit<br>Inspect</th>
-                <th class="col-var">%<br>Upah</th>
-                <th class="col-var">Var<br>Upah</th>
+                <th class="col-men">Detik<br>Inspect</th>
+                <th class="col-men">Detik<br>Konfirmasi</th>
 
-                <th class="col-wc">WC<br>Conf</th>
+                <th class="col-var">Var<br>Upah</th>
+                <th class="col-var">Persentase<br>Var</th>
+
                 <th class="col-plant">Plant</th>
-                <th class="col-plant">Shift</th>
             </tr>
         </thead>
         <tbody>
@@ -208,7 +214,8 @@
                         $rowNumberPerPerson = 0;
                     @endphp
                     <tr class="group-header-row">
-                        <td colspan="12">
+                        {{-- 13 kolom total --}}
+                        <td colspan="13">
                             <span class="group-header-label">Personal:</span>
                             <span class="group-header-value">{{ $d->pernr }}</span>
                             &mdash;
@@ -219,6 +226,11 @@
 
                 @php
                     $rowNumberPerPerson++;
+
+                    // Hitung persentase upah dari varnt & gji (BUKAN dari DB varnt1)
+                    $gji = (float) $d->gji;
+                    $varnt = (float) $d->varnt;
+                    $persenUpah = $gji != 0.0 ? ($varnt / $gji) * 100 : 0.0;
                 @endphp
 
                 <tr>
@@ -230,29 +242,32 @@
                         {{ Carbon::createFromFormat('Ymd', $d->begda)->format('d/m/y') }}
                     </td>
 
+                    {{-- Nama --}}
+                    <td class="text-left" style="text-transform:capitalize;">
+                        {{ strtolower($d->cname) }}
+                    </td>
+
                     {{-- WC & DESC --}}
                     <td class="text-center">{{ $d->arbpl }}</td>
                     <td class="text-left">{{ $d->desc }}</td>
 
-                    {{-- Menit --}}
+                    {{-- Menit & Detik --}}
                     <td class="text-center font-mono">{{ number_format($d->total_jam, 1) }}</td>
-                    <td class="text-center font-mono">{{ (int) $d->mintu3 }}</td>
-                    <td class="text-center font-mono">{{ (int) $d->mintu }}</td>
+                    <td class="text-center font-mono">{{ (int) $d->mint2 }}</td> {{-- Menit Conf (MINT2) --}}
+                    <td class="text-center font-mono">{{ (int) $d->mintu }}</td> {{-- Menit Inspect --}}
+                    <td class="text-center font-mono">{{ (int) $d->mintu2 }}</td> {{-- Detik Inspect --}}
+                    <td class="text-center font-mono">{{ (int) $d->mintu3 }}</td> {{-- Detik Konfirmasi --}}
 
-                    {{-- Persentase & Var Upah --}}
-                    <td class="text-center font-mono">
-                        {{ number_format($d->varnt1, 2) }}%
-                    </td>
+                    {{-- Var & Persentase Upah --}}
                     <td class="text-center font-mono {{ $d->varnt < 0 ? 'text-red' : '' }}">
                         {{ number_format($d->varnt, 0, ',', '.') }}
                     </td>
-
-                    {{-- WC Confirm, Plant, Shift --}}
-                    <td class="text-center">{{ $d->arbpl2 }}</td>
-                    <td class="text-center font-bold">{{ $d->werks }}</td>
                     <td class="text-center font-mono">
-                        {{ is_null($d->shift) ? '-' : (int) $d->shift }}
+                        {{ number_format($persenUpah, 2) }}%
                     </td>
+
+                    {{-- Plant --}}
+                    <td class="text-center font-bold">{{ $d->werks }}</td>
                 </tr>
             @endforeach
         </tbody>
