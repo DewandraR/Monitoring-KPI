@@ -31,19 +31,21 @@ class ReportSummaryExport implements FromCollection, WithHeadings, ShouldAutoSiz
     public function headings(): array
     {
         return [
-            'No',
-            'Personal No.',
-            'Rentang Tanggal',
-            'Nama',
-            'WC Personal',
-            'DESC WC',
-            'Menit Hadir',
-            'Menit Conf',
-            'Menit Inspect',
-            'Detik Inspect',
-            'Detik Konfirmasi',
-            'Var Upah',
-            'Persentase Var',
+            'No',               // A
+            'Personal No.',     // B
+            'Rentang Tanggal',  // C
+            'Nama',             // D
+            'WC Personal',      // E
+            'DESC WC',          // F
+            'Menit Hadir',      // G
+            'Menit Conf',       // H
+            'Menit Inspect',    // I
+            'Detik Inspect',    // J
+            'Detik Konfirmasi', // K
+            'Upah Hadir',       // L (gji)
+            'Upah Inspect',     // M (gji2)
+            'Var Upah',         // N
+            'Persentase Var',   // O
         ];
     }
 
@@ -73,8 +75,10 @@ class ReportSummaryExport implements FromCollection, WithHeadings, ShouldAutoSiz
                 (int) $row->mintu2,             // J: Detik Inspect
                 (int) $row->mintu3,             // K: Detik Konfirmasi
 
-                (float) $row->varnt,            // L: Var Upah
-                (float) $row->varnt1,           // M: Persentase Var (rata-rata harian, 0-∞)
+                (float) $row->gji,              // L: Upah Hadir
+                (float) $row->gji2,             // M: Upah Inspect
+                (float) $row->varnt,            // N: Var Upah
+                (float) $row->varnt1,           // O: Persentase Var (rata-rata harian, 0-∞)
             ];
         });
     }
@@ -110,16 +114,17 @@ class ReportSummaryExport implements FromCollection, WithHeadings, ShouldAutoSiz
     public function columnFormats(): array
     {
         return [
-            'G' => '#,##0.0',  // Menit Hadir
-            'H' => '#,##0',    // Menit Conf
-            'I' => '#,##0',    // Menit Inspect
-            'J' => '#,##0',    // Detik Inspect
-            'K' => '#,##0',    // Detik Konfirmasi
-            'L' => '#,##0.00', // Var Upah
-            'M' => '0.00',     // Persentase Var (angka 0-∞, tanpa % kedua kalinya)
+            'G' => '#,##0.0',   // Menit Hadir
+            'H' => '#,##0',     // Menit Conf
+            'I' => '#,##0',     // Menit Inspect
+            'J' => '#,##0',     // Detik Inspect
+            'K' => '#,##0',     // Detik Konfirmasi
+            'L' => '#,##0.00',  // Upah Hadir
+            'M' => '#,##0.00',  // Upah Inspect
+            'N' => '#,##0.00',  // Var Upah
+            'O' => '0.00',      // Persentase Var (angka 0-∞, tanpa % kedua kalinya)
         ];
     }
-
 
     /**
      * 3. Event Listener untuk Styling Lanjutan (Border, Alignment Kolom, Freeze Pane)
@@ -130,7 +135,7 @@ class ReportSummaryExport implements FromCollection, WithHeadings, ShouldAutoSiz
             AfterSheet::class => function (AfterSheet $event) {
                 $sheet = $event->sheet->getDelegate();
                 $rowCount = $this->rows->count() + 1; // +1 header
-                $lastColumn = 'M'; // dari 'K' → 'M'
+                $lastColumn = 'O'; // sekarang kolom terakhir O
                 $tableRange = 'A1:' . $lastColumn . $rowCount;
 
                 $sheet->setAutoFilter('A1:' . $lastColumn . '1');
@@ -145,8 +150,18 @@ class ReportSummaryExport implements FromCollection, WithHeadings, ShouldAutoSiz
                 $sheet->getStyle('D2:D' . $rowCount)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
                 $sheet->getStyle('F2:F' . $rowCount)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
 
-                // kanan: semua angka (G..M)
-                $sheet->getStyle('G2:M' . $rowCount)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+                // kanan: semua angka (G..O)
+                $sheet->getStyle('G2:O' . $rowCount)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+
+                // Border semua sel
+                $sheet->getStyle($tableRange)->applyFromArray([
+                    'borders' => [
+                        'allBorders' => [
+                            'borderStyle' => Border::BORDER_THIN,
+                            'color'       => ['argb' => 'FFD1D5DB'],
+                        ],
+                    ],
+                ]);
 
                 // zebra striping pakai $lastColumn
                 for ($i = 2; $i <= $rowCount; $i++) {

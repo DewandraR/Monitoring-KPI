@@ -41,9 +41,11 @@ class ReportDetailExport implements FromCollection, WithHeadings, ShouldAutoSize
             'Menit Inspect',     // H
             'Detik Inspect',     // I
             'Detik Konfirmasi',  // J
-            'Var Upah',          // K
-            'Persentase Upah',   // L
-            'Plant',             // M
+            'Upah Hadir',        // K (gji)
+            'Upah Inspect',      // L (gji2)
+            'Var Upah',          // M
+            'Persentase Upah',   // N
+            'Plant',             // O
         ];
     }
 
@@ -57,8 +59,10 @@ class ReportDetailExport implements FromCollection, WithHeadings, ShouldAutoSize
             $mintu     = (int)   ($row->mintu ?? 0);
             $mintu2    = (int)   ($row->mintu2 ?? 0);
             $mintu3    = (int)   ($row->mintu3 ?? 0);
+
+            $gji       = (float) ($row->gji ?? 0);   // Upah Hadir
+            $gji2      = (float) ($row->gji2 ?? 0);  // Upah Inspect
             $varnt     = (float) ($row->varnt ?? 0);
-            $gji       = (float) ($row->gji ?? 0);
 
             // Persentase = Var Upah / Upah Hadir * 100
             $persentase = 0.0;
@@ -80,9 +84,11 @@ class ReportDetailExport implements FromCollection, WithHeadings, ShouldAutoSize
                 $mintu2,                                         // I: Detik Inspect
                 $mintu3,                                         // J: Detik Konfirmasi
 
-                $varnt,                                          // K: Var Upah
-                $persentase,                                     // L: Persentase Upah (angka, sudah x100)
-                (string) ($row->werks ?? ''),                    // M: Plant
+                $gji,                                            // K: Upah Hadir
+                $gji2,                                           // L: Upah Inspect
+                $varnt,                                          // M: Var Upah
+                $persentase,                                     // N: Persentase Upah (angka, sudah x100)
+                (string) ($row->werks ?? ''),                    // O: Plant
             ];
         });
     }
@@ -111,14 +117,16 @@ class ReportDetailExport implements FromCollection, WithHeadings, ShouldAutoSize
     public function columnFormats(): array
     {
         return [
-            'F' => '#,##0.0',   // Menit Hadir
-            'G' => '#,##0',     // Menit Conf
-            'H' => '#,##0',     // Menit Inspect
-            'I' => '#,##0',     // Detik Inspect
-            'J' => '#,##0',     // Detik Konfirmasi
-            'K' => '#,##0.00',  // Var Upah
+            'F' => '#,##0.0',    // Menit Hadir
+            'G' => '#,##0',      // Menit Conf
+            'H' => '#,##0',      // Menit Inspect
+            'I' => '#,##0',      // Detik Inspect
+            'J' => '#,##0',      // Detik Konfirmasi
+            'K' => '#,##0.00',   // Upah Hadir
+            'L' => '#,##0.00',   // Upah Inspect
+            'M' => '#,##0.00',   // Var Upah
             // Persentase: 8.18 -> tampil 8.18%
-            'L' => '0.00"%"',   // Persentase Upah
+            'N' => '0.00"%"',    // Persentase Upah
         ];
     }
 
@@ -128,7 +136,7 @@ class ReportDetailExport implements FromCollection, WithHeadings, ShouldAutoSize
             AfterSheet::class => function (AfterSheet $event) {
                 $sheet     = $event->sheet->getDelegate();
                 $rowCount  = $this->rows->count() + 1;
-                $lastCol   = 'M'; // kolom terakhir
+                $lastCol   = 'O'; // kolom terakhir sekarang O
 
                 $tableRange = "A1:{$lastCol}{$rowCount}";
 
@@ -156,7 +164,7 @@ class ReportDetailExport implements FromCollection, WithHeadings, ShouldAutoSize
                 $sheet->getStyle("D2:D{$rowCount}")
                     ->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER); // WC Personal
 
-                $sheet->getStyle("M2:M{$rowCount}")
+                $sheet->getStyle("O2:O{$rowCount}")
                     ->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER); // Plant
 
                 $sheet->getStyle("C2:C{$rowCount}")
@@ -165,8 +173,8 @@ class ReportDetailExport implements FromCollection, WithHeadings, ShouldAutoSize
                 $sheet->getStyle("E2:E{$rowCount}")
                     ->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);   // DESC WC
 
-                // Semua angka menit/detik/var/persen
-                $sheet->getStyle("F2:L{$rowCount}")
+                // Semua angka menit/detik/gaji/persen
+                $sheet->getStyle("F2:N{$rowCount}")
                     ->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
                 // Zebra striping

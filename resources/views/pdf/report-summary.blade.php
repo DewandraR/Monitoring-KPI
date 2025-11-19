@@ -190,7 +190,8 @@
                 <th class="col-menit">Menit Inspect</th>
                 <th class="col-menit">Detik Inspect</th>
                 <th class="col-menit">Detik Konf</th>
-
+                <th class="col-upah">Upah Hadir</th>
+                <th class="col-upah">Upah Inspect</th>
                 <th class="col-upah">Var Upah</th>
                 <th class="col-upah">% Var</th>
             </tr>
@@ -251,6 +252,16 @@
                         {{ (int) $data->mintu3 }}
                     </td>
 
+                    {{-- UPAH HADIR (gji) --}}
+                    <td class="text-center font-mono">
+                        {{ number_format($data->gji, 0, ',', '.') }}
+                    </td>
+
+                    {{-- UPAH INSPECT (gji2) --}}
+                    <td class="text-center font-mono">
+                        {{ number_format($data->gji2, 0, ',', '.') }}
+                    </td>
+
                     {{-- VAR UPAH (varnt) --}}
                     <td class="text-center font-mono" style="color: {{ $data->varnt < 0 ? '#dc2626' : '#333' }};">
                         {{ number_format($data->varnt, 0, ',', '.') }}
@@ -267,9 +278,9 @@
 
     <script type="text/php">
         if (isset($pdf)) {
-            $text = "Halaman {PAGE_NUM} dari {PAGE_COUNT}";
-            $size = 6;
-            $font = $fontMetrics->getFont("Helvetica", "italic");
+            $text  = "Halaman {PAGE_NUM} dari {PAGE_COUNT}";
+            $size  = 6;
+            $font  = $fontMetrics->getFont("Helvetica", "italic");
             $width = $fontMetrics->getTextWidth($text, $font, $size);
             $pdf->page_text(
                 $pdf->get_width() - $width - 30,

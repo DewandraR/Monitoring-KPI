@@ -15,6 +15,8 @@
         'Menit Inspect', // mintu
         'Detik Inspect', // mintu2
         'Detik Konfirmasi', // mintu3
+        'Upah Hadir', // gji
+        'Upah Inspect', // gji2
         'Var Upah', // varnt
         'Persentase Var', // varnt1
     ];
@@ -27,13 +29,15 @@
         'Nama',
         'WC Personal',
         'DESC WC',
-        'Menit Hadir', // total_jam
-        'Menit Conf', // mint2
-        'Menit Inspect', // mintu
-        'Detik Inspect', // mintu2
-        'Detik Konfirmasi', // mintu3
-        'Var Upah', // varnt
-        'Persentase Var', // varnt1
+        'Menit Hadir',
+        'Menit Conf',
+        'Menit Inspect',
+        'Detik Inspect',
+        'Detik Konfirmasi',
+        'Upah Hadir', // gji
+        'Upah Inspect', // gji2
+        'Var Upah',
+        'Persentase Var',
     ];
 
     // Hitung berapa NIK yang terseleksi di SUMMARY (untuk Export Report)
@@ -461,6 +465,16 @@
                                 {{ (int) $data->mintu3 }}
                             </td>
 
+                            {{-- UPAH HADIR (gji) --}}
+                            <td class="px-6 py-4 whitespace-nowrap text-right font-mono text-gray-800 tracking-tight">
+                                {{ number_format((float) $data->gji, 2) }}
+                            </td>
+
+                            {{-- UPAH INSPECT (gji2) --}}
+                            <td class="px-6 py-4 whitespace-nowrap text-right font-mono text-gray-800 tracking-tight">
+                                {{ number_format((float) $data->gji2, 2) }}
+                            </td>
+
                             {{-- VAR UPAH (varnt) --}}
                             <td
                                 class="px-6 py-4 whitespace-nowrap text-right font-mono {{ $data->varnt < 0 ? 'text-red-600 font-bold' : 'text-gray-800' }}">
@@ -596,6 +610,9 @@
                                                     'mintu2', // Detik Inspect (MINTU2)
                                                     'mintu3', // Detik Konfirmasi (MINTU3)
 
+                                                    'gji', // Upah Hadir
+                                                    'gji2', // Upah Inspect
+
                                                     'varnt', // Var Upah
                                                     'varnt1', // Persentase Var
                                                 ];
@@ -618,7 +635,7 @@
                                                         }
                                                     }
 
-                                                    $isMoney = in_array($column, ['varnt', 'varnt1']);
+                                                    $isMoney = in_array($column, ['gji', 'gji2', 'varnt', 'varnt1']);
                                                     $isNum = in_array($column, ['mint2', 'mintu', 'mintu2', 'mintu3']);
                                                     $isDate = $column === 'begda';
                                                 @endphp

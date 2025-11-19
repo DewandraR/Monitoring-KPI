@@ -29,26 +29,26 @@ class ReportPdfController extends Controller
             'mintu',
             'mintu2',
             'mintu3',
-            'gji',
-            'gji2',
+            'gji',   // Upah Hadir
+            'gji2',  // Upah Inspect
             'varnt',
             // varnt1 sengaja TIDAK dimasukkan, kita hitung manual
         ];
 
-        $sumSelects = array_map(fn($col) => "SUM($col) as $col", $aggregateColumns);
+        $sumSelects = array_map(fn($col) => "SUM($col) AS $col", $aggregateColumns);
 
         // non-aggregate (ambil MAX atau MIN)
         $nonAggSelects = array_map(
-            fn($col) => "MAX(`$col`) as `$col`",
+            fn($col) => "MAX(`$col`) AS `$col`",
             ['cname', 'arbpl', 'desc', 'arbpl2', 'werks']
         );
-        $nonAggSelects[] = 'MIN(shift) as shift';
+        $nonAggSelects[] = 'MIN(shift) AS shift';
 
-        $dateRangeSel = ['MIN(begda) as min_begda', 'MAX(begda) as max_begda'];
+        $dateRangeSel = ['MIN(begda) AS min_begda', 'MAX(begda) AS max_begda'];
 
         // RATA-RATA PERSENTASE VAR:
         // AVG( (varnt / gji) * 100 ) per hari; kalau gji=0 → 0
-        $persenVarExpr = 'AVG(CASE WHEN gji <> 0 THEN (varnt / gji) * 100 ELSE 0 END) as varnt1';
+        $persenVarExpr = 'AVG(CASE WHEN gji <> 0 THEN (varnt / gji) * 100 ELSE 0 END) AS varnt1';
 
         $selects = array_merge(
             ['pernr'],

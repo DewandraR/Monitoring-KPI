@@ -1,3 +1,5 @@
+{{-- resources/views/pdf/report-detail.blade.php --}}
+
 @php
     use Carbon\Carbon;
 @endphp
@@ -156,6 +158,7 @@
 </head>
 
 <body>
+
     <div class="header-container">
         <table style="width:100%;">
             <tr>
@@ -188,10 +191,10 @@
                 <th class="col-men">Menit<br>Inspect</th>
                 <th class="col-men">Detik<br>Inspect</th>
                 <th class="col-men">Detik<br>Konfirmasi</th>
-
+                <th class="col-var">Upah<br>Hadir</th>
+                <th class="col-var">Upah<br>Inspect</th>
                 <th class="col-var">Var<br>Upah</th>
                 <th class="col-var">Persentase<br>Var</th>
-
                 <th class="col-plant">Plant</th>
             </tr>
         </thead>
@@ -214,8 +217,8 @@
                         $rowNumberPerPerson = 0;
                     @endphp
                     <tr class="group-header-row">
-                        {{-- 13 kolom total --}}
-                        <td colspan="13">
+                        {{-- 15 kolom total --}}
+                        <td colspan="15">
                             <span class="group-header-label">Personal:</span>
                             <span class="group-header-value">{{ $d->pernr }}</span>
                             &mdash;
@@ -258,6 +261,14 @@
                     <td class="text-center font-mono">{{ (int) $d->mintu2 }}</td> {{-- Detik Inspect --}}
                     <td class="text-center font-mono">{{ (int) $d->mintu3 }}</td> {{-- Detik Konfirmasi --}}
 
+                    {{-- Upah Hadir / Inspect --}}
+                    <td class="text-center font-mono">
+                        {{ number_format($d->gji, 0, ',', '.') }}
+                    </td>
+                    <td class="text-center font-mono">
+                        {{ number_format($d->gji2, 0, ',', '.') }}
+                    </td>
+
                     {{-- Var & Persentase Upah --}}
                     <td class="text-center font-mono {{ $d->varnt < 0 ? 'text-red' : '' }}">
                         {{ number_format($d->varnt, 0, ',', '.') }}
@@ -275,9 +286,9 @@
 
     <script type="text/php">
         if (isset($pdf)) {
-            $text = "Halaman {PAGE_NUM} dari {PAGE_COUNT}";
-            $size = 6;
-            $font = $fontMetrics->getFont("Helvetica", "italic");
+            $text  = "Halaman {PAGE_NUM} dari {PAGE_COUNT}";
+            $size  = 6;
+            $font  = $fontMetrics->getFont("Helvetica", "italic");
             $width = $fontMetrics->getTextWidth($text, $font, $size);
             $pdf->page_text(
                 $pdf->get_width() - $width - 30,
