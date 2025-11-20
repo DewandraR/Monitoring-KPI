@@ -147,7 +147,6 @@ class ReportGenerator extends Component
                     'gji'       => null,
                     'gji2'      => null,
                     'varnt'     => null,
-                    'varnt1'    => null,
                     'arbpl'     => null,
                     'desc'      => null,          // <--- TAMBAHAN
                     'arbpl2'    => null,
@@ -312,7 +311,13 @@ class ReportGenerator extends Component
 
         // RATA-RATA PERSENTASE VAR PER HARI:
         //   AVG( (varnt / gji) * 100 )  -> kalau gji = 0, anggap 0%
-        $persenVarExpr = 'AVG(CASE WHEN gji <> 0 THEN (varnt / gji) * 100 ELSE 0 END) as varnt1';
+        // Persentase Var = (TOTAL Var Upah / TOTAL Upah Inspect) * 100
+        $persenVarExpr = "
+            CASE
+                WHEN SUM(gji2) = 0 THEN 0
+                ELSE (SUM(varnt) / SUM(gji2)) * 100
+            END as varnt1
+        ";
 
         $selects = array_merge(
             ['pernr'],

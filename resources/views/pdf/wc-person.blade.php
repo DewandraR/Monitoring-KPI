@@ -1,4 +1,4 @@
-{{-- resources/views/pdf/wc-person-list.blade.php --}}
+{{-- resources/views/pdf/wc-person.blade.php --}}
 @php
     use Carbon\Carbon;
 @endphp
@@ -18,7 +18,6 @@
         body {
             font-family: 'Helvetica', 'Arial', sans-serif;
             font-size: 7pt;
-            /* Font kecil agar muat banyak kolom */
             color: #333;
             line-height: 1.3;
         }
@@ -58,7 +57,6 @@
             table-layout: fixed;
         }
 
-        /* Header Kolom */
         thead th {
             background-color: #065f46;
             /* Emerald 800 */
@@ -69,10 +67,8 @@
             padding: 8px 4px;
             border-bottom: 2px solid #042f2e;
             text-align: left;
-            /* Default Left */
         }
 
-        /* Baris Data */
         tbody td {
             padding: 6px 4px;
             border-bottom: 1px solid #e5e7eb;
@@ -80,12 +76,11 @@
             word-wrap: break-word;
         }
 
-        /* Zebra Striping */
         tbody tr:nth-child(even) {
             background-color: #f0fdf4;
         }
 
-        /** UTILITY CLASSES */
+        /** UTILITY */
         .text-center {
             text-align: center;
         }
@@ -107,7 +102,6 @@
             font-weight: bold;
         }
 
-        /* Colors */
         .text-emerald {
             color: #047857;
         }
@@ -120,9 +114,7 @@
             color: #d97706;
         }
 
-        /* Utk Induk */
-
-        /** COLUMN WIDTHS (Total 100%) */
+        /** COLUMN WIDTHS (total ±100%) */
         .col-no {
             width: 4%;
         }
@@ -136,28 +128,33 @@
         }
 
         .col-nama {
-            width: 20%;
+            width: 17%;
+        }
+
+        .col-role {
+            width: 8%;
         }
 
         .col-wc {
-            width: 10%;
+            width: 9%;
         }
 
         .col-desc {
-            width: 25%;
+            width: 24%;
+        }
+
+        .col-devisi {
+            width: 10%;
         }
 
         .col-plant {
             width: 8%;
         }
-
-        .col-role {
-            width: 13%;
-        }
     </style>
 </head>
 
 <body>
+
     <div class="header-container">
         <table style="width: 100%">
             <tr>
@@ -181,11 +178,12 @@
                 <th class="col-no text-center">No</th>
                 <th class="col-nik text-center">NIK</th>
                 <th class="col-tgl text-center">Tgl Mulai</th>
-                <th class="col-nama text-left">Nama Karyawan</th>
-                <th class="col-wc text-left">Work Center</th>
-                <th class="col-desc text-left">Deskripsi WC</th>
-                <th class="col-plant text-center">Plant</th>
+                <th class="col-nama text-left">Nama</th>
                 <th class="col-role text-center">Role</th>
+                <th class="col-wc text-left">Work Center</th>
+                <th class="col-desc text-left">Deskripsi Work Center</th>
+                <th class="col-devisi text-left">Devisi</th>
+                <th class="col-plant text-center">Plant</th>
             </tr>
         </thead>
         <tbody>
@@ -197,10 +195,12 @@
                     {{-- No --}}
                     <td class="text-center text-gray">{{ $i + 1 }}</td>
 
-                    {{-- NIK (Monospace + Bold) --}}
-                    <td class="text-center font-mono font-bold text-emerald">{{ $row->pernr }}</td>
+                    {{-- NIK --}}
+                    <td class="text-center font-mono font-bold text-emerald">
+                        {{ $row->pernr }}
+                    </td>
 
-                    {{-- TGL Mulai --}}
+                    {{-- Tgl Mulai --}}
                     <td class="text-center text-gray">
                         @if ($row->begda && preg_match('/^\d{8}$/', $row->begda))
                             {{ Carbon::createFromFormat('Ymd', $row->begda)->format('d/m/Y') }}
@@ -209,27 +209,38 @@
                         @endif
                     </td>
 
-                    {{-- Nama (Capitalize) --}}
+                    {{-- Nama --}}
                     <td style="text-transform: capitalize;">
                         {{ strtolower($row->stext) }}
                     </td>
 
-                    {{-- Kode WC --}}
-                    <td class="text-gray">{{ $row->arbpl }}</td>
-
-                    {{-- Desc WC --}}
-                    <td class="text-gray" style="font-size: 6pt;">{{ $row->desc }}</td>
-
-                    {{-- Plant --}}
-                    <td class="text-center font-mono">{{ $row->werks }}</td>
-
-                    {{-- Role (Highlight Induk) --}}
+                    {{-- Role --}}
                     <td class="text-center">
                         @if ($isInduk)
                             <span class="font-bold text-amber" style="text-transform:uppercase;">INDUK</span>
                         @else
                             <span class="text-gray">{{ $row->role }}</span>
                         @endif
+                    </td>
+
+                    {{-- Work Center --}}
+                    <td class="text-gray">
+                        {{ $row->arbpl }}
+                    </td>
+
+                    {{-- Deskripsi Work Center --}}
+                    <td class="text-gray" style="font-size: 6pt;">
+                        {{ $row->desc }}
+                    </td>
+
+                    {{-- Devisi --}}
+                    <td class="text-gray">
+                        {{ $row->devisi ?? '' }}
+                    </td>
+
+                    {{-- Plant --}}
+                    <td class="text-center font-mono">
+                        {{ $row->werks }}
                     </td>
                 </tr>
             @endforeach
@@ -238,11 +249,18 @@
 
     <script type="text/php">
         if (isset($pdf)) {
-            $text = "Hal {PAGE_NUM} / {PAGE_COUNT}";
-            $size = 6;
-            $font = $fontMetrics->getFont("Helvetica", "italic");
+            $text  = "Hal {PAGE_NUM} / {PAGE_COUNT}";
+            $size  = 6;
+            $font  = $fontMetrics->getFont("Helvetica", "italic");
             $width = $fontMetrics->getTextWidth($text, $font, $size);
-            $pdf->page_text($pdf->get_width() - $width - 30, $pdf->get_height() - 20, $text, $font, $size, array(0.6, 0.6, 0.6));
+            $pdf->page_text(
+                $pdf->get_width() - $width - 30,
+                $pdf->get_height() - 20,
+                $text,
+                $font,
+                $size,
+                [0.6, 0.6, 0.6]
+            );
         }
     </script>
 </body>

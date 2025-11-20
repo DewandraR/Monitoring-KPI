@@ -28,6 +28,7 @@ class WcPersonData extends Model
         'werks',
         'desc',
         'role',
+        'devisi',
     ];
 
     /** ====== BLACKLIST NIK (global) ====== */
@@ -181,22 +182,24 @@ class WcPersonData extends Model
         }
 
         return $query->where(function (Builder $outer) use ($tokens, $phrases) {
-            // Frasa nama / deskripsi (dalam kutip)
+
+            // === FRASA DALAM KUTIP ("...") ===
             foreach ($phrases as $p) {
                 $outer->orWhere(function (Builder $qq) use ($p) {
                     $qq->whereRaw('LOWER(short) LIKE ?', ["%{$p}%"])
                         ->orWhereRaw('LOWER(stext) LIKE ?', ["%{$p}%"])
                         // desc pakai backtick karena reserved word
-                        ->orWhereRaw('LOWER(`desc`) LIKE ?', ["%{$p}%"]);
+                        ->orWhereRaw('LOWER(`desc`) LIKE ?', ["%{$p}%"])
+                        // ⬇⬇⬇ TAMBAHAN: devisi juga ikut
+                        ->orWhereRaw('LOWER(devisi) LIKE ?', ["%{$p}%"]);
                 });
             }
 
-            // Token umum → OR ke semua kolom searchable (termasuk desc)
+            // === TOKEN UMUM (tanpa kutip) ===
             foreach ($tokens as $t) {
                 $outer->orWhere(function (Builder $qq) use ($t) {
                     foreach (self::$searchable as $col) {
                         if ($col === 'desc') {
-                            // reserved word → pakai backtick
                             $qq->orWhereRaw('LOWER(`desc`) LIKE ?', ["%{$t}%"]);
                         } else {
                             $qq->orWhereRaw("LOWER($col) LIKE ?", ["%{$t}%"]);

@@ -1,39 +1,52 @@
 #!/usr/bin/env python3
+
 # wc_person_to_mysql.py
+
 # - Default: auto READ CRHD semua WC aktif (LVORM!='X')
 # - Filter: --werks-filter (ulang), --like "pattern%" (ulang; %/_ seperti SQL LIKE)
 # - Pasangan spesifik: --pairs "ARBPL:WERKS,...", atau --arbpl ... --werks ...
 # - Blacklist PERNR: hardcoded + ENV + file; opsi purge global
 # - Log: console + rotating harian + unique per-run; path fleksibel via ENV WC_LOG_DIR
 # - DB: selective delete per pasangan; collation utf8mb4_unicode_ci
+#
 # - Tambahan:
 #   - cek role NIK via Z_RFC_DISPLAY_NIK_CONF (PERNR saja) dan update kolom `role`
 #   - ambil deskripsi WC via Z_FM_GET_WC_DESC (IV_ARBPL/IV_WERKS) dan update kolom `desc`
+#   - ambil DEVISI dari Excel (PLANT kolom B, KODE kolom E, DEVISI kolom C) dan update kolom `devisi`
+
 
 """
 Cara pakai ringkas
 
 1) Mode default: scan CRHD semua WERKS aktif (LVORM != 'X')
+
    python wc_person_to_mysql.py
 
 2) Batasi plant & pola ARBPL saat auto READ
+
    python wc_person_to_mysql.py --werks-filter 1000 --werks-filter 2000 --like "WC%"
 
 3) Hanya pasangan spesifik (tanpa tanggal; otomatis 31.12.9999)
+
    python wc_person_to_mysql.py --pairs "WC034:1000,WC035:2000"
 
 4) Kombinasi ARBPL/WERKS via argumen terpisah
+
    python wc_person_to_mysql.py --arbpl WC034 --arbpl WC035 --werks 1000 --werks 2000
 
 5) Lihat rencana saja (tanpa ubah DB) + tampilkan daftar pasangan
+
    python wc_person_to_mysql.py --dry-run --show-pairs --verbose-steps
 
 6) Blacklist PERNR (skip insert) + purge data lama
    # tambahan blacklist dari file TXT/CSV (kolom PERNR) dan hapus dari DB:
+
    python wc_person_to_mysql.py --blacklist-file my_blacklist.csv --purge-blacklist
 
    # atau dari ENV (comma separated):
+
    set WC_BLACKLIST_PERNR=10001234,10005678
+
    python wc_person_to_mysql.py
 """
 
@@ -60,6 +73,12 @@ from pyrfc import (
 )
 import mysql.connector
 
+# untuk baca Excel DEVISI
+try:
+    from openpyxl import load_workbook  # pip install openpyxl
+except ImportError:
+    load_workbook = None
+
 # --- pyrfc lama (refer 'long' Python2)
 import builtins as _bt
 
@@ -80,6 +99,7 @@ DEFAULT_SAP = {
     "client": os.environ.get("SAP_CLIENT", "300"),
     "lang": os.environ.get("SAP_LANG", "EN"),
 }
+
 SAP_USERNAME = os.environ.get("SAP_USER", "auto_email")
 SAP_PASSWORD = os.environ.get("SAP_PASS", "11223344")
 
@@ -97,13 +117,17 @@ TABLE = os.environ.get("DB_TABLE", "wc_person_data")
 
 # ---------- Logging ----------
 PROJECT_ROOT = Path(__file__).resolve().parent
-DEFAULT_LOG_DIR = PROJECT_ROOT / "storage" / "logs" / "python wc_person_mysql"
+
+DEFAULT_LOG_DIR = PROJECT_ROOT / "storage" / "logs" / "python_wc_person_mysql"
 LOG_DIR = Path(os.environ.get("WC_LOG_DIR", str(DEFAULT_LOG_DIR)))
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 _start_ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 RUN_LOG_FILE = LOG_DIR / f"wc_person_to_mysql_{os.getpid()}_{_start_ts}.log"
 MAIN_LOG_FILE = LOG_DIR / "wc_person_to_mysql.log"
+
+# lokasi file Excel DEVISI (bisa override via ENV WC_DEVISI_FILE)
+DEVISI_FILE = Path(os.environ.get("WC_DEVISI_FILE", str(PROJECT_ROOT / "DEVISI.xlsx")))
 
 logger = logging.getLogger("wc_person")
 logger.setLevel(logging.INFO)
@@ -136,7 +160,6 @@ logger.addHandler(fh)
 
 # ---------- Util ----------
 DEFAULT_DATE_STR = "31.12.9999"
-
 WIDTH = 80
 
 
@@ -266,8 +289,8 @@ def normalize_row(
         "werks": werks_val if werks_val else default_werks,
     }
 
-
 # ---------- Blacklist PERNR ----------
+
 HARDCODED_BLACKLIST = {
     "10000011",
     "10000015",
@@ -333,6 +356,23 @@ HARDCODED_BLACKLIST = {
     "10007854",
     "10007880",
     "10008015",
+    "10002446",
+    "10000467",
+    "10004411",
+    "10000644",
+    "10000026",
+    "10000093",
+    "10000109",
+    "10000112",
+    "10000141",
+    "10000266",
+    "10000319",
+    "10002804",
+    "10000420",
+    "10005689",
+    "10008126",
+    "10008135",
+    "10008134",
 }
 
 
@@ -367,8 +407,8 @@ def load_blacklist(extra_file: str) -> set:
             logger.info(f"[WARN] Gagal baca blacklist-file: {e}")
     return bl
 
-
 # ---------- RFC_READ_TABLE (CRHD) ----------
+
 def fetch_wc_pairs_from_crhd(
     conn: Connection,
     valid_werks: Optional[List[str]] = None,
@@ -412,8 +452,8 @@ def fetch_wc_pairs_from_crhd(
 
     return sorted(pairs_set)
 
-
 # ---------- MySQL helpers & DDL ----------
+
 DDL_DB = f"""
 CREATE DATABASE IF NOT EXISTS `{DB_NAME}`
   DEFAULT CHARACTER SET = utf8mb4
@@ -435,6 +475,7 @@ CREATE TABLE IF NOT EXISTS `{TABLE}` (
   `werks`  VARCHAR(10) NOT NULL,
   `role`   VARCHAR(20) NULL,
   `desc`   VARCHAR(255) NULL,
+  `devisi` VARCHAR(100) NULL,
   `source_rfc` VARCHAR(64) NOT NULL DEFAULT 'CR_PERSONS_OF_WORKCENTER',
   `inserted_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -505,12 +546,21 @@ def ensure_db_and_table():
         )
         logger.info(f"[DB] Kolom 'desc' ditambahkan ke {TABLE}.")
 
+    # Tambah kolom devisi kalau belum ada
+    cur2.execute(f"SHOW COLUMNS FROM `{TABLE}` LIKE 'devisi'")
+    if not cur2.fetchone():
+        cur2.execute(
+            f"ALTER TABLE `{TABLE}` "
+            "ADD COLUMN `devisi` VARCHAR(100) NULL AFTER `desc`"
+        )
+        logger.info(f"[DB] Kolom 'devisi' ditambahkan ke {TABLE}.")
+
     cur2.close()
     conn.commit()
     return conn
 
-
 # ---------- Role checker via Z_RFC_DISPLAY_NIK_CONF ----------
+
 def check_and_update_roles(
     rfc: Connection,
     db,
@@ -570,8 +620,8 @@ def check_and_update_roles(
     finally:
         cur.close()
 
-
 # ---------- WC description via Z_FM_GET_WC_DESC ----------
+
 def update_wc_descriptions(
     rfc: Connection,
     db,
@@ -629,8 +679,134 @@ def update_wc_descriptions(
     cur.close()
     logger.info(f"[DESC] Ter-update {total_updated} baris deskripsi WC.")
 
+# ---------- DEVISI mapping via Excel ----------
+
+def load_devisi_mapping_from_excel(path: Path) -> Dict[Tuple[str, str], str]:
+    """
+    Baca file Excel DEVISI.
+    - Kolom B: PLANT (WERKS)
+    - Kolom C: DEVISI
+    - Kolom E: KODE (ARBPL)
+    Data DEVISI boleh dikosongkan di beberapa baris (merged); nilai terakhir yang
+    tidak kosong akan dipakai untuk baris berikutnya.
+    Return: dict key (ARBPL, WERKS) -> DEVISI
+    """
+    mapping: Dict[Tuple[str, str], str] = {}
+
+    if load_workbook is None:
+        logger.info("[DEVISI] Modul openpyxl tidak tersedia. Lewati update devisi.")
+        return mapping
+
+    p = Path(path)
+    if not p.is_file():
+        logger.info(f"[DEVISI] File mapping devisi tidak ditemukan: {p}")
+        return mapping
+
+    logger.info(f"[DEVISI] Membaca file mapping devisi: {p}")
+
+    try:
+        wb = load_workbook(filename=str(p), data_only=True)
+        ws = wb.active
+    except Exception as e:
+        logger.info(f"[DEVISI] Gagal membuka file devisi: {e}")
+        return mapping
+
+    current_devisi = ""
+    row_mapped = 0
+
+    # Asumsi baris 1 adalah header: NO, PLANT, DEVISI, (D kosong), KODE
+    for row in ws.iter_rows(min_row=2):  # mulai dari baris ke-2
+        plant_cell = row[1] if len(row) > 1 else None  # kolom B
+        devisi_cell = row[2] if len(row) > 2 else None  # kolom C
+        kode_cell = row[4] if len(row) > 4 else None  # kolom E
+
+        plant_val = ""
+        kode_val = ""
+        devisi_val = None
+
+        if plant_cell and plant_cell.value is not None:
+            plant_val = str(plant_cell.value).strip()
+
+        if devisi_cell and devisi_cell.value not in (None, ""):
+            devisi_val = str(devisi_cell.value).strip()
+
+        if kode_cell and kode_cell.value is not None:
+            kode_val = str(kode_cell.value).strip()
+
+        # Update current devisi jika ada nilai baru
+        if devisi_val is not None and devisi_val != "":
+            current_devisi = devisi_val
+
+        # Lewati jika tidak ada plant atau kode
+        if not plant_val or not kode_val:
+            continue
+
+        if not current_devisi:
+            # belum ada devisi yang diketahui, skip
+            continue
+
+        key = (kode_val.upper(), plant_val)
+        if key not in mapping:
+            mapping[key] = current_devisi
+            row_mapped += 1
+
+    logger.info(f"[DEVISI] Total mapping pasangan ARBPL/WERKS dari Excel: {row_mapped}")
+    return mapping
+
+
+def update_devisi_from_excel(
+    db,
+    pairs: List[Tuple[str, str, str]],
+    mapping: Dict[Tuple[str, str], str],
+) -> None:
+    """
+    Update kolom `devisi` di tabel MySQL berdasarkan mapping Excel.
+    Hanya pasangan ARBPL/WERKS yang ada di `pairs` run ini yang akan diupdate.
+    """
+    if not mapping:
+        logger.info("[DEVISI] Tidak ada data mapping devisi yang akan dipakai.")
+        return
+
+    # Set pasangan yang ikut di run sekarang
+    run_pairs = {(a.strip().upper(), w.strip()) for (a, w, _d) in pairs}
+
+    # Susun list update (devisi, arbpl, werks)
+    updates: List[Tuple[str, str, str]] = []
+    for (arbpl, werks), devisi in mapping.items():
+        key = (arbpl.strip().upper(), werks.strip())
+        if key in run_pairs:
+            updates.append((devisi, arbpl, werks))
+
+    if not updates:
+        logger.info("[DEVISI] Tidak ada pasangan ARBPL/WERKS dari Excel yang cocok dengan run ini.")
+        return
+
+    title("UPDATE DEVISI DARI EXCEL")
+
+    logger.info(f"[DEVISI] Total mapping dari file     : {len(mapping)}")
+    logger.info(f"[DEVISI] Mapping relevan dengan run : {len(updates)}")
+
+    cur = db.cursor()
+    sql = f"UPDATE `{TABLE}` SET `devisi`=%s WHERE `arbpl`=%s AND `werks`=%s"
+
+    total_updated = 0
+    batch_size = 200
+
+    try:
+        for i in range(0, len(updates), batch_size):
+            chunk = updates[i:i + batch_size]
+            cur.executemany(sql, chunk)
+            total_updated += cur.rowcount
+        db.commit()
+        logger.info(f"[DEVISI] Baris yang ter-update: {total_updated}")
+    except mysql.connector.Error as e:
+        db.rollback()
+        logger.info(f"[DEVISI] ERROR update devisi di DB: {e}")
+    finally:
+        cur.close()
 
 # ---------- Main ----------
+
 def main():
     ap = argparse.ArgumentParser(
         description="Load CR_PERSONS_OF_WORKCENTER (OUT_PERSONS) ke MySQL."
@@ -695,6 +871,7 @@ def main():
     logger.info(f"LOG DIR       : {LOG_DIR}")
     logger.info(f"MAIN LOG      : {MAIN_LOG_FILE}")
     logger.info(f"RUN LOG       : {RUN_LOG_FILE}")
+    logger.info(f"DEVISI FILE   : {DEVISI_FILE}")
 
     job_start_wall = datetime.datetime.now().astimezone()
     job_t0 = time.perf_counter()
@@ -804,7 +981,7 @@ def main():
 
         norm = [normalize_row(r, arbpl, werks) for r in rows]
         if args.verbose_steps:
-            logger.info(f"    → {len(norm)} baris dari RFC.")
+            logger.info(f"    -> {len(norm)} baris dari RFC.")
 
         # Filter blacklist
         if blacklist:
@@ -891,12 +1068,20 @@ def main():
         except Exception as e:
             logger.info(f"[WARN] Gagal update role dari {RFC_ROLE_NAME}: {e}")
 
-    # Setelah role selesai (INDUK atau kosong), update deskripsi WC
+    # Setelah role selesai, update deskripsi WC
     if not args.dry_run:
         try:
             update_wc_descriptions(rfc, db, pairs)
         except Exception as e:
             logger.info(f"[WARN] Gagal update deskripsi WC dari {RFC_DESC_NAME}: {e}")
+
+    # Setelah desc, update DEVISI dari Excel
+    if not args.dry_run:
+        try:
+            devisi_mapping = load_devisi_mapping_from_excel(DEVISI_FILE)
+            update_devisi_from_excel(db, pairs, devisi_mapping)
+        except Exception as e:
+            logger.info(f"[WARN] Gagal update devisi dari Excel: {e}")
 
     db.close()
 

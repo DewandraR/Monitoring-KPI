@@ -37,7 +37,7 @@ class WcPersonExportController extends Controller
             return collect();
         }
 
-        // === PENTING: samakan dengan view → unik per NIK ===
+        // === Unik per NIK ===
         return WcPersonData::query()
             ->whereIn('pernr', $pernrs)
             ->orderByRaw('CAST(werks AS UNSIGNED), werks')
@@ -61,12 +61,13 @@ class WcPersonExportController extends Controller
 
         $q = (string) session()->get('wc_person_export.q', $request->query('q', ''));
 
+        // pastikan view-nya sesuai nama file di resources/views/pdf/
         $pdf = Pdf::loadView('pdf.wc-person', [
             'rows' => $rows,
             'q'    => $q,
         ])->setPaper('a4', 'portrait');
 
-        return $pdf->stream('wc-person.pdf');
+        return $pdf->download('wc-person.pdf');
     }
 
     /**
@@ -81,8 +82,10 @@ class WcPersonExportController extends Controller
             abort(404, 'Tidak ada NIK yang dipilih untuk di-export atau data tidak ditemukan.');
         }
 
-        $q = (string) session()->get('wc_person_export.q', $request->query('q', ''));
+        // Filter q masih boleh dipakai di header Excel kalau suatu saat kamu butuh,
+        // tapi untuk saat ini class export belum pakai, jadi tidak dikirim.
+        // $q = (string) session()->get('wc_person_export.q', $request->query('q', ''));
 
-        return Excel::download(new WcPersonExport($rows, $q), 'wc-person.xlsx');
+        return Excel::download(new WcPersonExport($rows), 'wc-person.xlsx');
     }
 }

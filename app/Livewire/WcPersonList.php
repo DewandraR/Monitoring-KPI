@@ -22,6 +22,7 @@ class WcPersonList extends Component
             'Role',
             'Work Center',
             'Deskripsi Work Center',
+            'Devisi',          // <-- TAMBAHAN
             'Plant',
         ];
 

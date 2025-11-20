@@ -11,7 +11,6 @@ use Maatwebsite\Excel\Concerns\WithStyles;
 use Maatwebsite\Excel\Concerns\WithColumnFormatting;
 use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Events\AfterSheet;
-use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
@@ -44,8 +43,7 @@ class ReportDetailExport implements FromCollection, WithHeadings, ShouldAutoSize
             'Upah Hadir',        // K (gji)
             'Upah Inspect',      // L (gji2)
             'Var Upah',          // M
-            'Persentase Upah',   // N
-            'Plant',             // O
+            'Plant',             // N
         ];
     }
 
@@ -62,13 +60,7 @@ class ReportDetailExport implements FromCollection, WithHeadings, ShouldAutoSize
 
             $gji       = (float) ($row->gji ?? 0);   // Upah Hadir
             $gji2      = (float) ($row->gji2 ?? 0);  // Upah Inspect
-            $varnt     = (float) ($row->varnt ?? 0);
-
-            // Persentase = Var Upah / Upah Hadir * 100
-            $persentase = 0.0;
-            if ($gji != 0.0) {
-                $persentase = ($varnt / $gji) * 100;
-            }
+            $varnt     = (float) ($row->varnt ?? 0); // Var Upah
 
             return [
                 (string) ($row->pernr ?? ''),                    // A: Personal No.
@@ -87,8 +79,7 @@ class ReportDetailExport implements FromCollection, WithHeadings, ShouldAutoSize
                 $gji,                                            // K: Upah Hadir
                 $gji2,                                           // L: Upah Inspect
                 $varnt,                                          // M: Var Upah
-                $persentase,                                     // N: Persentase Upah (angka, sudah x100)
-                (string) ($row->werks ?? ''),                    // O: Plant
+                (string) ($row->werks ?? ''),                    // N: Plant
             ];
         });
     }
@@ -125,8 +116,7 @@ class ReportDetailExport implements FromCollection, WithHeadings, ShouldAutoSize
             'K' => '#,##0.00',   // Upah Hadir
             'L' => '#,##0.00',   // Upah Inspect
             'M' => '#,##0.00',   // Var Upah
-            // Persentase: 8.18 -> tampil 8.18%
-            'N' => '0.00"%"',    // Persentase Upah
+            // Tidak ada lagi kolom persentase
         ];
     }
 
@@ -136,7 +126,7 @@ class ReportDetailExport implements FromCollection, WithHeadings, ShouldAutoSize
             AfterSheet::class => function (AfterSheet $event) {
                 $sheet     = $event->sheet->getDelegate();
                 $rowCount  = $this->rows->count() + 1;
-                $lastCol   = 'O'; // kolom terakhir sekarang O
+                $lastCol   = 'N'; // kolom terakhir sekarang N
 
                 $tableRange = "A1:{$lastCol}{$rowCount}";
 
@@ -164,7 +154,7 @@ class ReportDetailExport implements FromCollection, WithHeadings, ShouldAutoSize
                 $sheet->getStyle("D2:D{$rowCount}")
                     ->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER); // WC Personal
 
-                $sheet->getStyle("O2:O{$rowCount}")
+                $sheet->getStyle("N2:N{$rowCount}")
                     ->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER); // Plant
 
                 $sheet->getStyle("C2:C{$rowCount}")
@@ -173,8 +163,8 @@ class ReportDetailExport implements FromCollection, WithHeadings, ShouldAutoSize
                 $sheet->getStyle("E2:E{$rowCount}")
                     ->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);   // DESC WC
 
-                // Semua angka menit/detik/gaji/persen
-                $sheet->getStyle("F2:N{$rowCount}")
+                // Semua angka menit/detik/gaji
+                $sheet->getStyle("F2:M{$rowCount}")
                     ->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
                 // Zebra striping

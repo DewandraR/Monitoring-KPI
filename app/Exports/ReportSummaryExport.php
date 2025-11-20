@@ -11,7 +11,6 @@ use Maatwebsite\Excel\Concerns\WithStyles;
 use Maatwebsite\Excel\Concerns\WithColumnFormatting;
 use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Events\AfterSheet;
-use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
@@ -61,6 +60,11 @@ class ReportSummaryExport implements FromCollection, WithHeadings, ShouldAutoSiz
                 ' - ' .
                 Carbon::createFromFormat('Ymd', $row->max_begda)->isoFormat('YY-MM-DD');
 
+            // Persentase Var = TOTAL Var Upah / TOTAL Upah Inspect * 100
+            $gji2      = (float) $row->gji2;   // Upah Inspect total
+            $varnt     = (float) $row->varnt;  // Var Upah total
+            $persenVar = $gji2 != 0.0 ? ($varnt / $gji2) * 100 : 0.0;
+
             return [
                 $i,                             // A: No
                 $row->pernr,                    // B: Personal No.
@@ -76,20 +80,16 @@ class ReportSummaryExport implements FromCollection, WithHeadings, ShouldAutoSiz
                 (int) $row->mintu3,             // K: Detik Konfirmasi
 
                 (float) $row->gji,              // L: Upah Hadir
-                (float) $row->gji2,             // M: Upah Inspect
-                (float) $row->varnt,            // N: Var Upah
-                (float) $row->varnt1,           // O: Persentase Var (rata-rata harian, 0-∞)
+                $gji2,                           // M: Upah Inspect
+                $varnt,                          // N: Var Upah
+                $persenVar,                      // O: Persentase Var (VarUpah/UpahInspect*100)
             ];
         });
     }
 
-    /**
-     * 1. Styling Header (Baris 1)
-     */
     public function styles(Worksheet $sheet)
     {
         return [
-            // Style Baris 1 (Header)
             1 => [
                 'font' => [
                     'bold' => true,
@@ -108,9 +108,6 @@ class ReportSummaryExport implements FromCollection, WithHeadings, ShouldAutoSiz
         ];
     }
 
-    /**
-     * 2. Format Angka
-     */
     public function columnFormats(): array
     {
         return [
@@ -122,20 +119,17 @@ class ReportSummaryExport implements FromCollection, WithHeadings, ShouldAutoSiz
             'L' => '#,##0.00',  // Upah Hadir
             'M' => '#,##0.00',  // Upah Inspect
             'N' => '#,##0.00',  // Var Upah
-            'O' => '0.00',      // Persentase Var (angka 0-∞, tanpa % kedua kalinya)
+            'O' => '0.00',      // Persentase Var (VarUpah/UpahInspect*100, tanpa simbol %)
         ];
     }
 
-    /**
-     * 3. Event Listener untuk Styling Lanjutan (Border, Alignment Kolom, Freeze Pane)
-     */
     public function registerEvents(): array
     {
         return [
             AfterSheet::class => function (AfterSheet $event) {
                 $sheet = $event->sheet->getDelegate();
                 $rowCount = $this->rows->count() + 1; // +1 header
-                $lastColumn = 'O'; // sekarang kolom terakhir O
+                $lastColumn = 'O'; // kolom terakhir O
                 $tableRange = 'A1:' . $lastColumn . $rowCount;
 
                 $sheet->setAutoFilter('A1:' . $lastColumn . '1');
@@ -163,7 +157,7 @@ class ReportSummaryExport implements FromCollection, WithHeadings, ShouldAutoSiz
                     ],
                 ]);
 
-                // zebra striping pakai $lastColumn
+                // zebra striping
                 for ($i = 2; $i <= $rowCount; $i++) {
                     if ($i % 2 == 0) {
                         $sheet->getStyle('A' . $i . ':' . $lastColumn . $i)->applyFromArray([

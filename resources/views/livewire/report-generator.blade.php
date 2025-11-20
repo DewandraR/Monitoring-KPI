@@ -37,7 +37,6 @@
         'Upah Hadir', // gji
         'Upah Inspect', // gji2
         'Var Upah',
-        'Persentase Var',
     ];
 
     // Hitung berapa NIK yang terseleksi di SUMMARY (untuk Export Report)
@@ -516,7 +515,7 @@
     @if ($showDetailModal)
         <div id="yppr058-modal" class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title"
             role="dialog" aria-modal="true">
-            <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div class="flex min-h-full items-end sm:items-center justify-center pt-4 px-4 pb-20 text-center sm:p-0">
 
                 {{-- Backdrop --}}
                 <div class="fixed inset-0 bg-slate-900/75 transition-opacity backdrop-blur-sm" aria-hidden="true"
@@ -614,7 +613,6 @@
                                                     'gji2', // Upah Inspect
 
                                                     'varnt', // Var Upah
-                                                    'varnt1', // Persentase Var
                                                 ];
                                             @endphp
 
@@ -635,7 +633,7 @@
                                                         }
                                                     }
 
-                                                    $isMoney = in_array($column, ['gji', 'gji2', 'varnt', 'varnt1']);
+                                                    $isMoney = in_array($column, ['gji', 'gji2', 'varnt']);
                                                     $isNum = in_array($column, ['mint2', 'mintu', 'mintu2', 'mintu3']);
                                                     $isDate = $column === 'begda';
                                                 @endphp
@@ -649,8 +647,6 @@
                                                         -
                                                     @elseif ($column === 'total_jam')
                                                         {{ number_format($val, 1) }}
-                                                    @elseif ($column === 'varnt1')
-                                                        {{ number_format($val, 2) }}%
                                                     @elseif ($isMoney)
                                                         {{ number_format($val, 2) }}
                                                     @elseif ($isNum)

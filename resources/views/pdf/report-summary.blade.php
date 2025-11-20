@@ -267,10 +267,16 @@
                         {{ number_format($data->varnt, 0, ',', '.') }}
                     </td>
 
-                    {{-- PERSENTASE VAR (varnt1, hasil AVG dari controller) --}}
+                    @php
+                        // Persentase Var = TOTAL Var Upah / TOTAL Upah Inspect * 100
+                        $gji2 = (float) $data->gji2; // Upah Inspect total
+                        $varnt = (float) $data->varnt; // Var Upah total
+                        $persenVar = $gji2 != 0.0 ? ($varnt / $gji2) * 100 : 0.0;
+                    @endphp
                     <td class="text-center font-mono">
-                        {{ number_format($data->varnt1, 2) }}%
+                        {{ number_format($persenVar, 2) }}%
                     </td>
+
                 </tr>
             @endforeach
         </tbody>

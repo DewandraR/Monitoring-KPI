@@ -194,7 +194,6 @@
                 <th class="col-var">Upah<br>Hadir</th>
                 <th class="col-var">Upah<br>Inspect</th>
                 <th class="col-var">Var<br>Upah</th>
-                <th class="col-var">Persentase<br>Var</th>
                 <th class="col-plant">Plant</th>
             </tr>
         </thead>
@@ -217,8 +216,8 @@
                         $rowNumberPerPerson = 0;
                     @endphp
                     <tr class="group-header-row">
-                        {{-- 15 kolom total --}}
-                        <td colspan="15">
+                        {{-- 14 kolom total --}}
+                        <td colspan="14">
                             <span class="group-header-label">Personal:</span>
                             <span class="group-header-value">{{ $d->pernr }}</span>
                             &mdash;
@@ -229,11 +228,6 @@
 
                 @php
                     $rowNumberPerPerson++;
-
-                    // Hitung persentase upah dari varnt & gji (BUKAN dari DB varnt1)
-                    $gji = (float) $d->gji;
-                    $varnt = (float) $d->varnt;
-                    $persenUpah = $gji != 0.0 ? ($varnt / $gji) * 100 : 0.0;
                 @endphp
 
                 <tr>
@@ -270,11 +264,9 @@
                     </td>
 
                     {{-- Var & Persentase Upah --}}
+                    {{-- Var Upah --}}
                     <td class="text-center font-mono {{ $d->varnt < 0 ? 'text-red' : '' }}">
                         {{ number_format($d->varnt, 0, ',', '.') }}
-                    </td>
-                    <td class="text-center font-mono">
-                        {{ number_format($persenUpah, 2) }}%
                     </td>
 
                     {{-- Plant --}}

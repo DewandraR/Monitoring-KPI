@@ -7,30 +7,55 @@
 """
 Cara pakai ringkas (update):
 
+0) Tarik hanya data HARI KEMARIN (1 hari saja)
+   - Misal hari ini 2025-11-20 → akan memproses hanya 2025-11-19 (begda=endda=kemarin)
+
+   python yppr058_loader.py --yesterday
+
+
 1) Mode default (tanpa argumen) → per-hari DESC dari kemarin ke tgl 1 bulan itu
    Contoh (misal hari ini 2025-11-12):
    - akan memproses: 2025-11-11, 2025-11-10, ..., 2025-11-01 (satu per satu)
 
    python yppr058_loader.py
 
+
 2) Batasi plant & pola ARBPL saat baca dari DB (multi-argumen boleh diulang)
+
    python yppr058_loader.py --werks-filter 1000 --werks-filter 3000 --like "WC%"
 
+
 3) Pairs spesifik (tanpa tanggal; tanggal default = kemarin)
+
    python yppr058_loader.py --pairs "WC034:1000,WC035:3000"
+
 
 4) Override tanggal range (format campur DD.MM.YYYY / YYYY-MM-DD / YYYYMMDD)
    - Range akan di-split per-hari (09→10→11). Jika ingin urutan lain, pakai --dates.
+
    python yppr058_loader.py --begda 2025-11-09 --endda 2025-11-11
 
+
 5) Tarik hanya beberapa tanggal tertentu (urutan mengikuti input)
+
    python yppr058_loader.py --dates 2025-11-11,2025-11-10,2025-11-09
 
+
 6) Lihat rencana tanpa ubah DB + tampilkan daftar pasangan
+
    python yppr058_loader.py --dry-run --show-pairs
 
+
 7) Skip delete lama (hanya insert/update)
+
    python yppr058_loader.py --no-delete
+
+
+CATATAN PRIORITAS MODE TANGGAL:
+- Jika pakai --yesterday → selalu hanya hari kemarin (abaikan dates/begda/endda).
+- Jika tidak pakai --yesterday tapi pakai --dates → ikuti daftar --dates.
+- Jika tidak pakai --yesterday/--dates tapi pakai --begda/--endda → pakai range itu.
+- Jika tidak ada semua → mode default (kemarin turun ke tanggal 1 bulan berjalan).
 """
 
 import os, sys, re, argparse, signal, time, logging, datetime
@@ -550,7 +575,7 @@ def process_one_day(
         # Panggil RFC per-chunk PERNR
         chunk_size = max(1, args.pernr_chunk)
         chunks = [
-            pernr_all[i : i + chunk_size]
+            pernr_all[i: i + chunk_size]
             for i in range(0, len(pernr_all), chunk_size)
         ]
 
@@ -649,7 +674,7 @@ def process_one_day(
             elif rows_accum:
                 try:
                     for i in range(0, len(rows_accum), args.batch):
-                        chunk = rows_accum[i : i + args.batch]
+                        chunk = rows_accum[i: i + args.batch]
                         cur.executemany(UPSERT_SQL, chunk)
                     db.commit()
                     inserted = len(rows_accum)
@@ -769,6 +794,11 @@ def main():
             "2025-11-11,2025-11-10,20251109 (urutan dipertahankan)"
         ),
     )
+    ap.add_argument(
+        "--yesterday",
+        action="store_true",
+        help="Tarik hanya data 1 hari kemarin (begda=endda=tgl kemarin).",
+    )
     # Mode & performa
     ap.add_argument(
         "--show-pairs",
@@ -874,10 +904,28 @@ def main():
         logger.info("")
 
     # MODE TANGGAL (prioritas):
+    # 0) --yesterday → satu hari kemarin (begda=endda)
     # 1) --dates → eksekusi tepat tanggal-tanggal yang diberikan (urutan dipertahankan)
     # 2) --begda/--endda → di-split per-hari (urutan naik 09→10→11). Bila ingin urutan lain, pakai --dates.
     # 3) Tanpa tanggal → default: loop harian DESC dari kemarin → tanggal 1 pada bulan tsb.
-    if args.dates.strip():
+
+    if args.yesterday:
+        day = yesterday_dats()
+        logger.info(f"MODE: only yesterday (satu hari) {day}")
+
+        total_all_ins = 0
+        total_all_del = 0
+
+        ins, dele = process_one_day(rfc, db, args, pairs, day, day)
+        total_all_ins += ins
+        total_all_del += dele
+
+        hr("=")
+        logger.info(
+            f"TOTAL HARI KEMARIN : insert/update={total_all_ins}, dihapus={total_all_del}."
+        )
+
+    elif args.dates.strip():
         dates = parse_dates_list(args.dates)
         logger.info(
             f"MODE: explicit dates (per-hari, urutan sesuai input): {', '.join(dates)}"
@@ -892,6 +940,7 @@ def main():
         logger.info(
             f"TOTAL SEMUA HARI (--dates) : insert/update={total_all_ins}, dihapus={total_all_del}."
         )
+
     elif args.begda or args.endda:
         begda = to_dats(args.begda) if args.begda else yesterday_dats()
         endda = to_dats(args.endda) if args.endda else yesterday_dats()
@@ -917,6 +966,7 @@ def main():
         logger.info(
             f"TOTAL SEMUA HARI (range) : insert/update={total_all_ins}, dihapus={total_all_del}."
         )
+
     else:
         # DEFAULT: tanpa tanggal → dari kemarin turun ke tanggal 1 (per-hari, urutan DESC)
         today = datetime.date.today()
