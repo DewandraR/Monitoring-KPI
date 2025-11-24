@@ -36,15 +36,17 @@ class ReportSummaryExport implements FromCollection, WithHeadings, ShouldAutoSiz
             'Nama',             // D
             'WC Personal',      // E
             'DESC WC',          // F
-            'Menit Hadir',      // G
-            'Menit Conf',       // H
-            'Menit Inspect',    // I
-            'Detik Inspect',    // J
-            'Detik Konfirmasi', // K
-            'Upah Hadir',       // L (gji)
-            'Upah Inspect',     // M (gji2)
-            'Var Upah',         // N
-            'Persentase Var',   // O
+            'Role',             // G
+            'Devisi',           // H
+            'Menit Hadir',      // I
+            'Menit Conf',       // J
+            'Menit Inspect',    // K
+            'Detik Inspect',    // L
+            'Detik Konfirmasi', // M
+            'Upah Hadir',       // N (gji)
+            'Upah Inspect',     // O (gji2)
+            'Var Upah',         // P
+            'Persentase Var',   // Q
         ];
     }
 
@@ -67,22 +69,24 @@ class ReportSummaryExport implements FromCollection, WithHeadings, ShouldAutoSiz
 
             return [
                 $i,                             // A: No
-                $row->pernr,                    // B: Personal No.
+                (string) $row->pernr,           // B: Personal No.
                 $rentangTanggal,                // C: Rentang Tanggal
-                $row->cname,                    // D: Nama
-                $row->arbpl,                    // E: WC Personal
-                $row->desc,                     // F: DESC WC
+                (string) $row->cname,           // D: Nama
+                (string) $row->arbpl,           // E: WC Personal
+                (string) $row->desc,            // F: DESC WC
+                (string) ($row->role ?? ''),    // G: Role
+                (string) ($row->devisi ?? ''),  // H: Devisi
 
-                (float) $row->total_jam,        // G: Menit Hadir
-                (int) $row->mint2,              // H: Menit Conf
-                (int) $row->mintu,              // I: Menit Inspect
-                (int) $row->mintu2,             // J: Detik Inspect
-                (int) $row->mintu3,             // K: Detik Konfirmasi
+                (float) $row->total_jam,        // I: Menit Hadir
+                (int) $row->mint2,              // J: Menit Conf
+                (int) $row->mintu,              // K: Menit Inspect
+                (int) $row->mintu2,             // L: Detik Inspect
+                (int) $row->mintu3,             // M: Detik Konfirmasi
 
-                (float) $row->gji,              // L: Upah Hadir
-                $gji2,                           // M: Upah Inspect
-                $varnt,                          // N: Var Upah
-                $persenVar,                      // O: Persentase Var (VarUpah/UpahInspect*100)
+                (float) $row->gji,              // N: Upah Hadir
+                $gji2,                          // O: Upah Inspect
+                $varnt,                         // P: Var Upah
+                $persenVar,                     // Q: Persentase Var (VarUpah/UpahInspect*100)
             ];
         });
     }
@@ -111,15 +115,15 @@ class ReportSummaryExport implements FromCollection, WithHeadings, ShouldAutoSiz
     public function columnFormats(): array
     {
         return [
-            'G' => '#,##0.0',   // Menit Hadir
-            'H' => '#,##0',     // Menit Conf
-            'I' => '#,##0',     // Menit Inspect
-            'J' => '#,##0',     // Detik Inspect
-            'K' => '#,##0',     // Detik Konfirmasi
-            'L' => '#,##0.00',  // Upah Hadir
-            'M' => '#,##0.00',  // Upah Inspect
-            'N' => '#,##0.00',  // Var Upah
-            'O' => '0.00',      // Persentase Var (VarUpah/UpahInspect*100, tanpa simbol %)
+            'I' => '#,##0.0',   // Menit Hadir
+            'J' => '#,##0',     // Menit Conf
+            'K' => '#,##0',     // Menit Inspect
+            'L' => '#,##0',     // Detik Inspect
+            'M' => '#,##0',     // Detik Konfirmasi
+            'N' => '#,##0.00',  // Upah Hadir
+            'O' => '#,##0.00',  // Upah Inspect
+            'P' => '#,##0.00',  // Var Upah
+            'Q' => '0.00',      // Persentase Var (angka saja, tanpa simbol %)
         ];
     }
 
@@ -127,25 +131,28 @@ class ReportSummaryExport implements FromCollection, WithHeadings, ShouldAutoSiz
     {
         return [
             AfterSheet::class => function (AfterSheet $event) {
-                $sheet = $event->sheet->getDelegate();
-                $rowCount = $this->rows->count() + 1; // +1 header
-                $lastColumn = 'O'; // kolom terakhir O
+                $sheet     = $event->sheet->getDelegate();
+                $rowCount  = $this->rows->count() + 1; // +1 header
+                $lastColumn = 'Q'; // kolom terakhir sekarang Q
                 $tableRange = 'A1:' . $lastColumn . $rowCount;
 
+                // AutoFilter
                 $sheet->setAutoFilter('A1:' . $lastColumn . '1');
 
-                // rata tengah No, Personal No, WC
+                // rata tengah: No, Personal No, WC, Role
                 $sheet->getStyle('A2:A' . $rowCount)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
                 $sheet->getStyle('B2:B' . $rowCount)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
                 $sheet->getStyle('E2:E' . $rowCount)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $sheet->getStyle('G2:G' . $rowCount)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
-                // kiri: rentang tanggal, nama, desc
+                // kiri: rentang tanggal, nama, desc, devisi
                 $sheet->getStyle('C2:C' . $rowCount)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
                 $sheet->getStyle('D2:D' . $rowCount)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
                 $sheet->getStyle('F2:F' . $rowCount)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+                $sheet->getStyle('H2:H' . $rowCount)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
 
-                // kanan: semua angka (G..O)
-                $sheet->getStyle('G2:O' . $rowCount)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+                // kanan: semua angka (I..Q)
+                $sheet->getStyle('I2:Q' . $rowCount)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
 
                 // Border semua sel
                 $sheet->getStyle($tableRange)->applyFromArray([

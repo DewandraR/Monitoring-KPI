@@ -247,6 +247,8 @@ CREATE TABLE IF NOT EXISTS `{OUT_TABLE}` (
   `shift`   INT NULL,
   `werks`   VARCHAR(10) NOT NULL,
   `desc`    VARCHAR(255) NULL,
+  `role`    VARCHAR(20) NULL,
+  `devisi`  VARCHAR(100) NULL,
   `source_rfc` VARCHAR(64) NOT NULL DEFAULT '{RFC_NAME}',
   `inserted_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -260,10 +262,15 @@ CREATE TABLE IF NOT EXISTS `{OUT_TABLE}` (
   COLLATE=utf8mb4_unicode_ci;
 """
 
+
 UPSERT_SQL = f"""
 INSERT INTO `{OUT_TABLE}`
-(`pernr`,`begda`,`total_jam`,`mint2`,`mintu`,`mintu2`,`mintu3`,`cname`,`gji`,`gji2`,`varnt`,`varnt1`,`arbpl`,`arbpl2`,`shift`,`werks`,`desc`,`source_rfc`)
-VALUES (%(pernr)s,%(begda)s,%(total_jam)s,%(mint2)s,%(mintu)s,%(mintu2)s,%(mintu3)s,%(cname)s,%(gji)s,%(gji2)s,%(varnt)s,%(varnt1)s,%(arbpl)s,%(arbpl2)s,%(shift)s,%(werks)s,%(desc)s,'{RFC_NAME}')
+(`pernr`,`begda`,`total_jam`,`mint2`,`mintu`,`mintu2`,`mintu3`,
+ `cname`,`gji`,`gji2`,`varnt`,`varnt1`,
+ `arbpl`,`arbpl2`,`shift`,`werks`,`desc`,`role`,`devisi`,`source_rfc`)
+VALUES (%(pernr)s,%(begda)s,%(total_jam)s,%(mint2)s,%(mintu)s,%(mintu2)s,%(mintu3)s,
+        %(cname)s,%(gji)s,%(gji2)s,%(varnt)s,%(varnt1)s,
+        %(arbpl)s,%(arbpl2)s,%(shift)s,%(werks)s,%(desc)s,%(role)s,%(devisi)s,'{RFC_NAME}')
 ON DUPLICATE KEY UPDATE
   `total_jam`=VALUES(`total_jam`),
   `mint2`=VALUES(`mint2`),
@@ -278,8 +285,11 @@ ON DUPLICATE KEY UPDATE
   `arbpl2`=VALUES(`arbpl2`),
   `shift`=VALUES(`shift`),
   `desc`=VALUES(`desc`),
+  `role`=VALUES(`role`),
+  `devisi`=VALUES(`devisi`),
   `inserted_at`=CURRENT_TIMESTAMP
 """
+
 
 DELETE_SQL = f"""
 DELETE FROM `{OUT_TABLE}`
@@ -320,7 +330,10 @@ def ensure_db_and_table():
     # Pastikan kolom tambahan (shift & desc) ada untuk instalasi lama
     ensure_shift_column_exists(conn)
     ensure_desc_column_exists(conn)
+    ensure_role_column_exists(conn)
+    ensure_devisi_column_exists(conn)
     return conn
+
 
 
 def ensure_shift_column_exists(conn):
@@ -373,6 +386,60 @@ def ensure_desc_column_exists(conn):
         cur.close()
 
 
+def ensure_role_column_exists(conn):
+    """
+    Tambahkan kolom `role` ke tabel hasil jika belum ada.
+    """
+    check_sql = """
+        SELECT COUNT(*) FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA=%s AND TABLE_NAME=%s AND COLUMN_NAME='role'
+    """
+    cur = conn.cursor()
+    try:
+        cur.execute(check_sql, (DB_NAME, OUT_TABLE))
+        exists = int(cur.fetchone()[0]) > 0
+        if not exists:
+            cur.execute(
+                f"ALTER TABLE `{OUT_TABLE}` "
+                "ADD COLUMN `role` VARCHAR(20) NULL AFTER `desc`"
+            )
+            conn.commit()
+            logger.info("[DDL] Kolom `role` ditambahkan ke tabel hasil.")
+    except mysql.connector.Error as e:
+        conn.rollback()
+        logger.info(f"[ERROR] ALTER TABLE add role: {e}")
+        raise
+    finally:
+        cur.close()
+
+
+def ensure_devisi_column_exists(conn):
+    """
+    Tambahkan kolom `devisi` ke tabel hasil jika belum ada.
+    """
+    check_sql = """
+        SELECT COUNT(*) FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA=%s AND TABLE_NAME=%s AND COLUMN_NAME='devisi'
+    """
+    cur = conn.cursor()
+    try:
+        cur.execute(check_sql, (DB_NAME, OUT_TABLE))
+        exists = int(cur.fetchone()[0]) > 0
+        if not exists:
+            cur.execute(
+                f"ALTER TABLE `{OUT_TABLE}` "
+                "ADD COLUMN `devisi` VARCHAR(100) NULL AFTER `role`"
+            )
+            conn.commit()
+            logger.info("[DDL] Kolom `devisi` ditambahkan ke tabel hasil.")
+    except mysql.connector.Error as e:
+        conn.rollback()
+        logger.info(f"[ERROR] ALTER TABLE add devisi: {e}")
+        raise
+    finally:
+        cur.close()
+
+
 def fetch_pairs_from_db(conn) -> List[Tuple[str, str]]:
     sql = (
         f"SELECT DISTINCT arbpl, werks FROM `{WC_TABLE}` "
@@ -384,6 +451,42 @@ def fetch_pairs_from_db(conn) -> List[Tuple[str, str]]:
     cur.close()
     return dedupe_pairs(rows)
 
+
+def get_role_map_for_pair(
+    conn,
+    arbpl: str,
+    werks: str,
+    at_yyyymmdd: str,
+) -> Dict[str, Optional[str]]:
+    """
+    Ambil mapping PERNR -> role dari wc_person_data untuk ARBPL/WERKS
+    pada tanggal tertentu.
+    Jika kolom `role` belum ada atau error, return {}.
+    """
+    q = f"""
+        SELECT DISTINCT pernr, role
+        FROM `{WC_TABLE}`
+        WHERE arbpl=%s AND werks=%s
+          AND begda <= %s AND endda >= %s
+          AND pernr <> ''
+          AND role IS NOT NULL AND role <> ''
+    """
+    cur = conn.cursor()
+    mapping: Dict[str, Optional[str]] = {}
+    try:
+        cur.execute(q, (arbpl, werks, at_yyyymmdd, at_yyyymmdd))
+        for pernr, role in cur.fetchall():
+            s = "" if pernr is None else str(pernr)
+            s = s.zfill(8) if s.isdigit() else s
+            if s:
+                mapping[s] = role
+    except mysql.connector.Error as e:
+        logger.info(
+            f"[WARN] Gagal mengambil role WC (ARBPL={arbpl}, WERKS={werks}): {e}"
+        )
+    finally:
+        cur.close()
+    return mapping
 
 def fetch_pernrs_for_pair(conn, arbpl: str, werks: str, at_yyyymmdd: str) -> List[str]:
     """
@@ -409,27 +512,31 @@ def fetch_pernrs_for_pair(conn, arbpl: str, werks: str, at_yyyymmdd: str) -> Lis
     return sorted(set(out))
 
 
-def get_wc_desc(conn, arbpl: str, werks: str) -> Optional[str]:
+def get_wc_meta(conn, arbpl: str, werks: str) -> Tuple[Optional[str], Optional[str]]:
     """
-    Ambil deskripsi WC dari tabel wc_person_data (kolom `desc`)
+    Ambil deskripsi WC (`desc`) dan `devisi` dari tabel wc_person_data
     berdasarkan pasangan ARBPL/WERKS.
-    Jika tidak ditemukan atau kolom belum ada, return None.
+    Jika tidak ditemukan atau kolom belum ada, return (None, None).
     """
     sql = (
-        f"SELECT `desc` FROM `{WC_TABLE}` "
-        "WHERE arbpl=%s AND werks=%s AND `desc` IS NOT NULL AND `desc`<>'' "
+        f"SELECT `desc`, `devisi` FROM `{WC_TABLE}` "
+        "WHERE arbpl=%s AND werks=%s "
+        "  AND ( (`desc` IS NOT NULL AND `desc`<>'') "
+        "     OR (`devisi` IS NOT NULL AND `devisi`<>'') ) "
         "LIMIT 1"
     )
     cur = conn.cursor()
     try:
         cur.execute(sql, (arbpl, werks))
         row = cur.fetchone()
-        return row[0] if row else None
+        if not row:
+            return None, None
+        return row[0], row[1]
     except mysql.connector.Error as e:
         logger.info(
-            f"[WARN] Gagal mengambil desc WC (ARBPL={arbpl}, WERKS={werks}): {e}"
+            f"[WARN] Gagal mengambil desc/devisi WC (ARBPL={arbpl}, WERKS={werks}): {e}"
         )
-        return None
+        return None, None
     finally:
         cur.close()
 
@@ -491,14 +598,22 @@ def normalize_tdata(
     arbpl: str,
     werks: str,
     desc_value: Optional[str],
+    devisi_value: Optional[str],
+    role_map: Optional[Dict[str, Optional[str]]] = None,
 ) -> Dict[str, Any]:
     S = lambda v: "" if v is None else str(v)
     I = lambda v: None if S(v) == "" else int(S(v))
     D = lambda v: None if v in (None, "") else norm_val(v)
+
+    pernr_raw = S(row.get("PERNR"))
+    pernr_norm = pernr_raw.zfill(8) if pernr_raw.isdigit() else pernr_raw
+
+    role_value = None
+    if role_map:
+        role_value = role_map.get(pernr_norm)
+
     return {
-        "pernr": S(row.get("PERNR")).zfill(8)
-        if S(row.get("PERNR")).isdigit()
-        else S(row.get("PERNR")),
+        "pernr": pernr_norm,
         "begda": S(row.get("BEGDA")),
         "total_jam": D(row.get("TOTAL_JAM")),
         "mint2": I(row.get("MINT2")),
@@ -515,6 +630,8 @@ def normalize_tdata(
         "shift": I(row.get("SHIFT")),
         "werks": werks,
         "desc": desc_value,
+        "role": role_value,
+        "devisi": devisi_value,
     }
 
 # ---------- Core per-hari ----------
@@ -543,11 +660,14 @@ def process_one_day(
     for (arbpl, werks) in pairs:
         t0 = time.perf_counter()
 
-        # Ambil deskripsi WC dari wc_person_data (kolom `desc`) untuk pasangan ini
-        desc_for_pair = get_wc_desc(db, arbpl, werks)
+                # Ambil deskripsi & devisi WC dari wc_person_data untuk pasangan ini
+        desc_for_pair, devisi_for_pair = get_wc_meta(db, arbpl, werks)
 
         # Kumpulkan PERNR untuk pasangan ini (aktif pada tanggal)
         pernr_all = fetch_pernrs_for_pair(db, arbpl, werks, begda)
+
+        # Ambil role per PERNR (kalau kolom `role` ada)
+        role_map_for_pair = get_role_map_for_pair(db, arbpl, werks, begda)
 
         logger.info(
             f"PAIR  : ARBPL={arbpl} | WERKS={werks} | {begda}..{endda} | PAIR={len(pernr_all)} PERNR"
@@ -617,6 +737,8 @@ def process_one_day(
                             arbpl,
                             werks,
                             desc_for_pair,
+                            devisi_for_pair,
+                            role_map_for_pair,
                         )
                         for r in t_data
                     ]

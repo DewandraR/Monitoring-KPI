@@ -16,9 +16,14 @@
 /public/build
 /public/hot
 /public/storage
+/public/index.php
 /storage/*.key
 /storage/pail
 /vendor
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+**/caddy
+frankenphp
+frankenphp-worker.php

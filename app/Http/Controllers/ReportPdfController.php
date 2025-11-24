@@ -32,7 +32,7 @@ class ReportPdfController extends Controller
             'gji',   // Upah Hadir
             'gji2',  // Upah Inspect
             'varnt',
-            // varnt1 sengaja TIDAK dimasukkan, kita hitung manual
+            // varnt1 sengaja TIDAK dimasukkan, kita hitung manual di view/export
         ];
 
         $sumSelects = array_map(fn($col) => "SUM($col) AS $col", $aggregateColumns);
@@ -40,14 +40,15 @@ class ReportPdfController extends Controller
         // non-aggregate (ambil MAX atau MIN)
         $nonAggSelects = array_map(
             fn($col) => "MAX(`$col`) AS `$col`",
-            ['cname', 'arbpl', 'desc', 'arbpl2', 'werks']
+            // >> DI SINI DITAMBAH role & devisi <<
+            ['cname', 'arbpl', 'desc', 'arbpl2', 'werks', 'role', 'devisi']
         );
         $nonAggSelects[] = 'MIN(shift) AS shift';
 
         $dateRangeSel = ['MIN(begda) AS min_begda', 'MAX(begda) AS max_begda'];
 
         // RATA-RATA PERSENTASE VAR:
-        // AVG( (varnt / gji) * 100 ) per hari; kalau gji=0 → 0
+        // (masih disimpan sebagai varnt1, tapi di PDF/Excel kita hitung ulang pakai varnt & gji2)
         $persenVarExpr = 'AVG(CASE WHEN gji <> 0 THEN (varnt / gji) * 100 ELSE 0 END) AS varnt1';
 
         $selects = array_merge(
@@ -128,7 +129,6 @@ class ReportPdfController extends Controller
     public function exportSelected(Request $request, string $werks)
     {
         $pernrs = (array) $request->session()->get('report_export.pernrs', []);
-
         $pernrs = array_values(array_filter(array_map('strval', $pernrs)));
 
         if (empty($pernrs)) {
@@ -160,7 +160,6 @@ class ReportPdfController extends Controller
     public function exportSelectedExcel(Request $request, string $werks)
     {
         $pernrs = (array) $request->session()->get('report_export.pernrs', []);
-
         $pernrs = array_values(array_filter(array_map('strval', $pernrs)));
 
         if (empty($pernrs)) {

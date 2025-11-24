@@ -12,6 +12,9 @@ class WcPersonList extends Component
     public string $q = '';
     public array $selectedPernrs = [];
 
+    // 🔹 FILTER PLANT (ALL / 1000 / 1001 / 2000 / 3000)
+    public string $plant = 'ALL';
+
     public function render()
     {
         $headers = [
@@ -22,13 +25,19 @@ class WcPersonList extends Component
             'Role',
             'Work Center',
             'Deskripsi Work Center',
-            'Devisi',          // <-- TAMBAHAN
+            'Devisi',
             'Plant',
         ];
 
-        $rows = WcPersonData::query()
-            ->search($this->q)
-            // URUTAN: 1) PLANT, 2) WC, 3) NIK
+        $query = WcPersonData::query()
+            ->search($this->q);
+
+        // 🔹 Terapkan filter plant (kecuali ALL)
+        if ($this->plant !== 'ALL') {
+            $query->where('werks', $this->plant);
+        }
+
+        $rows = $query
             ->orderByRaw('CAST(werks AS UNSIGNED), werks')
             ->orderBy('arbpl')
             ->orderBy('pernr')
@@ -61,10 +70,14 @@ class WcPersonList extends Component
     {
         $query = WcPersonData::query()
             ->search($this->q)
-            // HARUS SAMA DENGAN render():
             ->orderByRaw('CAST(werks AS UNSIGNED), werks')
             ->orderBy('arbpl')
             ->orderBy('pernr');
+
+        // 🔹 Filter plant juga berpengaruh ke Select All
+        if ($this->plant !== 'ALL') {
+            $query->where('werks', $this->plant);
+        }
 
         $currentPernrs = $query->pluck('pernr')
             ->map(fn($p) => (string) $p)

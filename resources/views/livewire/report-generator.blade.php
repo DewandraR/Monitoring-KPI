@@ -9,7 +9,10 @@
         'Rentang Tanggal',
         'Nama',
         'WC Personal',
+        'WC Konfirmasi', // <<< BARU
         'DESC WC',
+        'Role',
+        'Devisi',
         'Menit Hadir', // total_jam
         'Menit Conf', // mint2
         'Menit Inspect', // mintu
@@ -28,7 +31,10 @@
         'Tanggal',
         'Nama',
         'WC Personal',
+        'WC Konfirmasi', // <<< BARU
         'DESC WC',
+        'Role',
+        'Devisi',
         'Menit Hadir',
         'Menit Conf',
         'Menit Inspect',
@@ -36,7 +42,7 @@
         'Detik Konfirmasi',
         'Upah Hadir', // gji
         'Upah Inspect', // gji2
-        'Var Upah',
+        'Var Upah', // varnt
     ];
 
     // Hitung berapa NIK yang terseleksi di SUMMARY (untuk Export Report)
@@ -341,17 +347,35 @@
                 <p class="mt-2 text-sm text-gray-500">
                     Cari berdasarkan:
                     <span class="font-semibold text-emerald-700">NIK</span>,
-                    <span class="font-semibold text-emerald-700">Work Center</span>, atau
-                    <span class="font-semibold text-emerald-700">Deskripsi</span>.
-                    <br>Gunakan tanda kutip untuk hasil tepat, contoh:
-                    <code class="bg-gray-100 px-1 rounded text-emerald-700 font-mono text-xs">"Nama Lengkap"</code>
+                    <span class="font-semibold text-emerald-700">Work Center</span>,
+                    <span class="font-semibold text-emerald-700">Devisi</span>,
                     atau
-                    <code class="bg-gray-100 px-1 rounded text-emerald-700 font-mono text-xs">"DESC WC"</code>.
+                    <span class="font-semibold text-emerald-700">Deskripsi/Nama</span>.
+                    <br>Gunakan tanda kutip untuk hasil tepat, contoh:
+                    <code class="bg-gray-100 px-1 rounded text-emerald-700 font-mono text-xs">"Nama Lengkap"</code>,
+                    <code class="bg-gray-100 px-1 rounded text-emerald-700 font-mono text-xs">"DESC WC"</code>,
+                    atau
+                    <code class="bg-gray-100 px-1 rounded text-emerald-700 font-mono text-xs">"Nama Devisi"</code>.
                 </p>
 
                 @error('q')
                     <span class="text-xs text-red-500 mt-1 ml-1 block font-medium">{{ $message }}</span>
                 @enderror
+
+                {{-- TOGGLE ROLE INDUK --}}
+                <div class="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <label class="inline-flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" wire:model.live="onlyInduk"
+                            class="rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500">
+                        <span class="text-sm text-emerald-800 font-semibold">
+                            Tampilkan hanya yang ber-Role "INDUK"
+                        </span>
+                    </label>
+
+                    <span class="text-[11px] text-gray-500 italic">
+                        Nonaktif: tampilkan semua role (termasuk yang tidak memiliki Role Induk)
+                    </span>
+                </div>
             </div>
         </div>
     </div>
@@ -359,11 +383,11 @@
     {{-- ======================================================================== --}}
     {{-- BAGIAN 3: TABEL RINGKASAN --}}
     {{-- ======================================================================== --}}
-    <div wire:key="summary-{{ md5(($werks ?? request()->route('werks')) . '|' . $q) }}">
+    <div wire:key="summary-{{ md5(($werks ?? request()->route('werks')) . '|' . $q . '|' . (int) $onlyInduk) }}">
 
         <div class="overflow-x-auto overflow-y-auto max-h-[75vh] shadow-xl sm:rounded-xl border border-gray-200/75">
             <table class="min-w-full divide-y divide-gray-200">
-                <thead class="sticky top-0 z-10 bg-gradient-to-r from-emerald-800 to-teal-900 text-white shadow-md">
+                <thead class="sticky top-0 z-20 bg-gradient-to-r from-emerald-800 to-teal-900 text-white shadow-md">
                     <tr>
                         @php
                             $pagePernrs = array_map('strval', $currentPagePernrs ?? []);
@@ -373,14 +397,14 @@
                                 count(array_intersect($pagePernrs, $selectedP)) === count($pagePernrs);
                         @endphp
 
-                        {{-- Kolom checkbox + label (select all) --}}
+                        {{-- Kolom checkbox STICKY LEFT - Header --}}
                         <th scope="col"
-                            class="px-6 py-4 text-left text-sm font-bold uppercase tracking-wider w-10">
+                            class="sticky left-0 z-30 px-6 py-4 text-left text-sm font-bold uppercase tracking-wider w-10 bg-emerald-800">
                             <label class="inline-flex items-center gap-2 select-none cursor-pointer group">
                                 <input id="check-all-summary" type="checkbox"
                                     class="rounded border-gray-300 text-emerald-500 focus:ring-emerald-500 transition-colors cursor-pointer bg-white/90 h-4 w-4"
                                     @checked($allCurrentSelected)>
-                                <span class="group-hover:text-emerald-100 transition-colors text-xs">Pilih</span>
+                                {{-- Tulisan "Pilih" DIHAPUS --}}
                             </label>
                         </th>
 
@@ -397,10 +421,12 @@
                     @forelse ($reportData as $data)
                         <tr wire:key="report-row-{{ $data->pernr }}"
                             wire:click="showPernrDetail({{ \Illuminate\Support\Js::from((string) $data->pernr) }})"
-                            class="transition-all duration-200 ease-in-out hover:bg-emerald-50 cursor-pointer odd:bg-white even:bg-slate-50/50">
+                            class="group/row transition-all duration-200 ease-in-out hover:bg-emerald-50 cursor-pointer odd:bg-white even:bg-slate-50/50">
 
-                            {{-- Checkbox pilih NIK untuk export --}}
-                            <td class="px-6 py-4 whitespace-nowrap">
+                            {{-- Checkbox STICKY LEFT - Body --}}
+                            {{-- Menggunakan group-even/row untuk mencocokkan warna row saat sel ini sticky --}}
+                            <td
+                                class="sticky left-0 z-10 px-6 py-4 whitespace-nowrap bg-white group-even/row:bg-slate-50/50 group-hover/row:bg-emerald-50">
                                 <input type="checkbox" wire:model.live="selectedPernrs"
                                     value="{{ (string) $data->pernr }}"
                                     class="summary-check rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer h-5 w-5"
@@ -434,9 +460,24 @@
                                 {{ $data->arbpl }}
                             </td>
 
+                            {{-- WC KONFIRMASI (arbpl2) --}}
+                            <td class="px-6 py-4 whitespace-nowrap text-slate-700 font-medium">
+                                {{ $data->arbpl2 ?? '-' }}
+                            </td>
+
                             {{-- DESC WC --}}
                             <td class="px-6 py-4 text-slate-600 text-sm min-w-[250px]">
                                 {{ Str::limit($data->desc, 40) }}
+                            </td>
+
+                            {{-- ROLE --}}
+                            <td class="px-6 py-4 whitespace-nowrap text-center text-xs font-semibold">
+                                {{ $data->role ?? '-' }}
+                            </td>
+
+                            {{-- DEVISI --}}
+                            <td class="px-6 py-4 whitespace-nowrap text-slate-700 text-sm">
+                                {{ $data->devisi ?? '-' }}
                             </td>
 
                             {{-- MENIT HADIR (total_jam) --}}
@@ -555,16 +596,18 @@
                         <div
                             class="overflow-x-auto overflow-y-auto max-h-[60vh] shadow-md sm:rounded-lg bg-white border border-gray-200">
                             <table class="min-w-full divide-y divide-gray-100">
-                                <thead class="sticky top-0 z-10 bg-emerald-50">
+                                <thead class="sticky top-0 z-20 bg-emerald-50">
                                     <tr>
+                                        {{-- Checkbox Detail STICKY LEFT - Header --}}
                                         <th
-                                            class="px-6 py-4 text-left text-xs font-bold text-emerald-800 uppercase tracking-wider border-b-2 border-emerald-100">
+                                            class="sticky left-0 z-30 px-6 py-4 text-left text-xs font-bold text-emerald-800 uppercase tracking-wider border-b-2 border-emerald-100 bg-emerald-50">
                                             <label class="inline-flex items-center gap-2 select-none">
                                                 <input id="check-all-detail" type="checkbox"
                                                     class="rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500">
-                                                Pilih
+                                                {{-- Tulisan "Pilih" DIHAPUS --}}
                                             </label>
                                         </th>
+
                                         @foreach ($headersDetail as $header)
                                             <th scope="col"
                                                 class="px-6 py-4 text-left text-xs font-bold text-emerald-800 uppercase tracking-wider border-b-2 border-emerald-100 whitespace-nowrap">
@@ -577,9 +620,11 @@
                                 <tbody class="bg-white divide-y divide-gray-100">
                                     @foreach ($detailData as $data)
                                         <tr wire:key="detail-row-{{ $selectedPernr }}-{{ $data['begda'] ?? $loop->iteration }}"
-                                            class="hover:bg-emerald-50/50 transition-colors">
+                                            class="group/detail hover:bg-emerald-50/50 transition-colors">
 
-                                            <td class="px-6 py-3 whitespace-nowrap text-sm">
+                                            {{-- Checkbox Detail STICKY LEFT - Body --}}
+                                            <td
+                                                class="sticky left-0 z-10 px-6 py-3 whitespace-nowrap text-sm bg-white group-hover/detail:bg-emerald-50/50">
                                                 <input type="checkbox"
                                                     class="refresh-check rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                                                     title="{{ empty($data['arbpl']) || empty($data['werks']) ? 'WC/Plant kosong: server akan mencari otomatis' : 'Siap kirim' }}"
@@ -601,7 +646,10 @@
                                                     'begda', // Tanggal
                                                     'cname', // Nama
                                                     'arbpl', // WC Personal
+                                                    'arbpl2', // WC Konfirmasi  <<< BARU
                                                     'desc', // DESC WC
+                                                    'role', // Role
+                                                    'devisi', // Devisi
 
                                                     'total_jam', // Menit Hadir (TOTAL_JAM)
                                                     'mint2', // Menit Conf (MINT2)
@@ -611,8 +659,8 @@
 
                                                     'gji', // Upah Hadir
                                                     'gji2', // Upah Inspect
-
                                                     'varnt', // Var Upah
+                                                    // 'varnt1' bisa ditambah kapan-kapan kalau mau tampil di detail juga
                                                 ];
                                             @endphp
 
@@ -857,6 +905,7 @@
 
                 // Checkbox Logic
                 document.addEventListener('change', function(e) {
+                    // CHECK ALL DI MODAL DETAIL
                     if (e.target && e.target.id === 'check-all-detail') {
                         const modal = $('#yppr058-modal') || document;
                         $$('.refresh-check', modal).forEach(cb => {
@@ -867,9 +916,13 @@
                             }));
                         });
                     }
+
+                    // CHECK ALL DI SUMMARY (HALAMAN UTAMA)
                     if (e.target && e.target.id === 'check-all-summary') {
+                        // TIDAK pakai modal; semua checkbox summary ada di halaman utama
                         $$('.summary-check').forEach(cb => {
                             cb.checked = e.target.checked;
+                            // trigger event supaya wire:model selectedPernrs ikut update
                             cb.dispatchEvent(new Event('change', {
                                 bubbles: true
                             }));

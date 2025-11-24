@@ -34,6 +34,8 @@ class ReportGenerator extends Component
 
     public array $selectedDetailKeys = [];   // pernr|begda yang dicentang di modal
 
+    public bool $onlyInduk = false;
+
     public function exportDetail(string $format)
     {
         // Kumpulkan semua NIK dari:
@@ -136,8 +138,8 @@ class ReportGenerator extends Component
                 $detail[] = $byDate->get($key)->toArray();
             } else {
                 $detail[] = [
-                    'pernr'  => $clickedPernr,
-                    'begda'  => $key,
+                    'pernr'     => $clickedPernr,
+                    'begda'     => $key,
                     'total_jam' => null,
                     'mint2'     => null,
                     'mintu'     => null,
@@ -148,7 +150,9 @@ class ReportGenerator extends Component
                     'gji2'      => null,
                     'varnt'     => null,
                     'arbpl'     => null,
-                    'desc'      => null,          // <--- TAMBAHAN
+                    'desc'      => null,
+                    'role'      => null,          // <--- baru
+                    'devisi'    => null,          // <--- baru
                     'arbpl2'    => null,
                     'werks'     => $this->werks,
                     'shift'     => null,
@@ -222,6 +226,8 @@ class ReportGenerator extends Component
             'Nama',
             'WC Personal',
             'DESC WC',
+            'Role',
+            'Devisi',
             'Menit Hadir',
             'Menit Conf',
             'Menit Inspect',
@@ -231,6 +237,11 @@ class ReportGenerator extends Component
 
         $baseQuery = ReportData::query()
             ->whereRaw('UPPER(TRIM(werks)) = ?', [$this->werks]);
+
+        // >>> FILTER: kalau toggle hanya Role INDUK aktif <<<
+        if ($this->onlyInduk) {
+            $baseQuery->whereRaw('UPPER(TRIM(role)) = ?', ['INDUK']);
+        }
 
         // === Parsing input search ===
         $raw = trim((string) $this->q);
@@ -280,7 +291,8 @@ class ReportGenerator extends Component
                         $lower = mb_strtolower($t);
                         $qq->orWhere('arbpl', 'LIKE', "%{$t}%")
                             ->orWhere('desc',  'LIKE', "%{$t}%")
-                            ->orWhereRaw('LOWER(cname) LIKE ?', ["%{$lower}%"]);
+                            ->orWhereRaw('LOWER(cname) LIKE ?',   ["%{$lower}%"])
+                            ->orWhereRaw('LOWER(devisi) LIKE ?',  ["%{$lower}%"]); // <<< Devisi ikut dicari
                     }
                 });
             }
@@ -289,8 +301,9 @@ class ReportGenerator extends Component
             if ($namePhrases->isNotEmpty()) {
                 $q->where(function ($qq) use ($namePhrases) {
                     foreach ($namePhrases as $p) {
-                        $qq->orWhereRaw('LOWER(cname) LIKE ?', ["%{$p}%"])
-                            ->orWhereRaw('LOWER(`desc`) LIKE ?',  ["%{$p}%"]);
+                        $qq->orWhereRaw('LOWER(cname)   LIKE ?', ["%{$p}%"])
+                            ->orWhereRaw('LOWER(`desc`) LIKE ?', ["%{$p}%"])
+                            ->orWhereRaw('LOWER(devisi) LIKE ?', ["%{$p}%"]); // <<< frasa spesifik ke devisi juga
                     }
                 });
             }
@@ -299,10 +312,10 @@ class ReportGenerator extends Component
         // === Aggregate per pernr (summary) ===
         $sumSelects = array_map(fn($col) => "SUM($col) as $col", $this->aggregateColumns);
 
-        // non-aggregate (MAX) termasuk DESC WC
+        // non-aggregate (MAX) termasuk DESC WC, role, dan devisi
         $nonAggSelects = array_map(
             fn($col) => "MAX(`$col`) as `$col`",
-            ['cname', 'arbpl', 'desc', 'arbpl2', 'werks']
+            ['cname', 'arbpl', 'desc', 'arbpl2', 'werks', 'role', 'devisi']
         );
 
         $nonAggSelects[] = 'MIN(shift) as shift';

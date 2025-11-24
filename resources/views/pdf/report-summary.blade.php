@@ -111,7 +111,6 @@
             font-weight: bold;
         }
 
-        /* Warna Text Khusus */
         .text-emerald {
             color: #047857;
         }
@@ -120,7 +119,7 @@
             color: #4b5563;
         }
 
-        /** KOLOM WIDTH CONFIGURATION **/
+        /** KOLOM WIDTH CONFIGURATION (perkiraan, tidak harus 100% pas) **/
         .col-no {
             width: 4%;
         }
@@ -134,19 +133,31 @@
         }
 
         .col-nama {
-            width: 20%;
+            width: 18%;
         }
 
         .col-wc {
-            width: 14%;
+            width: 10%;
         }
 
-        .col-menit {
+        .col-desc {
+            width: 18%;
+        }
+
+        .col-role {
             width: 7%;
         }
 
+        .col-dev {
+            width: 10%;
+        }
+
+        .col-menit {
+            width: 6%;
+        }
+
         .col-upah {
-            width: 8%;
+            width: 7%;
         }
     </style>
 </head>
@@ -183,7 +194,9 @@
                 <th class="col-nama">Nama</th>
 
                 <th class="col-wc">WC Personal</th>
-                <th class="col-wc">DESC WC</th>
+                <th class="col-desc">DESC WC</th>
+                <th class="col-role">Role</th>
+                <th class="col-dev">Devisi</th>
 
                 <th class="col-menit">Menit Hadir</th>
                 <th class="col-menit">Menit Conf</th>
@@ -198,6 +211,16 @@
         </thead>
         <tbody>
             @foreach ($rows as $i => $data)
+                @php
+                    $minDate = Carbon::createFromFormat('Ymd', $data->min_begda)->format('d/m/y');
+                    $maxDate = Carbon::createFromFormat('Ymd', $data->max_begda)->format('d/m/y');
+
+                    // Persentase Var = TOTAL Var Upah / TOTAL Upah Inspect * 100
+                    $gji2 = (float) $data->gji2; // Upah Inspect total
+                    $varnt = (float) $data->varnt; // Var Upah total
+                    $persenVar = $gji2 != 0.0 ? ($varnt / $gji2) * 100 : 0.0;
+                @endphp
+
                 <tr>
                     {{-- NO --}}
                     <td class="text-center text-gray">{{ $i + 1 }}</td>
@@ -207,9 +230,7 @@
 
                     {{-- RENTANG TANGGAL --}}
                     <td class="text-center text-gray" style="font-size: 6pt;">
-                        {{ Carbon::createFromFormat('Ymd', $data->min_begda)->format('d/m/y') }}
-                        -
-                        {{ Carbon::createFromFormat('Ymd', $data->max_begda)->format('d/m/y') }}
+                        {{ $minDate }} - {{ $maxDate }}
                     </td>
 
                     {{-- NAMA --}}
@@ -225,6 +246,16 @@
                     {{-- DESC WC (FULL) --}}
                     <td class="text-left text-gray" style="font-size: 6pt;">
                         {{ $data->desc }}
+                    </td>
+
+                    {{-- ROLE --}}
+                    <td class="text-center text-gray" style="font-size: 6pt;">
+                        {{ $data->role ?? '-' }}
+                    </td>
+
+                    {{-- DEVISI --}}
+                    <td class="text-left text-gray" style="font-size: 6pt;">
+                        {{ $data->devisi ?? '-' }}
                     </td>
 
                     {{-- MENIT HADIR (total_jam) --}}
@@ -267,16 +298,10 @@
                         {{ number_format($data->varnt, 0, ',', '.') }}
                     </td>
 
-                    @php
-                        // Persentase Var = TOTAL Var Upah / TOTAL Upah Inspect * 100
-                        $gji2 = (float) $data->gji2; // Upah Inspect total
-                        $varnt = (float) $data->varnt; // Var Upah total
-                        $persenVar = $gji2 != 0.0 ? ($varnt / $gji2) * 100 : 0.0;
-                    @endphp
+                    {{-- % VAR --}}
                     <td class="text-center font-mono">
                         {{ number_format($persenVar, 2) }}%
                     </td>
-
                 </tr>
             @endforeach
         </tbody>

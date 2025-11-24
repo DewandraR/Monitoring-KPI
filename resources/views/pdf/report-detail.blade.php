@@ -116,15 +116,23 @@
         }
 
         .col-wc {
-            width: 8%;
+            width: 7%;
         }
 
         .col-desc {
-            width: 20%;
+            width: 16%;
+        }
+
+        .col-role {
+            width: 7%;
+        }
+
+        .col-dev {
+            width: 10%;
         }
 
         .col-men {
-            width: 7%;
+            width: 6%;
         }
 
         .col-var {
@@ -185,6 +193,8 @@
                 <th class="col-nama">Nama</th>
                 <th class="col-wc">WC<br>Personal</th>
                 <th class="col-desc text-left">DESC WC</th>
+                <th class="col-role">Role</th>
+                <th class="col-dev text-left">Devisi</th>
 
                 <th class="col-men">Menit<br>Hadir</th>
                 <th class="col-men">Menit<br>Conf</th>
@@ -216,8 +226,8 @@
                         $rowNumberPerPerson = 0;
                     @endphp
                     <tr class="group-header-row">
-                        {{-- 14 kolom total --}}
-                        <td colspan="14">
+                        {{-- 16 kolom total --}}
+                        <td colspan="16">
                             <span class="group-header-label">Personal:</span>
                             <span class="group-header-value">{{ $d->pernr }}</span>
                             &mdash;
@@ -248,9 +258,15 @@
                     <td class="text-center">{{ $d->arbpl }}</td>
                     <td class="text-left">{{ $d->desc }}</td>
 
+                    {{-- ROLE --}}
+                    <td class="text-center">{{ $d->role ?? '-' }}</td>
+
+                    {{-- DEVISI --}}
+                    <td class="text-left">{{ $d->devisi ?? '-' }}</td>
+
                     {{-- Menit & Detik --}}
                     <td class="text-center font-mono">{{ number_format($d->total_jam, 1) }}</td>
-                    <td class="text-center font-mono">{{ (int) $d->mint2 }}</td> {{-- Menit Conf (MINT2) --}}
+                    <td class="text-center font-mono">{{ (int) $d->mint2 }}</td> {{-- Menit Conf --}}
                     <td class="text-center font-mono">{{ (int) $d->mintu }}</td> {{-- Menit Inspect --}}
                     <td class="text-center font-mono">{{ (int) $d->mintu2 }}</td> {{-- Detik Inspect --}}
                     <td class="text-center font-mono">{{ (int) $d->mintu3 }}</td> {{-- Detik Konfirmasi --}}
@@ -263,7 +279,6 @@
                         {{ number_format($d->gji2, 0, ',', '.') }}
                     </td>
 
-                    {{-- Var & Persentase Upah --}}
                     {{-- Var Upah --}}
                     <td class="text-center font-mono {{ $d->varnt < 0 ? 'text-red' : '' }}">
                         {{ number_format($d->varnt, 0, ',', '.') }}
@@ -292,6 +307,7 @@
             );
         }
     </script>
+
 </body>
 
 </html>
