@@ -729,7 +729,7 @@ def sync_yppr_with_wc_person(conn, dry_run: bool = False) -> None:
 
     if not missing_pernrs:
         logger.info(
-            "✅ Semua PERNR di yppr058_data sudah ada di wc_person_data. "
+            "OK: Semua PERNR di yppr058_data sudah ada di wc_person_data. "
             "Tidak ada yang perlu dihapus."
         )
         hr("=")
@@ -737,7 +737,7 @@ def sync_yppr_with_wc_person(conn, dry_run: bool = False) -> None:
         return
 
     logger.info(
-        f"⚠️  DITEMUKAN {len(missing_pernrs)} PERNR di {OUT_TABLE} "
+        f"WARNING: DITEMUKAN {len(missing_pernrs)} PERNR di {OUT_TABLE} "
         f"yang sudah tidak ada di {WC_TABLE}."
     )
     logger.info(
