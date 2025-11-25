@@ -1156,11 +1156,17 @@
                         const pernrsAll = Array.isArray(data.pernrs) ? data.pernrs : [];
                         const pernrsNew = Array.isArray(data.pernrs_new) ? data.pernrs_new :
                             pernrsAll; // fallback
+                        const pernrsRemoved = Array.isArray(data.pernrs_removed) ? data.pernrs_removed : [];
+
                         const totalAll = pernrsAll.length;
                         const totalNew = pernrsNew.length;
                         const totalOld = typeof data.pernrs_old_count === 'number' ?
                             data.pernrs_old_count :
                             Math.max(0, totalAll - totalNew);
+
+                        const deletedYppr = typeof data.yppr058_deleted === 'number' ?
+                            data.yppr058_deleted :
+                            0;
 
                         summary.newPernrsCount = totalNew;
                         summary.oldPernrsCount = totalOld;
@@ -1315,17 +1321,47 @@
                                 setStatus('Gagal', 'error');
                             }
                         } else {
-                            // TIDAK ADA NIK BARU → tidak perlu refresh yppr058_data
                             summary.ok = true;
                             summary.refreshTotal = 0;
-                            appendLogLine(
-                                'Tidak ada NIK baru pada WC ini (hanya NIK lama yang sudah ada di DB). ' +
-                                'Refresh <code>yppr058_data</code> dilewati.',
-                                'info'
-                            );
-                            setProgress(100, 'Sinkronisasi master WC selesai (tanpa refresh yppr058_data).');
+
+                            if (wcTotalPulled === 0) {
+                                // Kasus: WC di SAP sudah benar-benar kosong
+                                appendLogLine(
+                                    'SAP tidak lagi mengembalikan personil untuk WC ini. ' +
+                                    'Semua data <code>yppr058_data</code> dengan WC ' +
+                                    arbpl.toUpperCase() + ' & Plant ' + werks +
+                                    ' telah dihapus (' + deletedYppr + ' baris).',
+                                    'warn'
+                                );
+                                setProgress(100,
+                                    'Sinkronisasi master WC selesai (data yppr058_data dikosongkan).');
+                            } else if (pernrsRemoved.length > 0) {
+                                // Kasus: masih ada personil di WC tsb, tapi ada beberapa NIK yang hilang (contoh 002)
+                                appendLogLine(
+                                    'Tidak ada NIK baru, tetapi terdapat <b>' + pernrsRemoved.length +
+                                    '</b> NIK yang sekarang <b>tidak lagi terdaftar</b> di WC ini. ' +
+                                    'Data <code>yppr058_data</code> untuk NIK tersebut telah dihapus ' +
+                                    '(' + deletedYppr + ' baris): ' +
+                                    '<span class="font-mono">' + pernrsRemoved.join(', ') + '</span>.',
+                                    'warn'
+                                );
+                                setProgress(100,
+                                    'Sinkronisasi master WC selesai (hapus data yppr058_data untuk NIK yang tidak aktif).'
+                                );
+                            } else {
+                                // Kasus lama: benar-benar tidak ada perubahan NIK
+                                appendLogLine(
+                                    'Tidak ada NIK baru pada WC ini (hanya NIK lama yang sudah ada di DB). ' +
+                                    'Refresh <code>yppr058_data</code> dilewati.',
+                                    'info'
+                                );
+                                setProgress(100,
+                                    'Sinkronisasi master WC selesai (tanpa refresh yppr058_data).');
+                            }
+
                             setStatus('Selesai', 'success');
                         }
+
 
                         // Bersihkan input WC di form
                         inpArbpl.value = '';

@@ -171,6 +171,12 @@ ON DUPLICATE KEY UPDATE
 DELETE_WC_SQL = f"DELETE FROM `{WC_TABLE}` WHERE `arbpl`=%s AND `werks`=%s"
 COUNT_WC_SQL  = f"SELECT COUNT(*) FROM `{WC_TABLE}` WHERE `arbpl`=%s AND `werks`=%s"
 
+DELETE_YPPR_WC_SQL = f"""
+DELETE FROM `{OUT_TABLE}`
+WHERE `arbpl` = %s
+  AND `werks` = %s
+"""
+
 # NEW: ambil daftar PERNR lama per WC/Plant (untuk deteksi NIK baru)
 GET_OLD_PERNRS_SQL = f"""
 SELECT DISTINCT pernr FROM `{WC_TABLE}`
@@ -742,7 +748,62 @@ def api_refresh_detail():
 
     try:
         for idx, it in enumerate(items, start=1):
-            pernr = str(it.get("pernr") or "").zfill(8)
+            # ------------------------------
+            # 1) Ambil daftar NIK dasar (multi)
+            # ------------------------------
+            base_pernrs: List[str] = []
+            raw_pernrs = it.get("pernrs")
+
+            if isinstance(raw_pernrs, list) and raw_pernrs:
+                for p in raw_pernrs:
+                    p_str = str(p or "").strip()
+                    if not p_str:
+                        continue
+                    if p_str.isdigit():
+                        p_str = p_str.zfill(8)
+
+                    if is_blacklisted(p_str):
+                        logger.info(f"[REFRESH] Skip {p_str} (multi) karena BLACKLIST.")
+                        continue
+
+                    if p_str not in base_pernrs:
+                        base_pernrs.append(p_str)
+
+            # 2) Fallback: kalau tidak ada 'pernrs', pakai 'pernr' biasa (perilaku lama)
+            if not base_pernrs:
+                pernr_single = str(it.get("pernr") or "").strip()
+                if pernr_single:
+                    if pernr_single.isdigit():
+                        pernr_single = pernr_single.zfill(8)
+
+                    if is_blacklisted(pernr_single):
+                        logger.info(f"[REFRESH] Skip {pernr_single} karena BLACKLIST.")
+                        results.append(
+                            {
+                                "ok": False,
+                                "pernr": pernr_single,
+                                "skipped": True,
+                                "reason": "blacklisted",
+                            }
+                        )
+                        continue
+
+                    base_pernrs.append(pernr_single)
+
+            # Kalau masih kosong -> tidak ada NIK valid sama sekali
+            if not base_pernrs:
+                results.append(
+                    {
+                        "ok": False,
+                        "pernr": None,
+                        "error": "Missing pernr/pernrs",
+                    }
+                )
+                continue
+
+            # Untuk log/progress pakai NIK pertama
+            pernr = base_pernrs[0]
+
             req_werks = (it.get("werks") or "").strip()
             req_arbpl = (it.get("arbpl") or "").strip()
 
@@ -751,19 +812,6 @@ def api_refresh_detail():
             werks_for_progress: Optional[str] = None
 
             try:
-                # Skip total kalau PERNR masuk blacklist
-                if is_blacklisted(pernr):
-                    logger.info(f"[REFRESH] Skip {pernr} karena BLACKLIST.")
-                    results.append(
-                        {
-                            "ok": False,
-                            "pernr": pernr,
-                            "skipped": True,
-                            "reason": "blacklisted",
-                        }
-                    )
-                    continue
-
                 # --- Normalisasi tanggal ---
                 try:
                     begda = to_dats(str(it.get("begda") or ""))
@@ -773,32 +821,38 @@ def api_refresh_detail():
                     results.append({"ok": False, "pernr": pernr, "error": str(e)})
                     continue
 
-                if not pernr or not begda or not endda:
-                    results.append({"ok": False, "pernr": pernr, "error": "Missing pernr/begda"})
+                if not begda or not endda:
+                    results.append(
+                        {"ok": False, "pernr": pernr, "error": "Missing begda/endda"}
+                    )
                     continue
 
-                # --- Cek apakah perlu tarik INDUK (WC Konfirmasi belum ada?) ---
-                try:
-                    needs_induk = not pernr_has_confirm(cur, pernr, begda)
-                except Exception as e:
-                    logger.error(f"[DB] gagal cek WC Confirmasi untuk {pernr}@{begda}: {e}")
-                    needs_induk = False
+                # --- Cek apakah dalam paket ini perlu tarik INDUK
+                #     (kalau minimal ada 1 NIK yang belum punya WC konfirmasi)
+                needs_induk_any = False
+                for p in base_pernrs:
+                    try:
+                        if not pernr_has_confirm(cur, p, begda):
+                            needs_induk_any = True
+                            break
+                    except Exception as e:
+                        logger.error(f"[DB] gagal cek WC Confirmasi untuk {p}@{begda}: {e}")
 
                 # --- Tentukan pasangan WC/Plant ---
                 if req_arbpl and req_werks:
                     strategy, pairs = "request", [(req_arbpl, req_werks)]
                 else:
+                    # asumsi: kalau kamu pakai 'pernrs', semua NIK di paket ini memang 1 WC
                     strategy, pairs = resolve_pairs(cur, pernr, begda)
 
                 if pairs:
                     arbpl_for_progress, werks_for_progress = pairs[0]
 
                 logger.info(
-                    f"[REQ] pernr={pernr} begda..endda={begda}..{endda} "
-                    f"strategy={strategy} pairs={pairs} needs_induk={needs_induk}"
+                    f"[REQ] pernrs={base_pernrs} begda..endda={begda}..{endda} "
+                    f"strategy={strategy} pairs={pairs} needs_induk_any={needs_induk_any}"
                 )
 
-                # --- Jika tidak ada pasangan sama sekali, skip item ini ---
                 if not pairs:
                     results.append(
                         {
@@ -819,10 +873,9 @@ def api_refresh_detail():
 
                 # Loop per pair WC/Plant
                 for (arbpl, werks) in pairs:
-                    # --- Lock per pair WC/WERKS ---
                     if not acquire_pair_lock(cur, arbpl, werks, timeout=120):
                         logger.warning(
-                            f"[LOCK] Timeout lock yppr058:{arbpl}:{werks} untuk {pernr}@{begda}"
+                            f"[LOCK] Timeout lock yppr058:{arbpl}:{werks} untuk {base_pernrs}@{begda}"
                         )
                         item_pairs_report.append(
                             {
@@ -836,37 +889,49 @@ def api_refresh_detail():
 
                     deleted = 0
                     inserted = 0
+                    yppr058_deleted = 0  # <<< BAR
                     sap_rows = 0
                     skipped_empty = False
 
                     try:
-                        # --- Susun daftar PERNR untuk RFC ---
-                        pernrs_for_rfc: List[str] = [pernr]
+                        # --- Susun daftar PERNR untuk RFC (multi NIK) ---
+                        pernrs_for_rfc: List[str] = list(base_pernrs)
 
-                        if needs_induk:
+                        if needs_induk_any:
                             try:
                                 induks = find_induk_for_pair(cur, arbpl, werks, begda)
                             except Exception as e:
                                 logger.error(
-                                    f"[DB] gagal cari induk untuk {pernr}@{arbpl}/{werks} {begda}: {e}"
+                                    f"[DB] gagal cari induk untuk {base_pernrs}@{arbpl}/{werks} {begda}: {e}"
                                 )
                                 induks = []
 
                             if induks:
-                                seen = {pernr}
+                                seen = set(pernrs_for_rfc)
                                 extra: List[str] = []
                                 for ip in induks:
-                                    if ip not in seen:
-                                        seen.add(ip)
-                                        extra.append(ip)
+                                    ip = str(ip or "").strip()
+                                    if ip.isdigit():
+                                        ip = ip.zfill(8)
+                                    if ip in seen:
+                                        continue
+                                    if is_blacklisted(ip):
+                                        logger.info(
+                                            f"[REFRESH] Skip induk {ip} karena BLACKLIST "
+                                            f"untuk {arbpl}/{werks}"
+                                        )
+                                        continue
+                                    seen.add(ip)
+                                    extra.append(ip)
+
                                 if extra:
                                     pernrs_for_rfc.extend(extra)
                                     logger.info(
-                                        f"[ROLE] pernr={pernr} tanpa WC Confirmasi, "
+                                        f"[ROLE] pernrs={base_pernrs} tanpa WC Confirmasi, "
                                         f"tambah induk={extra} untuk {arbpl}/{werks}"
                                     )
 
-                        # Filter induk yang masuk blacklist
+                        # Filter lagi blacklist (jaga-jaga)
                         if BLACKLIST_PERNRS:
                             before_bl = len(pernrs_for_rfc)
                             pernrs_for_rfc = [
@@ -875,14 +940,14 @@ def api_refresh_detail():
                             removed_bl = before_bl - len(pernrs_for_rfc)
                             if removed_bl:
                                 logger.info(
-                                    f"[REFRESH] {removed_bl} PERNR (induk) di-skip karena BLACKLIST "
-                                    f"untuk {pernr}@{arbpl}/{werks}"
+                                    f"[REFRESH] {removed_bl} PERNR (induk/multi) di-skip karena BLACKLIST "
+                                    f"untuk {base_pernrs}@{arbpl}/{werks}"
                                 )
 
-                        # --- Ambil metadata WC dari wc_person_data (DESC, DEVISI, ROLE per NIK) ---
+                        # --- Ambil metadata WC dari wc_person_data ---
                         desc_val, devisi_val, role_map = get_wc_meta_for_pair(db, arbpl, werks, begda)
 
-                        # --- CALL RFC (YPPR058DX) ---
+                        # --- CALL RFC (YPPR058DX) sekali untuk semua NIK paket ini ---
                         try:
                             logger.info(
                                 f"[SAP CALL] {arbpl}/{werks} {begda}..{endda} "
@@ -1163,11 +1228,26 @@ def api_sync_wc_person():
 
         # Jika SAP mengembalikan kosong -> hapus semua WC lama & selesai
         if not raw_rows:
+            # Hapus master WC
             cur.execute(DELETE_WC_SQL, (arbpl, werks))
             deleted_rows = cur.rowcount
-            db.commit()
+
+            # Hapus semua detail yppr058_data untuk WC/Plant ini
+            yppr_deleted = 0
+            try:
+                cur.execute(DELETE_YPPR_WC_SQL, (arbpl, werks))
+                yppr_deleted = cur.rowcount
+                db.commit()
+            except Exception as e:
+                db.rollback()
+                logger.error(
+                    f"[WC SYNC] Gagal hapus {OUT_TABLE} untuk {arbpl}/{werks}: {e}"
+                )
+
             logger.info(
-                f"[WC SYNC] {arbpl} kosong di SAP. Old={old_count}, Deleted={deleted_rows}"
+                f"[WC SYNC] {arbpl} kosong di SAP. "
+                f"Old={old_count}, DeletedMaster={deleted_rows}, "
+                f"DeletedDetail={yppr_deleted}"
             )
             cur.close()
             return jsonify(
@@ -1185,6 +1265,10 @@ def api_sync_wc_person():
                     "pernrs_new": [],
                     "pernrs_new_count": 0,
                     "pernrs_old_count": len(old_pernrs_set),
+                    # semua NIK lama dianggap removed
+                    "pernrs_removed": sorted(old_pernrs_set),
+                    "pernrs_removed_count": len(old_pernrs_set),
+                    "yppr058_deleted": yppr_deleted,
                 }
             )
 
@@ -1212,6 +1296,31 @@ def api_sync_wc_person():
         new_pernrs_set = set(pernrs) - old_pernrs_set
         pernrs_new: List[str] = sorted(new_pernrs_set)
 
+        removed_pernrs_set = old_pernrs_set - set(pernrs)
+        pernrs_removed: List[str] = sorted(removed_pernrs_set)
+
+        yppr058_deleted = 0
+        if pernrs_removed:
+            placeholders = ",".join(["%s"] * len(pernrs_removed))
+            sql_del_yppr = (
+                f"DELETE FROM `{OUT_TABLE}` "
+                f"WHERE `arbpl`=%s AND `werks`=%s AND `pernr` IN ({placeholders})"
+            )
+            params = [arbpl, werks] + pernrs_removed
+            try:
+                cur.execute(sql_del_yppr, params)
+                yppr058_deleted = cur.rowcount
+                db.commit()
+                logger.info(
+                    f"[WC SYNC] Deleted {yppr058_deleted} rows from {OUT_TABLE} "
+                    f"for removed PERNRs {pernrs_removed} at {arbpl}/{werks}"
+                )
+            except Exception as e:
+                db.rollback()
+                logger.error(
+                    f"[WC SYNC] Gagal hapus {OUT_TABLE} untuk NIK {pernrs_removed} "
+                    f"{arbpl}/{werks}: {e}"
+                )
         # ------------------------------------------------------------------
         # 2. DELETE data lama WC ini -> INSERT data baru
         # ------------------------------------------------------------------
@@ -1317,6 +1426,10 @@ def api_sync_wc_person():
                 "pernrs_new_count": len(pernrs_new),
                 "pernrs_old_count": len(old_pernrs_set),
                 "blacklist_skip_count": blacklist_skip_count,
+                # NEW: NIK yang hilang & jumlah baris detail yang dihapus
+                "pernrs_removed": pernrs_removed,
+                "pernrs_removed_count": len(pernrs_removed),
+                "yppr058_deleted": yppr058_deleted,
             }
         )
     except Exception as e:

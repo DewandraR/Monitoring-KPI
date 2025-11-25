@@ -35,6 +35,7 @@
         'DESC WC',
         'Role',
         'Devisi',
+        'Shift', // <<< TAMBAH INI
         'Menit Hadir',
         'Menit Conf',
         'Menit Inspect',
@@ -150,161 +151,293 @@
             </p>
         </div>
 
-        {{-- TOMBOL EXPORT (SUMMARY + DETAIL) --}}
-        <div class="flex flex-col items-end">
-            <div class="flex flex-col sm:flex-row items-end gap-3">
+        {{-- TOMBOL AKSI MODERN (HORIZONTAL LAYOUT) --}}
+        <div class="flex items-center gap-3">
 
-                {{-- EXPORT SUMMARY --}}
-                <div class="relative inline-block text-left group">
-                    {{-- Tombol Utama --}}
+            {{-- BARIS HORIZONTAL: SEMUA TOMBOL --}}
+            <div class="flex items-center gap-2.5">
+
+                {{-- TOMBOL REFRESH BULAN INI --}}
+                <button id="btn-refresh-summary" type="button"
+                    class="group relative inline-flex items-center gap-2.5 rounded-xl 
+                   bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-700
+                   px-5 py-3 text-sm font-bold text-white 
+                   shadow-lg shadow-emerald-600/30 
+                   ring-1 ring-emerald-500/20
+                   transition-all duration-300 ease-out 
+                   hover:shadow-2xl hover:shadow-emerald-600/40 hover:scale-[1.02]
+                   hover:ring-emerald-400/40
+                   focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2
+                   disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100">
+
+                    {{-- Glow Effect --}}
+                    <div
+                        class="absolute inset-0 rounded-xl bg-gradient-to-r from-emerald-400/0 via-white/25 to-emerald-400/0 
+                        opacity-0 group-hover:opacity-100 blur-xl transition-opacity duration-500">
+                    </div>
+
+                    <svg xmlns="http://www.w3.org/2000/svg"
+                        class="h-5 w-5 relative z-10 transition-transform duration-300 group-hover:rotate-180"
+                        fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+
+                    <span class="relative z-10">Refresh Bulan Ini</span>
+
+                    @if ($selectedCount > 0)
+                        <span
+                            class="flex h-6 w-6 items-center justify-center rounded-lg 
+                             bg-white text-emerald-700 text-[11px] font-black 
+                             shadow-md ring-2 ring-emerald-500/30 relative z-10
+                             transition-transform duration-300 group-hover:scale-110 group-hover:ring-emerald-400/50">
+                            {{ $selectedCount }}
+                        </span>
+                    @endif
+                </button>
+
+                {{-- TOMBOL COPY NIK --}}
+                <button id="btn-copy-nik" type="button"
+                    class="group relative inline-flex items-center gap-2.5 rounded-xl
+                   bg-gradient-to-r from-teal-600 via-emerald-600 to-emerald-700
+                   px-5 py-3 text-sm font-bold text-white
+                   shadow-lg shadow-teal-600/30
+                   ring-1 ring-teal-500/20
+                   transition-all duration-300 ease-out
+                   hover:shadow-2xl hover:shadow-teal-600/40 hover:scale-[1.02]
+                   hover:ring-teal-400/40
+                   focus:outline-none focus:ring-2 focus:ring-teal-400 focus:ring-offset-2
+                   disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100">
+
+                    {{-- Glow Effect --}}
+                    <div
+                        class="absolute inset-0 rounded-xl bg-gradient-to-r from-teal-400/0 via-white/25 to-teal-400/0 
+                        opacity-0 group-hover:opacity-100 blur-xl transition-opacity duration-500">
+                    </div>
+
+                    <svg xmlns="http://www.w3.org/2000/svg"
+                        class="h-5 w-5 relative z-10 transition-all duration-300 group-hover:scale-110" fill="none"
+                        viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+
+                    <span class="relative z-10">Copy NIK</span>
+
+                    @if ($selectedCount > 0)
+                        <span
+                            class="flex h-6 w-6 items-center justify-center rounded-lg 
+                             bg-white text-teal-700 text-[11px] font-black 
+                             shadow-md ring-2 ring-teal-500/30 relative z-10
+                             transition-transform duration-300 group-hover:scale-110 group-hover:ring-teal-400/50">
+                            {{ $selectedCount }}
+                        </span>
+                    @endif
+                </button>
+
+                {{-- DIVIDER --}}
+                <div class="h-10 w-px bg-gradient-to-b from-transparent via-gray-300 to-transparent"></div>
+
+                {{-- EXPORT REPORT (SUMMARY) --}}
+                <div class="relative inline-block text-left">
                     <button id="export-dropdown-button" type="button"
-                        class="group relative inline-flex items-center gap-3 rounded-full 
-                               bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 
-                               px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-emerald-600/30 
-                               ring-1 ring-white/20 transition-all duration-300 ease-out 
-                               hover:scale-[1.02] hover:shadow-emerald-600/50 hover:ring-white/40 hover:from-emerald-500 hover:to-teal-700
-                               focus:outline-none focus:ring-4 focus:ring-emerald-500/30">
+                        class="group relative inline-flex items-center gap-2.5 rounded-xl
+                       bg-gradient-to-r from-emerald-700 via-emerald-800 to-teal-900
+                       px-5 py-3 text-sm font-bold text-white
+                       shadow-lg shadow-emerald-700/30
+                       ring-1 ring-emerald-600/20
+                       transition-all duration-300 ease-out
+                       hover:shadow-2xl hover:shadow-emerald-700/40 hover:scale-[1.02]
+                       hover:ring-emerald-500/40
+                       focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2">
 
-                        {{-- Animasi Kilau --}}
+                        {{-- Glow Effect --}}
                         <div
-                            class="absolute inset-0 rounded-full bg-gradient-to-r from-transparent via-white/20 to-transparent opacity-0 group-hover:animate-shine pointer-events-none">
+                            class="absolute inset-0 rounded-xl bg-gradient-to-r from-emerald-500/0 via-white/20 to-emerald-500/0 
+                            opacity-0 group-hover:opacity-100 blur-xl transition-opacity duration-500">
                         </div>
 
-                        {{-- Icon Download --}}
-                        <svg xmlns="http://www.w3.org/2000/svg"
-                            class="h-5 w-5 text-emerald-100 transition-transform duration-300 group-hover:-translate-y-0.5"
-                            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 relative z-10" fill="none"
+                            viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                             <path stroke-linecap="round" stroke-linejoin="round"
                                 d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                         </svg>
 
-                        <span class="tracking-wide text-shadow-sm">Export Report</span>
+                        <span class="relative z-10">Export Report</span>
 
-                        {{-- Badge Jumlah Terpilih (summary) --}}
                         @if ($selectedCount > 0)
                             <span
-                                class="flex h-6 w-6 items-center justify-center rounded-full bg-white text-emerald-700 text-[10px] font-black shadow-inner shadow-gray-200 transition-transform duration-300 group-hover:scale-110">
+                                class="flex h-6 w-6 items-center justify-center rounded-lg 
+                                 bg-white text-emerald-800 text-[11px] font-black 
+                                 shadow-md ring-2 ring-emerald-600/30 relative z-10
+                                 transition-transform duration-300 group-hover:scale-110 group-hover:ring-emerald-500/50">
                                 {{ $selectedCount }}
                             </span>
                         @endif
 
-                        {{-- Icon Chevron --}}
                         <svg xmlns="http://www.w3.org/2000/svg"
-                            class="h-4 w-4 text-emerald-200/70 transition-transform duration-300 group-hover:rotate-180"
-                            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                            class="h-4 w-4 relative z-10 transition-transform duration-300 group-hover:rotate-180"
+                            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
                         </svg>
                     </button>
 
-                    {{-- Dropdown Menu --}}
+                    {{-- Dropdown Menu - Tema Hijau --}}
                     <div id="export-dropdown-menu"
-                        class="hidden absolute right-0 mt-3 w-52 origin-top-right rounded-xl bg-white p-2 shadow-2xl shadow-emerald-900/10 ring-1 ring-black/5 focus:outline-none z-50 transform transition-all duration-200 border border-gray-100">
+                        class="hidden absolute right-0 mt-2 w-52 origin-top-right 
+                       rounded-xl bg-white shadow-2xl ring-1 ring-emerald-900/10
+                       focus:outline-none z-50 overflow-hidden
+                       border border-emerald-100">
 
                         <div
-                            class="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-gray-400 border-b border-gray-100 mb-1">
-                            Summary Report
+                            class="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest 
+                            text-emerald-700 bg-gradient-to-r from-emerald-50 to-teal-50 
+                            border-b border-emerald-100">
+                            📊 Summary Report
                         </div>
 
-                        {{-- PDF Option --}}
-                        <button type="button" wire:click="export('pdf')"
-                            class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 transition-all hover:bg-red-50 hover:text-red-700 group/item mb-1">
-                            <div
-                                class="flex h-8 w-8 items-center justify-center rounded-full bg-red-100 text-red-600 group-hover/item:bg-red-200 transition-colors">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
-                                    viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                        d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                                </svg>
-                            </div>
-                            <span>Download PDF</span>
-                        </button>
+                        <div class="p-2">
+                            {{-- PDF Option --}}
+                            <button type="button" wire:click="export('pdf')"
+                                class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 
+                               text-sm font-semibold text-gray-700 
+                               transition-all hover:bg-red-50 hover:text-red-700 
+                               group/item">
+                                <div
+                                    class="flex h-8 w-8 items-center justify-center rounded-lg 
+                                    bg-gradient-to-br from-red-100 to-red-200 text-red-600 
+                                    shadow-sm group-hover/item:shadow-md 
+                                    group-hover/item:scale-110 transition-all">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
+                                        viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                        <path stroke-linecap="round" stroke-linejoin="round"
+                                            d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                    </svg>
+                                </div>
+                                <span>Download PDF</span>
+                            </button>
 
-                        {{-- Excel Option --}}
-                        <button type="button" wire:click="export('excel')"
-                            class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 transition-all hover:bg-emerald-50 hover:text-emerald-700 group/item">
-                            <div
-                                class="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 group-hover/item:bg-emerald-200 transition-colors">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
-                                    viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                        d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                </svg>
-                            </div>
-                            <span>Download Excel</span>
-                        </button>
+                            {{-- Excel Option --}}
+                            <button type="button" wire:click="export('excel')"
+                                class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 
+                               text-sm font-semibold text-gray-700 
+                               transition-all hover:bg-emerald-50 hover:text-emerald-700 
+                               group/item">
+                                <div
+                                    class="flex h-8 w-8 items-center justify-center rounded-lg 
+                                    bg-gradient-to-br from-emerald-100 to-emerald-200 text-emerald-600 
+                                    shadow-sm group-hover/item:shadow-md 
+                                    group-hover/item:scale-110 transition-all">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
+                                        viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                        <path stroke-linecap="round" stroke-linejoin="round"
+                                            d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                </div>
+                                <span>Download Excel</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
-                {{-- EXPORT DETAIL (di luar modal) --}}
-                <div class="relative inline-block text-left group">
+                {{-- EXPORT DETAIL --}}
+                <div class="relative inline-block text-left">
                     <button id="export-detail-dropdown-button" type="button"
-                        class="group relative inline-flex items-center gap-3 rounded-full 
-                               bg-gradient-to-br from-slate-600 via-slate-700 to-slate-800 
-                               px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-slate-600/30 
-                               ring-1 ring-white/20 transition-all duration-300 ease-out 
-                               hover:scale-[1.02] hover:shadow-slate-600/50 hover:ring-white/40 hover:from-slate-500 hover:to-slate-700
-                               focus:outline-none focus:ring-4 focus:ring-slate-500/30">
+                        class="group relative inline-flex items-center gap-2.5 rounded-xl
+                       bg-gradient-to-r from-slate-700 via-slate-800 to-gray-900
+                       px-5 py-3 text-sm font-bold text-white
+                       shadow-lg shadow-slate-700/30
+                       ring-1 ring-slate-600/20
+                       transition-all duration-300 ease-out
+                       hover:shadow-2xl hover:shadow-slate-700/40 hover:scale-[1.02]
+                       hover:ring-slate-500/40
+                       focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2">
 
-                        <svg xmlns="http://www.w3.org/2000/svg"
-                            class="h-5 w-5 text-emerald-100 transition-transform duration-300 group-hover:-translate-y-0.5"
-                            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        {{-- Glow Effect --}}
+                        <div
+                            class="absolute inset-0 rounded-xl bg-gradient-to-r from-slate-500/0 via-white/15 to-slate-500/0 
+                            opacity-0 group-hover:opacity-100 blur-xl transition-opacity duration-500">
+                        </div>
+
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor" stroke-width="2.5">
                             <path stroke-linecap="round" stroke-linejoin="round"
                                 d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                         </svg>
 
-                        <span class="tracking-wide text-shadow-sm">Export Detail</span>
+                        <span>Export Detail</span>
 
-                        {{-- Badge jumlah NIK untuk detail --}}
                         @if ($detailSelectedCount > 0)
                             <span
-                                class="flex h-6 w-6 items-center justify-center rounded-full bg-white text-slate-700 text-[10px] font-black shadow-inner shadow-gray-200 transition-transform duration-300 group-hover:scale-110">
+                                class="flex h-5 w-5 items-center justify-center rounded-full 
+                                 bg-white/90 text-slate-700 text-[10px] font-black 
+                                 shadow-sm ring-1 ring-slate-900/10
+                                 transition-transform duration-300 group-hover:scale-110">
                                 {{ $detailSelectedCount }}
                             </span>
                         @endif
 
                         <svg xmlns="http://www.w3.org/2000/svg"
-                            class="h-4 w-4 text-emerald-200/70 transition-transform duration-300 group-hover:rotate-180"
-                            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                            class="h-3.5 w-3.5 transition-transform duration-300 group-hover:rotate-180"
+                            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
                         </svg>
                     </button>
 
+                    {{-- Dropdown Menu --}}
                     <div id="export-detail-dropdown-menu"
-                        class="hidden absolute right-0 mt-3 w-60 origin-top-right rounded-xl bg-white p-2 shadow-2xl shadow-slate-900/10 ring-1 ring-black/5 focus:outline-none z-50 transform transition-all duration-200 border border-gray-100">
+                        class="hidden absolute right-0 mt-2 w-48 origin-top-right 
+                       rounded-lg bg-white shadow-xl ring-1 ring-black/5 
+                       focus:outline-none z-50 overflow-hidden
+                       border border-gray-100">
 
                         <div
-                            class="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-gray-400 border-b border-gray-100 mb-1">
-                            Detail Tanggal (multi NIK)
+                            class="px-3 py-2 text-[10px] font-bold uppercase tracking-wider 
+                            text-gray-500 bg-gray-50 border-b border-gray-100">
+                            Detail Report
                         </div>
 
-                        <button type="button" wire:click="exportDetail('pdf')"
-                            class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 transition-all hover:bg-red-50 hover:text-red-700 group/item mb-1">
-                            <div
-                                class="flex h-8 w-8 items-center justify-center rounded-full bg-red-100 text-red-600 group-hover/item:bg-red-200 transition-colors">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
-                                    viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                        d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                                </svg>
-                            </div>
-                            <span>Export Detail PDF</span>
-                        </button>
+                        <div class="p-1">
+                            {{-- PDF Option --}}
+                            <button type="button" wire:click="exportDetail('pdf')"
+                                class="flex w-full items-center gap-2.5 rounded-md px-3 py-2 
+                               text-sm font-medium text-gray-700 
+                               transition-colors hover:bg-red-50 hover:text-red-700 
+                               group/item">
+                                <div
+                                    class="flex h-7 w-7 items-center justify-center rounded-md 
+                                    bg-red-100 text-red-600 
+                                    group-hover/item:bg-red-200 transition-colors">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none"
+                                        viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                        <path stroke-linecap="round" stroke-linejoin="round"
+                                            d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                    </svg>
+                                </div>
+                                <span>PDF</span>
+                            </button>
 
-                        <button type="button" wire:click="exportDetail('excel')"
-                            class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 transition-all hover:bg-emerald-50 hover:text-emerald-700 group/item">
-                            <div
-                                class="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 group-hover/item:bg-emerald-200 transition-colors">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
-                                    viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                        d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                </svg>
-                            </div>
-                            <span>Export Detail Excel</span>
-                        </button>
+                            {{-- Excel Option --}}
+                            <button type="button" wire:click="exportDetail('excel')"
+                                class="flex w-full items-center gap-2.5 rounded-md px-3 py-2 
+                               text-sm font-medium text-gray-700 
+                               transition-colors hover:bg-emerald-50 hover:text-emerald-700 
+                               group/item">
+                                <div
+                                    class="flex h-7 w-7 items-center justify-center rounded-md 
+                                    bg-emerald-100 text-emerald-600 
+                                    group-hover/item:bg-emerald-200 transition-colors">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none"
+                                        viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                        <path stroke-linecap="round" stroke-linejoin="round"
+                                            d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                </div>
+                                <span>Excel</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
-
             </div>
         </div>
     </div>
@@ -428,7 +561,8 @@
                             <td
                                 class="sticky left-0 z-10 px-6 py-4 whitespace-nowrap bg-white group-even/row:bg-slate-50/50 group-hover/row:bg-emerald-50">
                                 <input type="checkbox" wire:model.live="selectedPernrs"
-                                    value="{{ (string) $data->pernr }}"
+                                    value="{{ (string) $data->pernr }}" data-arbpl="{{ $data->arbpl }}"
+                                    data-werks="{{ $data->werks ?? ($werks ?? request()->route('werks')) }}"
                                     class="summary-check rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer h-5 w-5"
                                     wire:click.stop>
                             </td>
@@ -646,10 +780,11 @@
                                                     'begda', // Tanggal
                                                     'cname', // Nama
                                                     'arbpl', // WC Personal
-                                                    'arbpl2', // WC Konfirmasi  <<< BARU
+                                                    'arbpl2', // WC Konfirmasi
                                                     'desc', // DESC WC
                                                     'role', // Role
                                                     'devisi', // Devisi
+                                                    'shift', // <<< TAMBAH: Shift
 
                                                     'total_jam', // Menit Hadir (TOTAL_JAM)
                                                     'mint2', // Menit Conf (MINT2)
@@ -660,7 +795,6 @@
                                                     'gji', // Upah Hadir
                                                     'gji2', // Upah Inspect
                                                     'varnt', // Var Upah
-                                                    // 'varnt1' bisa ditambah kapan-kapan kalau mau tampil di detail juga
                                                 ];
                                             @endphp
 
@@ -792,10 +926,60 @@
                 window.__yppr058Bound = true;
 
                 const API_BASE = 'http://127.0.0.1:5010';
+                const CURRENT_WERKS = @json($werks ?? request()->route('werks'));
                 const LS_PREFILL = 'yppr058_prefill_q';
                 const LS_SUMMARY = 'yppr058_refresh_summary';
                 const $ = (sel, root = document) => root.querySelector(sel);
                 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+
+                // === CACHE PILIHAN SUMMARY (SUPAYA TETAP INGAT WALAU FILTER BERUBAH) ===
+
+                // Set NIK yang pernah dicentang di summary
+                const selectedPernrsSet = window.__yppr058SelectedPernrs || new Set();
+                window.__yppr058SelectedPernrs = selectedPernrsSet;
+
+                // Map: pernr -> { arbpl, werks }
+                const wcMap = window.__yppr058WCMap || {};
+                window.__yppr058WCMap = wcMap;
+
+                function registerSummaryCheckbox(cb) {
+                    const pernr = (cb.value || '').trim();
+                    if (!pernr) return;
+
+                    const arbpl = (cb.dataset.arbpl || '').trim();
+                    const werks = (cb.dataset.werks || CURRENT_WERKS || '').trim();
+
+                    if (arbpl || werks) {
+                        wcMap[pernr] = {
+                            arbpl,
+                            werks
+                        };
+                    }
+                }
+
+                // Dipanggil setiap kali habis Livewire render
+                function rescanSummaryCheckboxes() {
+                    $$('.summary-check', document).forEach(cb => {
+                        registerSummaryCheckbox(cb);
+                        if (cb.checked) {
+                            const pernr = (cb.value || '').trim();
+                            if (pernr) selectedPernrsSet.add(pernr);
+                        }
+                    });
+                }
+
+                // Pertama kali: setelah view ini dirender
+                rescanSummaryCheckboxes();
+
+                // Tombol COPY NIK
+                const copyBtn = document.getElementById('btn-copy-nik');
+                if (copyBtn) {
+                    copyBtn.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        copySelectedPernrs();
+                    });
+                }
 
                 // Dropdown Export Summary
                 const exportBtn = document.getElementById('export-dropdown-button');
@@ -903,6 +1087,60 @@
                     setTimeout(() => card.remove(), 6000);
                 }
 
+                // === COPY NIK TERPILIH KE CLIPBOARD ===
+                async function copySelectedPernrs() {
+                    const pernrs = Array.from(selectedPernrsSet);
+
+                    if (!pernrs.length) {
+                        alert('Belum ada NIK yang dipilih di tabel ringkasan.');
+                        return;
+                    }
+
+                    // Format: 001 002 003 (TANPA PETIK)
+                    const text = pernrs.join(' ');
+
+                    try {
+                        // Browser modern
+                        if (navigator.clipboard && navigator.clipboard.writeText) {
+                            await navigator.clipboard.writeText(text);
+                        } else {
+                            // Fallback cara lama
+                            const ta = document.createElement('textarea');
+                            ta.value = text;
+                            ta.style.position = 'fixed';
+                            ta.style.left = '-9999px';
+                            document.body.appendChild(ta);
+                            ta.select();
+                            document.execCommand('copy');
+                            document.body.removeChild(ta);
+                        }
+
+                        // Tampilkan toast sukses
+                        const html = `
+                            <div class="p-4 border-l-4 border-emerald-500">
+                                <div class="flex items-start gap-3">
+                                    <div class="h-8 w-8 rounded-full bg-emerald-100 flex items-center justify-center">
+                                        <svg class="h-4 w-4 text-emerald-700" viewBox="0 0 24 24" fill="none">
+                                            <path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2"
+                                                  stroke-linecap="round" stroke-linejoin="round" />
+                                        </svg>
+                                    </div>
+                                    <div class="flex-1">
+                                        <h4 class="font-bold text-gray-900">NIK tersalin ke clipboard</h4>
+                                        <p class="text-xs text-gray-600 mt-1 break-all">${text}</p>
+                                    </div>
+                                    <button class="text-gray-400 hover:text-gray-600"
+                                        onclick="this.closest('div.pointer-events-auto').remove()">✕</button>
+                                </div>
+                            </div>`;
+                        const card = makeCard(html);
+                        setTimeout(() => card.remove(), 5000);
+                    } catch (err) {
+                        alert('Gagal menyalin ke clipboard. Silakan copy manual:\n' + text);
+                    }
+                }
+
+                // Checkbox Logic
                 // Checkbox Logic
                 document.addEventListener('change', function(e) {
                     // CHECK ALL DI MODAL DETAIL
@@ -910,7 +1148,6 @@
                         const modal = $('#yppr058-modal') || document;
                         $$('.refresh-check', modal).forEach(cb => {
                             cb.checked = e.target.checked;
-                            // trigger event supaya wire:model selectedDetailKeys ikut update
                             cb.dispatchEvent(new Event('change', {
                                 bubbles: true
                             }));
@@ -919,14 +1156,26 @@
 
                     // CHECK ALL DI SUMMARY (HALAMAN UTAMA)
                     if (e.target && e.target.id === 'check-all-summary') {
-                        // TIDAK pakai modal; semua checkbox summary ada di halaman utama
                         $$('.summary-check').forEach(cb => {
                             cb.checked = e.target.checked;
-                            // trigger event supaya wire:model selectedPernrs ikut update
                             cb.dispatchEvent(new Event('change', {
                                 bubbles: true
                             }));
                         });
+                    }
+
+                    // Checkbox individu di SUMMARY
+                    if (e.target && e.target.classList && e.target.classList.contains('summary-check')) {
+                        const cb = e.target;
+                        registerSummaryCheckbox(cb); // pastikan wcMap terisi
+                        const pernr = (cb.value || '').trim();
+                        if (!pernr) return;
+
+                        if (cb.checked) {
+                            selectedPernrsSet.add(pernr);
+                        } else {
+                            selectedPernrsSet.delete(pernr);
+                        }
                     }
                 });
 
@@ -937,6 +1186,9 @@
                     document.body.classList.toggle('yppr058-refresh-busy', !!on);
                     if (!btn) return;
                     if (on) {
+                        if (!btn.dataset.originalHtml) {
+                            btn.dataset.originalHtml = btn.innerHTML;
+                        }
                         btn.disabled = true;
                         btn.classList.add('is-busy');
                         btn.innerHTML =
@@ -944,10 +1196,13 @@
                     } else {
                         btn.disabled = false;
                         btn.classList.remove('is-busy');
-                        btn.innerHTML = 'Refresh dari SAP (terpilih)';
+                        if (btn.dataset.originalHtml) {
+                            btn.innerHTML = btn.dataset.originalHtml;
+                        }
                     }
                 }
 
+                // ===== REFRESH DETAIL (dari modal) – SAMA seperti sebelumnya =====
                 async function refreshSelected() {
                     if (busy) return;
                     const modal = $('#yppr058-modal') || document;
@@ -1023,15 +1278,186 @@
                     window.location.reload();
                 }
 
-                document.addEventListener('click', function(e) {
-                    const targetBtn = e.target && e.target.closest && e.target.closest('#btn-refresh-sap');
-                    if (!targetBtn) return;
-                    if (busy || targetBtn.disabled) {
-                        e.preventDefault();
-                        e.stopPropagation();
+                // ===== REFRESH SUMMARY BULAN INI (group per WC+WERKS, multi NIK per paket) =====
+                async function refreshSummarySelected() {
+                    if (busy) return;
+
+                    const btn = $('#btn-refresh-summary');
+
+                    // 1. Ambil semua NIK yang sudah pernah dicentang (cache)
+                    const selectedPernrs = Array.from(selectedPernrsSet);
+                    if (!selectedPernrs.length) {
+                        alert('Pilih minimal satu NIK di tabel ringkasan.');
                         return;
                     }
-                    refreshSelected();
+
+                    // 2. Bangun grup per (arbpl, werks)
+                    //    key = "<arbpl>||<werks>"
+                    const groupsByKey = {};
+                    for (const pernr of selectedPernrs) {
+                        const meta = wcMap[pernr] || {};
+                        const arbpl = (meta.arbpl || '').trim();
+                        const werks = (meta.werks || CURRENT_WERKS || '').trim();
+                        const key = `${arbpl}||${werks}`;
+
+                        if (!groupsByKey[key]) {
+                            groupsByKey[key] = {
+                                arbpl,
+                                werks,
+                                pernrs: [],
+                            };
+                        }
+
+                        if (!groupsByKey[key].pernrs.includes(pernr)) {
+                            groupsByKey[key].pernrs.push(pernr);
+                        }
+                    }
+
+                    // 3. Daftar semua NIK (flatten) untuk dipakai di localStorage / toast
+                    const pernrs = Object.values(groupsByKey)
+                        .flatMap(group => group.pernrs);
+
+                    if (!pernrs.length) {
+                        alert('Pilih minimal satu NIK di tabel ringkasan.');
+                        return;
+                    }
+
+                    // 4. Hitung rentang tanggal (1..H-1 atau full bulan lalu kalau hari ini tgl 1)
+                    const today = new Date();
+                    let year = today.getFullYear();
+                    let month = today.getMonth() + 1; // 1..12
+                    const todayDate = today.getDate();
+                    let startDay = 1;
+                    let endDay;
+
+                    if (todayDate === 1) {
+                        // Kalau hari ini tgl 1 -> pakai full bulan sebelumnya
+                        month -= 1;
+                        if (month === 0) {
+                            month = 12;
+                            year -= 1;
+                        }
+                        endDay = new Date(year, month, 0).getDate(); // last day bulan tsb
+                    } else {
+                        // 1 .. H-1 (kemarin)
+                        endDay = todayDate - 1;
+                    }
+
+                    if (endDay < startDay) {
+                        alert('Rentang tanggal kosong. Tidak ada hari yang perlu di-refresh.');
+                        return;
+                    }
+
+                    const pad2 = n => n.toString().padStart(2, '0');
+                    const items = [];
+
+                    // 5. Bentuk kombinasi: setiap GROUP (WC+WERKS) × setiap tanggal
+                    for (const group of Object.values(groupsByKey)) {
+                        const {
+                            arbpl,
+                            werks,
+                            pernrs: groupPernrs
+                        } = group;
+                        if (!groupPernrs.length) continue;
+
+                        for (let d = endDay; d >= startDay; d--) {
+                            const ymd = `${year}${pad2(month)}${pad2(d)}`;
+
+                            items.push({
+                                // pernr pertama hanya untuk keperluan log di backend
+                                pernr: groupPernrs[0],
+                                // <<< multi NIK dalam 1 paket
+                                pernrs: groupPernrs,
+                                werks: werks || CURRENT_WERKS || "",
+                                arbpl: arbpl || "",
+                                begda: ymd,
+                                endda: ymd,
+                            });
+                        }
+                    }
+
+                    if (!items.length) {
+                        alert('Tidak ada item yang valid untuk di-refresh.');
+                        return;
+                    }
+
+                    // 6. Kirim ke API Flask, tetap satu per item (per WC+tanggal)
+                    busy = true;
+                    setButtonBusy(btn, true);
+
+                    const total = items.length;
+                    let done = 0,
+                        ok = 0,
+                        fail = 0;
+
+                    progressCard(`Menyiapkan ${total} antrian...`);
+
+                    for (const item of items) {
+                        done++;
+                        updateProgress(done, total);
+
+                        try {
+                            const resp = await fetch(`${API_BASE}/api/yppr058/refresh`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({
+                                    items: [item] // <-- 1 paket (bisa banyak NIK) per request
+                                }),
+                            });
+                            const data = await resp.json().catch(() => ({}));
+                            if (resp.ok && data.ok && Array.isArray(data.results) && data.results[0]?.ok) {
+                                ok++;
+                            } else {
+                                fail++;
+                            }
+                        } catch {
+                            fail++;
+                        }
+                    }
+
+                    hideProgress();
+
+                    // 7. Simpan info ke localStorage (supaya setelah reload, search + toast tetap jalan)
+                    localStorage.setItem(LS_PREFILL, pernrs.join(' '));
+                    localStorage.setItem(LS_SUMMARY, JSON.stringify({
+                        ok,
+                        fail,
+                        total,
+                        pernrs,
+                        ts: Date.now()
+                    }));
+
+                    setButtonBusy(btn, false);
+                    busy = false;
+                    window.location.reload();
+                }
+
+
+                // Event click: bedakan tombol detail vs summary
+                document.addEventListener('click', function(e) {
+                    const detailBtn = e.target && e.target.closest && e.target.closest('#btn-refresh-sap');
+                    if (detailBtn) {
+                        if (busy || detailBtn.disabled) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            return;
+                        }
+                        refreshSelected();
+                        return;
+                    }
+
+                    const summaryBtn = e.target && e.target.closest && e.target.closest('#btn-refresh-summary');
+                    if (summaryBtn) {
+                        if (busy || summaryBtn.disabled) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            return;
+                        }
+                        refreshSummarySelected();
+                        return;
+                    }
                 }, true);
 
                 function afterReloadTasks() {
@@ -1057,6 +1483,14 @@
 
                 window.addEventListener('DOMContentLoaded', afterReloadTasks);
                 document.addEventListener('livewire:load', afterReloadTasks);
+                document.addEventListener('livewire:load', function() {
+                    // setiap pesan Livewire selesai diproses -> periksa ulang checkbox summary
+                    if (window.Livewire && typeof window.Livewire.hook === 'function') {
+                        window.Livewire.hook('message.processed', () => {
+                            rescanSummaryCheckboxes();
+                        });
+                    }
+                });
             })
             ();
         </script>

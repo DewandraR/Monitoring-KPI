@@ -2,7 +2,7 @@
 
 # yppr058_loader.py — T_ARBPL & T_PERNR + chunking + pair-lock + log unik
 # Default tanpa tanggal: loop harian DESC dari kemarin → tanggal 1 bulan itu (satu per satu hari).
-# Log disimpan di: C:\laragon\www\WC-person\storage\logs\python wc_person_mysql\
+# Log disimpan di: <project>/storage/logs/python wc_person_mysql/
 
 """
 Cara pakai ringkas (update):
@@ -56,6 +56,13 @@ CATATAN PRIORITAS MODE TANGGAL:
 - Jika tidak pakai --yesterday tapi pakai --dates → ikuti daftar --dates.
 - Jika tidak pakai --yesterday/--dates tapi pakai --begda/--endda → pakai range itu.
 - Jika tidak ada semua → mode default (kemarin turun ke tanggal 1 bulan berjalan).
+
+CATATAN SINKRON PERNR (BARU):
+- Setiap run, sebelum tarik data baru, script akan:
+  1) Bandingkan DISTINCT PERNR di wc_person_data vs yppr058_data
+  2) Hapus semua baris di yppr058_data untuk PERNR yang sudah tidak ada di wc_person_data
+     (kecuali jika pakai --dry-run atau --no-delete → hanya log, tidak hapus).
+- Dengan ini, semua NIK di yppr058_data selalu mengikuti isi wc_person_data.
 """
 
 import os, sys, re, argparse, signal, time, logging, datetime
@@ -220,6 +227,17 @@ def like_to_regex(pattern: str):
     esc = re.escape(pattern).replace(r"\%", ".*").replace(r"\_", ".")
     return re.compile(f"^{esc}$", re.IGNORECASE)
 
+
+# ---------- Helper PERNR standar (BARU) ----------
+
+def norm_pernr(p: Any) -> str:
+    """Normalisasi PERNR ke string 8 digit kalau numerik."""
+    if p is None:
+        return ""
+    s = str(p).strip()
+    return s.zfill(8) if s.isdigit() else s
+
+
 # ---------- MySQL helpers ----------
 DDL_DB = f"""
 CREATE DATABASE IF NOT EXISTS `{DB_NAME}`
@@ -327,13 +345,12 @@ def ensure_db_and_table():
     cur2.close()
     conn.commit()
 
-    # Pastikan kolom tambahan (shift & desc) ada untuk instalasi lama
+    # Pastikan kolom tambahan ada untuk instalasi lama
     ensure_shift_column_exists(conn)
     ensure_desc_column_exists(conn)
     ensure_role_column_exists(conn)
     ensure_devisi_column_exists(conn)
     return conn
-
 
 
 def ensure_shift_column_exists(conn):
@@ -476,8 +493,7 @@ def get_role_map_for_pair(
     try:
         cur.execute(q, (arbpl, werks, at_yyyymmdd, at_yyyymmdd))
         for pernr, role in cur.fetchall():
-            s = "" if pernr is None else str(pernr)
-            s = s.zfill(8) if s.isdigit() else s
+            s = norm_pernr(pernr)
             if s:
                 mapping[s] = role
     except mysql.connector.Error as e:
@@ -487,6 +503,7 @@ def get_role_map_for_pair(
     finally:
         cur.close()
     return mapping
+
 
 def fetch_pernrs_for_pair(conn, arbpl: str, werks: str, at_yyyymmdd: str) -> List[str]:
     """
@@ -504,8 +521,7 @@ def fetch_pernrs_for_pair(conn, arbpl: str, werks: str, at_yyyymmdd: str) -> Lis
     cur.execute(q, (arbpl, werks, at_yyyymmdd, at_yyyymmdd))
     out: List[str] = []
     for (p,) in cur.fetchall():
-        s = "" if p is None else str(p)
-        s = s.zfill(8) if s.isdigit() else s
+        s = norm_pernr(p)
         if s:
             out.append(s)
     cur.close()
@@ -516,6 +532,7 @@ def get_wc_meta(conn, arbpl: str, werks: str) -> Tuple[Optional[str], Optional[s
     """
     Ambil deskripsi WC (`desc`) dan `devisi` dari tabel wc_person_data
     berdasarkan pasangan ARBPL/WERKS.
+
     Jika tidak ditemukan atau kolom belum ada, return (None, None).
     """
     sql = (
@@ -540,6 +557,7 @@ def get_wc_meta(conn, arbpl: str, werks: str) -> Tuple[Optional[str], Optional[s
     finally:
         cur.close()
 
+
 # ---------- Pair lock (hindari tabrakan dua proses di pair yang sama) ----------
 def acquire_pair_lock(cur, arbpl: str, werks: str, timeout: int = 120) -> bool:
     cur.execute(
@@ -558,6 +576,7 @@ def release_pair_lock(cur, arbpl: str, werks: str):
         cur.fetchone()
     except Exception:
         pass
+
 
 # ---------- RFC helpers ----------
 def call_rfc(
@@ -634,6 +653,177 @@ def normalize_tdata(
         "devisi": devisi_value,
     }
 
+
+# ---------- Rekap Plant & Sinkronisasi PERNR (BARU) ----------
+
+def get_plant_nik_counts(conn, table_name: str) -> Dict[str, int]:
+    """
+    Ambil jumlah DISTINCT PERNR per plant (WERKS) dari sebuah tabel.
+    Dipakai untuk rekap seperti kartu 'Jumlah NIK' per plant.
+    """
+    cur = conn.cursor()
+    sql = f"""
+        SELECT werks, COUNT(DISTINCT pernr)
+        FROM `{table_name}`
+        WHERE pernr <> ''
+        GROUP BY werks
+        ORDER BY werks
+    """
+    counts: Dict[str, int] = {}
+    try:
+        cur.execute(sql)
+        for werks, cnt in cur.fetchall():
+            w = "" if werks is None else str(werks).strip()
+            counts[w] = int(cnt or 0)
+    finally:
+        cur.close()
+    return counts
+
+
+def sync_yppr_with_wc_person(conn, dry_run: bool = False) -> None:
+    """
+    Pastikan semua PERNR di yppr058_data ada di wc_person_data.
+    - Jika ada PERNR di yppr058_data yg TIDAK ada di wc_person_data:
+      -> hapus semua baris untuk PERNR tsb dari yppr058_data (kecuali dry_run/no-delete).
+    - Sekaligus log rekap jumlah NIK per PLANT sebelum & sesudah,
+      supaya bisa dicek kesesuaian dengan WC Person (seperti kartu Plant).
+    """
+    hr("=")
+    logger.info("CEK SINKRON PERNR antara wc_person_data dan yppr058_data ...")
+
+    cur = conn.cursor()
+
+    # DISTINCT PERNR dari wc_person_data
+    cur.execute(
+        f"SELECT DISTINCT pernr FROM `{WC_TABLE}` WHERE pernr IS NOT NULL AND pernr<>''"
+    )
+    wc_pernrs = {norm_pernr(p) for (p,) in cur.fetchall() if p}
+
+    # DISTINCT PERNR dari yppr058_data
+    cur.execute(
+        f"SELECT DISTINCT pernr FROM `{OUT_TABLE}` WHERE pernr IS NOT NULL AND pernr<>''"
+    )
+    yppr_pernrs = {norm_pernr(p) for (p,) in cur.fetchall() if p}
+
+    missing_pernrs = sorted(yppr_pernrs - wc_pernrs)
+
+    logger.info(
+        f"TOTAL PERNR wc_person_data : {len(wc_pernrs)} | "
+        f"TOTAL PERNR yppr058_data : {len(yppr_pernrs)}"
+    )
+
+    # Rekap plant sebelum sync
+    wc_counts = get_plant_nik_counts(conn, WC_TABLE)
+    yp_counts_before = get_plant_nik_counts(conn, OUT_TABLE)
+
+    subhr()
+    logger.info("REKAP DISTINCT NIK per PLANT (sebelum sync YPPR vs WC):")
+    logger.info("PLANT | NIK di WC_PERSON | NIK di YPPR")
+    subhr()
+    all_plants = sorted(set(list(wc_counts.keys()) + list(yp_counts_before.keys())))
+    for w in all_plants:
+        c_wc = wc_counts.get(w, 0)
+        c_yp = yp_counts_before.get(w, 0)
+        logger.info(f"{w or '-':<5} | {c_wc:>15} | {c_yp:>11}")
+    subhr()
+
+    if not missing_pernrs:
+        logger.info(
+            "✅ Semua PERNR di yppr058_data sudah ada di wc_person_data. "
+            "Tidak ada yang perlu dihapus."
+        )
+        hr("=")
+        cur.close()
+        return
+
+    logger.info(
+        f"⚠️  DITEMUKAN {len(missing_pernrs)} PERNR di {OUT_TABLE} "
+        f"yang sudah tidak ada di {WC_TABLE}."
+    )
+    logger.info(
+        "   Contoh PERNR yang akan diproses: "
+        + ", ".join(missing_pernrs[:20])
+        + (" ..." if len(missing_pernrs) > 20 else "")
+    )
+
+    # Rekap berapa NIK & baris yg akan kena per plant
+    placeholders = ",".join(["%s"] * len(missing_pernrs))
+    stats_sql = f"""
+        SELECT werks, COUNT(DISTINCT pernr) AS nik_cnt, COUNT(*) AS row_cnt
+        FROM `{OUT_TABLE}`
+        WHERE pernr IN ({placeholders})
+        GROUP BY werks
+        ORDER BY werks
+    """
+    try:
+        cur.execute(stats_sql, missing_pernrs)
+        stats = cur.fetchall()
+    except Exception as e:
+        logger.info(f"[WARN] Gagal hitung statistik per-plant untuk PERNR hilang: {e}")
+        stats = []
+
+    if stats:
+        subhr()
+        logger.info("DETAIL NIK YANG AKAN DIHAPUS (berdasarkan PLANT di YPPR):")
+        logger.info("PLANT | NIK YPPR TIDAK ADA DI WC | JUMLAH BARIS YANG AKAN DIHAPUS")
+        subhr()
+        for werks, nik_cnt, row_cnt in stats:
+            logger.info(
+                f"{(werks or '-'):>5} | {int(nik_cnt):>24} | {int(row_cnt):>29}"
+            )
+        subhr()
+
+    if dry_run:
+        logger.info(
+            "[DRY-RUN / --no-delete] Mode simulasi, TIDAK ada baris yg dihapus "
+            "dari yppr058_data. Hanya cek & log saja."
+        )
+        hr("=")
+        cur.close()
+        return
+
+    # Eksekusi DELETE per batch agar aman kalau PERNR banyak
+    total_deleted = 0
+    BATCH_DEL = 500
+    logger.info(
+        f"Mulai menghapus data YPPR untuk {len(missing_pernrs)} PERNR "
+        f"dalam batch {BATCH_DEL} ..."
+    )
+    for i in range(0, len(missing_pernrs), BATCH_DEL):
+        batch = missing_pernrs[i : i + BATCH_DEL]
+        ph = ",".join(["%s"] * len(batch))
+        del_sql = f"DELETE FROM `{OUT_TABLE}` WHERE pernr IN ({ph})"
+        try:
+            cur.execute(del_sql, batch)
+            total_deleted += cur.rowcount
+        except mysql.connector.Error as e:
+            logger.info(f"[ERROR] DELETE batch PERNR: {e}")
+            conn.rollback()
+            cur.close()
+            hr("=")
+            return
+    conn.commit()
+    logger.info(
+        f"✅ Hapus selesai. Total {total_deleted} baris di {OUT_TABLE} "
+        f"untuk {len(missing_pernrs)} PERNR yang sudah tidak ada di WC Person."
+    )
+
+    # Rekap plant SESUDAH sync
+    yp_counts_after = get_plant_nik_counts(conn, OUT_TABLE)
+    subhr()
+    logger.info("REKAP DISTINCT NIK per PLANT (setelah sync YPPR vs WC):")
+    logger.info("PLANT | NIK di WC_PERSON | NIK di YPPR (sesudah)")
+    subhr()
+    all_plants2 = sorted(set(list(wc_counts.keys()) + list(yp_counts_after.keys())))
+    for w in all_plants2:
+        c_wc = wc_counts.get(w, 0)
+        c_yp = yp_counts_after.get(w, 0)
+        logger.info(f"{w or '-':<5} | {c_wc:>15} | {c_yp:>19}")
+    subhr()
+    hr("=")
+    cur.close()
+
+
 # ---------- Core per-hari ----------
 def process_one_day(
     rfc: Connection,
@@ -660,7 +850,7 @@ def process_one_day(
     for (arbpl, werks) in pairs:
         t0 = time.perf_counter()
 
-                # Ambil deskripsi & devisi WC dari wc_person_data untuk pasangan ini
+        # Ambil deskripsi & devisi WC dari wc_person_data untuk pasangan ini
         desc_for_pair, devisi_for_pair = get_wc_meta(db, arbpl, werks)
 
         # Kumpulkan PERNR untuk pasangan ini (aktif pada tanggal)
@@ -670,7 +860,8 @@ def process_one_day(
         role_map_for_pair = get_role_map_for_pair(db, arbpl, werks, begda)
 
         logger.info(
-            f"PAIR  : ARBPL={arbpl} | WERKS={werks} | {begda}..{endda} | PAIR={len(pernr_all)} PERNR"
+            f"PAIR  : ARBPL={arbpl} | WERKS={werks} | {begda}..{endda} | "
+            f"{len(pernr_all)} PERNR aktif"
         )
 
         if args.verbose_steps:
@@ -864,6 +1055,7 @@ def process_one_day(
 
     return total_rows, total_deleted
 
+
 # ---------- Main ----------
 def main():
     ap = argparse.ArgumentParser(
@@ -986,6 +1178,14 @@ def main():
 
     # DB prep
     db = ensure_db_and_table()
+
+    # --- SINKRON PERNR YPPR vs WC PERSON (BARU, SEKALI SAJA PER RUN) ---
+    try:
+        # Kalau --dry-run atau --no-delete → hanya log, tidak hapus
+        do_dry = args.dry_run or args.no_delete
+        sync_yppr_with_wc_person(db, dry_run=do_dry)
+    except Exception as e:
+        logger.info(f"[WARN] Gagal menjalankan sync awal PERNR YPPR vs WC: {e}")
 
     # Susun pasangan
     if args.pairs:
