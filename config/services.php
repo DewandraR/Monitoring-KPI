@@ -35,4 +35,8 @@ return [
         ],
     ],
 
+    'yppr058_save' => [
+        // default pakai localhost, nanti di server override lewat .env
+        'url' => env('YPPR058_SAVE_URL', 'http://127.0.0.1:5011/api/yppr058/save'),
+    ],
 ];

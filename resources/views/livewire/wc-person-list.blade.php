@@ -349,6 +349,21 @@
                         </label>
                     </div>
                 @endforeach
+                {{-- Tombol filter NIK duplikat --}}
+                <div class="inline-flex items-center" wire:key="btn-duplicate-filter">
+                    <button type="button" wire:click="$toggle('onlyDuplicate')"
+                        class="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold
+                        @if ($onlyDuplicate) bg-red-50 border-red-500 text-red-700
+                        @else
+                            bg-white border-emerald-300 text-emerald-700 @endif">
+                        <span>NIK duplikat saja</span>
+                        <span
+                            class="text-[10px] uppercase tracking-wide
+                        @if ($onlyDuplicate) text-red-700 @else text-slate-400 @endif">
+                            {{ $onlyDuplicate ? 'ON' : 'OFF' }}
+                        </span>
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -365,6 +380,12 @@
                     </label>
 
                     <p class="mt-1 text-xs text-gray-500">
+                        @if ($onlyDuplicate)
+                            <p class="mt-1 text-xs text-red-600">
+                                Sedang menampilkan <strong>hanya NIK yang muncul lebih dari 1 baris</strong>.
+                            </p>
+                        @endif
+
                         Cari:
                         <span class="font-semibold text-emerald-700">
                             NIK, Nama, WC, Desc WC, Devisi

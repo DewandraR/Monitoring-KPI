@@ -14,6 +14,7 @@ class WcPersonList extends Component
 
     // 🔹 FILTER PLANT (ALL / 1000 / 1001 / 2000 / 3000)
     public string $plant = 'ALL';
+    public bool $onlyDuplicate = false;
 
     public function render()
     {
@@ -37,16 +38,37 @@ class WcPersonList extends Component
             $query->where('werks', $this->plant);
         }
 
-        $rows = $query
-            ->orderByRaw('CAST(werks AS UNSIGNED), werks')
-            ->orderBy('arbpl')
-            ->orderBy('pernr')
-            ->get();
+        // 🔹 JIKA mode "NIK duplikat saja" aktif
+        if ($this->onlyDuplicate) {
+            // subquery: cari pernr yang muncul > 1 kali (ikut filter plant juga)
+            $sub = WcPersonData::query()
+                ->select('pernr')
+                ->when($this->plant !== 'ALL', fn($qq) => $qq->where('werks', $this->plant))
+                ->groupBy('pernr')
+                ->havingRaw('COUNT(*) > 1');
 
+            // hanya tampilkan baris yang pernr-nya ada di subquery
+            $query->whereIn('pernr', $sub);
+        }
+
+        if ($this->onlyDuplicate) {
+            // Mode "NIK duplikat saja" → urutkan hanya berdasarkan NIK
+            $query->orderBy('pernr');
+        } else {
+            // Mode normal → urutkan Plant → WC → NIK
+            $query->orderByRaw('CAST(werks AS UNSIGNED), werks')
+                ->orderBy('arbpl')
+                ->orderBy('pernr');
+        }
+
+        $rows = $query->get();
         return view('livewire.wc-person-list', [
             'headers'        => $headers,
             'rows'           => $rows,
             'selectedPernrs' => $this->selectedPernrs,
+            // ⬇⬇⬇ kirim ke Blade supaya bisa baca status ON/OFF
+            'plant'          => $this->plant,
+            'onlyDuplicate'  => $this->onlyDuplicate,
         ]);
     }
 
@@ -77,6 +99,17 @@ class WcPersonList extends Component
         // 🔹 Filter plant juga berpengaruh ke Select All
         if ($this->plant !== 'ALL') {
             $query->where('werks', $this->plant);
+        }
+
+        // 🔹 Kalau mode "NIK duplikat saja" aktif, Select All hanya untuk NIK duplikat
+        if ($this->onlyDuplicate) {
+            $sub = WcPersonData::query()
+                ->select('pernr')
+                ->when($this->plant !== 'ALL', fn($qq) => $qq->where('werks', $this->plant))
+                ->groupBy('pernr')
+                ->havingRaw('COUNT(*) > 1');
+
+            $query->whereIn('pernr', $sub);
         }
 
         $currentPernrs = $query->pluck('pernr')

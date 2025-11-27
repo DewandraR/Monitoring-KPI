@@ -235,6 +235,56 @@
                     @endif
                 </button>
 
+                {{-- TOMBOL SAVE KE SAP (NEW: ROYAL TECH BLUE DESIGN) --}}
+                <button type="button" wire:click="openSaveSapModal"
+                    class="group relative inline-flex items-center gap-2.5 rounded-xl
+                           bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-700
+                           px-5 py-3 text-sm font-bold text-white
+                           shadow-lg shadow-blue-500/30
+                           ring-1 ring-white/20
+                           transition-all duration-300 ease-[cubic-bezier(0.23,1,0.32,1)]
+                           hover:shadow-2xl hover:shadow-indigo-500/50 hover:-translate-y-0.5 hover:scale-[1.02]
+                           focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2
+                           disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none">
+
+                    {{-- 1. Background Shine Animation (Efek Kilau Berjalan saat Hover) --}}
+                    <div class="absolute inset-0 overflow-hidden rounded-xl">
+                        <div
+                            class="absolute top-0 -left-[100%] h-full w-[50%] 
+                                    bg-gradient-to-r from-transparent via-white/20 to-transparent 
+                                    transform -skew-x-12 transition-all duration-1000 ease-in-out 
+                                    group-hover:left-[200%]">
+                        </div>
+                    </div>
+
+                    {{-- 2. Internal Glow (Efek Cahaya Dalam) --}}
+                    <div
+                        class="absolute inset-0 rounded-xl bg-gradient-to-b from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    </div>
+
+                    {{-- 3. Icon (Floppy Disk / Save - Lebih Relevan) --}}
+                    <svg xmlns="http://www.w3.org/2000/svg"
+                        class="h-5 w-5 relative z-10 text-blue-100 transition-transform duration-300 group-hover:scale-110 group-hover:text-white"
+                        fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                    </svg>
+
+                    {{-- 4. Text --}}
+                    <span class="relative z-10 tracking-wide drop-shadow-sm">Save ke SAP</span>
+
+                    {{-- 5. Badge Counter (Desain Baru: Glassmorphism Blue) --}}
+                    @if ($selectedCount > 0)
+                        <span
+                            class="flex h-6 min-w-[24px] items-center justify-center rounded-lg 
+                                     bg-white/90 text-indigo-700 text-[11px] font-black 
+                                     shadow-md ring-1 ring-indigo-500/30 relative z-10 px-1.5
+                                     transition-all duration-300 group-hover:scale-110 group-hover:bg-white group-hover:text-indigo-800">
+                            {{ $selectedCount }}
+                        </span>
+                    @endif
+                </button>
+
                 {{-- DIVIDER --}}
                 <div class="h-10 w-px bg-gradient-to-b from-transparent via-gray-300 to-transparent"></div>
 
@@ -514,12 +564,115 @@
     </div>
 
     {{-- ======================================================================== --}}
+    {{-- TOAST NOTIFIKASI HASIL SAVE (FLOATING CARD POJOK KANAN BAWAH) --}}
+    {{-- ======================================================================== --}}
+    @if (!empty($saveResults))
+        @php
+            $sRes = collect($saveResults);
+            $sOk = $sRes->where('ok', true)->count();
+            $sFail = $sRes->count() - $sOk;
+            $sTotal = $sRes->count();
+        @endphp
+        <div x-data="{ show: true }" x-show="show" x-transition:enter="transition ease-out duration-300"
+            x-transition:enter-start="opacity-0 translate-y-4 scale-95"
+            x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+            x-transition:leave="transition ease-in duration-200"
+            x-transition:leave-start="opacity-100 translate-y-0 scale-100"
+            x-transition:leave-end="opacity-0 translate-y-4 scale-95" x-init="setTimeout(() => show = false, 6000)"
+            class="fixed bottom-6 right-6 z-[100] w-[380px] bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden ring-1 ring-black/5 animate-slide-in-right">
+
+            {{-- Header Toast --}}
+            <div
+                class="px-5 py-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white flex items-start justify-between">
+                <div class="flex items-center gap-3">
+                    <div
+                        class="h-10 w-10 rounded-full flex items-center justify-center {{ $sFail > 0 ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600' }}">
+                        @if ($sFail > 0)
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none"
+                                viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                        @else
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none"
+                                viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        @endif
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-gray-900 leading-tight">Proses Simpan Selesai</h4>
+                        <div class="text-xs text-gray-500 mt-1">
+                            Total Diproses: <span class="font-mono font-bold">{{ $sTotal }}</span> data
+                        </div>
+                    </div>
+                </div>
+                <button @click="show = false" class="text-gray-400 hover:text-gray-600 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd"
+                            d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                            clip-rule="evenodd" />
+                    </svg>
+                </button>
+            </div>
+
+            {{-- Body Toast --}}
+            <div class="px-5 py-3 bg-white">
+                <div class="flex items-center justify-between text-sm mb-3">
+                    <div
+                        class="flex items-center gap-1.5 text-emerald-700 font-semibold bg-emerald-50 px-2 py-1 rounded">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M5 13l4 4L19 7" />
+                        </svg>
+                        Berhasil: {{ $sOk }}
+                    </div>
+                    <div class="flex items-center gap-1.5 text-red-700 font-semibold bg-red-50 px-2 py-1 rounded">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                        Gagal: {{ $sFail }}
+                    </div>
+                </div>
+
+                {{-- List Log --}}
+                <div
+                    class="bg-slate-50 rounded-lg p-2.5 max-h-[150px] overflow-y-auto space-y-1.5 border border-slate-100">
+                    @foreach ($saveResults as $row)
+                        <div
+                            class="text-[10px] flex items-start gap-2 leading-snug border-b border-gray-100 last:border-0 pb-1 last:pb-0">
+                            <span class="font-mono text-gray-500 whitespace-nowrap">{{ $row['pernr'] ?? '?' }}</span>
+                            <div class="flex-1">
+                                <span
+                                    class="font-semibold {{ $row['ok'] ?? false ? 'text-emerald-600' : 'text-red-600' }}">
+                                    {{ $row['ok'] ?? false ? 'OK' : 'ERR' }}
+                                </span>
+                                <span class="text-gray-600">
+                                    - {{ Str::limit($row['return_message'] ?? 'No message', 50) }}
+                                </span>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+
+            {{-- Progress Bar for Auto Close --}}
+            <div class="h-1 w-full bg-gray-100">
+                <div class="h-full bg-gradient-to-r from-emerald-500 to-teal-500 origin-left animate-shrink-width">
+                </div>
+            </div>
+        </div>
+    @endif
+
+    {{-- ======================================================================== --}}
     {{-- BAGIAN 3: TABEL RINGKASAN --}}
     {{-- ======================================================================== --}}
     <div wire:key="summary-{{ md5(($werks ?? request()->route('werks')) . '|' . $q . '|' . (int) $onlyInduk) }}">
 
-        <div class="overflow-x-auto overflow-y-auto max-h-[75vh] shadow-xl sm:rounded-xl border border-gray-200/75">
-            <table class="min-w-full divide-y divide-gray-200">
+        <div class="overflow-y-auto max-h-[75vh] shadow-xl sm:rounded-xl border border-gray-200/75">
+            <table id="web-summary-table" class="min-w-full divide-y divide-gray-200">
                 <thead class="sticky top-0 z-20 bg-gradient-to-r from-emerald-800 to-teal-900 text-white shadow-md">
                     <tr>
                         @php
@@ -532,34 +685,33 @@
 
                         {{-- Kolom checkbox STICKY LEFT - Header --}}
                         <th scope="col"
-                            class="sticky left-0 z-30 px-6 py-4 text-left text-sm font-bold uppercase tracking-wider w-10 bg-emerald-800">
-                            <label class="inline-flex items-center gap-2 select-none cursor-pointer group">
+                            class="sticky left-0 z-30 px-6 py-4 text-center text-sm font-bold uppercase tracking-wider w-10 bg-emerald-800">
+                            <label
+                                class="inline-flex items-center justify-center gap-2 select-none cursor-pointer group">
                                 <input id="check-all-summary" type="checkbox"
                                     class="rounded border-gray-300 text-emerald-500 focus:ring-emerald-500 transition-colors cursor-pointer bg-white/90 h-4 w-4"
                                     @checked($allCurrentSelected)>
-                                {{-- Tulisan "Pilih" DIHAPUS --}}
                             </label>
                         </th>
 
                         @foreach ($headersSummary as $header)
                             <th scope="col"
-                                class="px-6 py-4 text-left text-sm font-bold uppercase tracking-wider whitespace-nowrap">
+                                class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap">
                                 {{ __($header) }}
                             </th>
                         @endforeach
                     </tr>
                 </thead>
 
-                <tbody class="bg-white divide-y divide-gray-200 text-base">
+                <tbody class="bg-white divide-y divide-gray-200">
                     @forelse ($reportData as $data)
                         <tr wire:key="report-row-{{ $data->pernr }}"
                             wire:click="showPernrDetail({{ \Illuminate\Support\Js::from((string) $data->pernr) }})"
                             class="group/row transition-all duration-200 ease-in-out hover:bg-emerald-50 cursor-pointer odd:bg-white even:bg-slate-50/50">
 
                             {{-- Checkbox STICKY LEFT - Body --}}
-                            {{-- Menggunakan group-even/row untuk mencocokkan warna row saat sel ini sticky --}}
                             <td
-                                class="sticky left-0 z-10 px-6 py-4 whitespace-nowrap bg-white group-even/row:bg-slate-50/50 group-hover/row:bg-emerald-50">
+                                class="sticky left-0 z-10 px-6 py-4 bg-white group-even/row:bg-slate-50/50 group-hover/row:bg-emerald-50">
                                 <input type="checkbox" wire:model.live="selectedPernrs"
                                     value="{{ (string) $data->pernr }}" data-arbpl="{{ $data->arbpl }}"
                                     data-werks="{{ $data->werks ?? ($werks ?? request()->route('werks')) }}"
@@ -568,97 +720,107 @@
                             </td>
 
                             {{-- NO --}}
-                            <td class="px-6 py-4 whitespace-nowrap font-extrabold text-emerald-800/80">
+                            <td class="px-6 py-4 text-center font-extrabold text-emerald-800/80">
                                 {{ $loop->iteration }}
                             </td>
 
                             {{-- PERSONAL NO --}}
-                            <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900">
+                            <td class="px-6 py-4 text-center font-medium text-gray-900">
                                 {{ $data->pernr }}
                             </td>
 
-                            {{-- RENTANG TANGGAL --}}
-                            <td class="px-6 py-4 whitespace-nowrap text-gray-600 font-mono text-sm">
-                                {{ Carbon::createFromFormat('Ymd', $data->min_begda)->isoFormat('YY-MM-DD') }}
-                                <span class="text-emerald-400 mx-1">➜</span>
-                                {{ Carbon::createFromFormat('Ymd', $data->max_begda)->isoFormat('YY-MM-DD') }}
+                            {{-- RENTANG TANGGAL (format vertikal: yyyy / mm-dd / ↓ / yyyy / mm-dd) --}}
+                            @php
+                                $minDate = Carbon::createFromFormat('Ymd', $data->min_begda);
+                                $maxDate = Carbon::createFromFormat('Ymd', $data->max_begda);
+                            @endphp
+                            <td class="px-6 py-4 text-gray-600 text-xs">
+                                <div class="flex flex-col items-center font-mono leading-tight">
+                                    <span>{{ $minDate->format('Y') }}</span>
+                                    <span>{{ $minDate->format('m-d') }}</span>
+
+                                    <span class="text-emerald-500 text-xs my-0.5">↓</span>
+
+                                    <span>{{ $maxDate->format('Y') }}</span>
+                                    <span>{{ $maxDate->format('m-d') }}</span>
+                                </div>
                             </td>
 
-                            {{-- NAMA --}}
-                            <td class="px-6 py-4 whitespace-nowrap font-semibold text-slate-800 capitalize">
+                            {{-- NAMA (tetap rata kiri, bisa 2 baris) --}}
+                            <td class="px-6 py-4 font-semibold text-slate-800 capitalize text-left">
                                 {{ strtolower($data->cname) }}
                             </td>
 
                             {{-- WC PERSONAL --}}
-                            <td class="px-6 py-4 whitespace-nowrap text-slate-700 font-medium">
+                            <td class="px-6 py-4 text-center text-slate-700 font-medium">
                                 {{ $data->arbpl }}
                             </td>
 
                             {{-- WC KONFIRMASI (arbpl2) --}}
-                            <td class="px-6 py-4 whitespace-nowrap text-slate-700 font-medium">
+                            <td class="px-6 py-4 text-center text-slate-700 font-medium">
                                 {{ $data->arbpl2 ?? '-' }}
                             </td>
 
-                            {{-- DESC WC --}}
-                            <td class="px-6 py-4 text-slate-600 text-sm min-w-[250px]">
-                                {{ Str::limit($data->desc, 40) }}
+                            {{-- DESC WC (tetap rata kiri, bisa 2 baris) --}}
+                            <td class="px-6 py-4 text-slate-600 text-[12px] leading-snug min-w-[200px] text-left">
+                                {{ Str::limit($data->desc, 60) }}
                             </td>
 
                             {{-- ROLE --}}
-                            <td class="px-6 py-4 whitespace-nowrap text-center text-xs font-semibold">
+                            <td class="px-6 py-4 text-center text-[12px] font-semibold">
                                 {{ $data->role ?? '-' }}
                             </td>
 
                             {{-- DEVISI --}}
-                            <td class="px-6 py-4 whitespace-nowrap text-slate-700 text-sm">
+                            <td class="px-6 py-4 text-center text-slate-700 text-[12px]">
                                 {{ $data->devisi ?? '-' }}
                             </td>
 
                             {{-- MENIT HADIR (total_jam) --}}
-                            <td class="px-6 py-4 whitespace-nowrap text-gray-800 text-right font-mono tracking-tight">
+                            <td class="px-6 py-4 text-center text-gray-900 font-semibold tracking-tight">
                                 {{ number_format($data->total_jam, 1) }}
                             </td>
 
                             {{-- MENIT CONF (mint2) --}}
-                            <td class="px-6 py-4 whitespace-nowrap text-gray-800 text-right font-mono tracking-tight">
-                                {{ (int) $data->mint2 }}
+                            <td class="px-6 py-4 text-center text-gray-900 font-semibold tracking-tight">
+                                {{ number_format((int) $data->mint2, 0, ',', '.') }}
                             </td>
 
                             {{-- MENIT INSPECT (mintu) --}}
-                            <td class="px-6 py-4 whitespace-nowrap text-gray-800 text-right font-mono tracking-tight">
-                                {{ (int) $data->mintu }}
+                            <td class="px-6 py-4 text-center text-gray-900 font-semibold tracking-tight">
+                                {{ number_format((int) $data->mintu, 0, ',', '.') }}
                             </td>
 
                             {{-- DETIK INSPECT (mintu2) --}}
-                            <td class="px-6 py-4 whitespace-nowrap text-gray-800 text-right font-mono tracking-tight">
-                                {{ (int) $data->mintu2 }}
+                            <td class="px-6 py-4 text-center text-gray-900 font-semibold tracking-tight">
+                                {{ number_format((int) $data->mintu2, 0, ',', '.') }}
                             </td>
 
                             {{-- DETIK KONFIRMASI (mintu3) --}}
-                            <td class="px-6 py-4 whitespace-nowrap text-gray-800 text-right font-mono tracking-tight">
-                                {{ (int) $data->mintu3 }}
+                            <td class="px-6 py-4 text-center text-gray-900 font-semibold tracking-tight">
+                                {{ number_format((int) $data->mintu3, 0, ',', '.') }}
                             </td>
 
                             {{-- UPAH HADIR (gji) --}}
-                            <td class="px-6 py-4 whitespace-nowrap text-right font-mono text-gray-800 tracking-tight">
+                            <td class="px-6 py-4 text-center text-gray-900 font-semibold tracking-tight">
                                 {{ number_format((float) $data->gji, 2) }}
                             </td>
 
                             {{-- UPAH INSPECT (gji2) --}}
-                            <td class="px-6 py-4 whitespace-nowrap text-right font-mono text-gray-800 tracking-tight">
+                            <td class="px-6 py-4 text-center text-gray-900 font-semibold tracking-tight">
                                 {{ number_format((float) $data->gji2, 2) }}
                             </td>
 
                             {{-- VAR UPAH (varnt) --}}
                             <td
-                                class="px-6 py-4 whitespace-nowrap text-right font-mono {{ $data->varnt < 0 ? 'text-red-600 font-bold' : 'text-gray-800' }}">
+                                class="px-6 py-4 text-center font-semibold {{ $data->varnt < 0 ? 'text-red-600' : 'text-gray-800' }}">
                                 {{ number_format($data->varnt, 2) }}
                             </td>
 
                             {{-- PERSENTASE VAR (varnt1) --}}
-                            <td class="px-6 py-4 whitespace-nowrap text-right font-mono">
+                            <td class="px-6 py-4 text-center">
                                 <span
-                                    class="inline-flex items-center px-2.5 py-1 rounded text-sm font-medium {{ $data->varnt1 < 100 ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800' }}">
+                                    class="inline-flex items-center px-2.5 py-1 rounded text-[11px] font-semibold {{ $data->varnt1 < 100 ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800' }}">
                                     {{ number_format($data->varnt1, 2) }}%
                                 </span>
                             </td>
@@ -729,22 +891,21 @@
                     <div class="px-6 py-6 sm:px-8 sm:py-8 bg-slate-50">
                         <div
                             class="overflow-x-auto overflow-y-auto max-h-[60vh] shadow-md sm:rounded-lg bg-white border border-gray-200">
-                            <table class="min-w-full divide-y divide-gray-100">
+                            <table id="detail-table" class="min-w-full divide-y divide-gray-100">
                                 <thead class="sticky top-0 z-20 bg-emerald-50">
                                     <tr>
                                         {{-- Checkbox Detail STICKY LEFT - Header --}}
                                         <th
-                                            class="sticky left-0 z-30 px-6 py-4 text-left text-xs font-bold text-emerald-800 uppercase tracking-wider border-b-2 border-emerald-100 bg-emerald-50">
+                                            class="sticky left-0 z-30 px-4 py-3 text-center text-xs font-bold text-emerald-800 uppercase tracking-wider border-b-2 border-emerald-100 bg-emerald-50">
                                             <label class="inline-flex items-center gap-2 select-none">
                                                 <input id="check-all-detail" type="checkbox"
                                                     class="rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500">
-                                                {{-- Tulisan "Pilih" DIHAPUS --}}
                                             </label>
                                         </th>
 
                                         @foreach ($headersDetail as $header)
                                             <th scope="col"
-                                                class="px-6 py-4 text-left text-xs font-bold text-emerald-800 uppercase tracking-wider border-b-2 border-emerald-100 whitespace-nowrap">
+                                                class="px-4 py-3 text-center text-xs font-bold text-emerald-800 uppercase tracking-wider border-b-2 border-emerald-100 whitespace-nowrap">
                                                 {{ __($header) }}
                                             </th>
                                         @endforeach
@@ -770,7 +931,8 @@
                                                     value="{{ ($data['pernr'] ?? '') . '|' . ($data['begda'] ?? '') }}">
                                             </td>
 
-                                            <td class="px-6 py-3 whitespace-nowrap text-sm font-bold text-emerald-800">
+                                            <td
+                                                class="px-4 py-2 whitespace-nowrap text-sm font-bold text-emerald-800 text-center">
                                                 {{ $loop->iteration }}
                                             </td>
 
@@ -807,26 +969,43 @@
                                                         $gji = isset($data['gji']) ? (float) $data['gji'] : 0;
                                                         $varnt = isset($data['varnt']) ? (float) $data['varnt'] : 0;
 
-                                                        if ($gji != 0) {
-                                                            $val = ($varnt / $gji) * 100;
-                                                        } else {
-                                                            // kalau upah hadir 0, anggap 0% (atau bisa null kalau mau "-")
-                                                            $val = 0;
-                                                        }
+                                                        $val = $gji != 0 ? ($varnt / $gji) * 100 : 0;
                                                     }
 
                                                     $isMoney = in_array($column, ['gji', 'gji2', 'varnt']);
                                                     $isNum = in_array($column, ['mint2', 'mintu', 'mintu2', 'mintu3']);
                                                     $isDate = $column === 'begda';
+
+                                                    $isDesc = $column === 'desc'; // DESC WC
+                                                    $isDevisi = $column === 'devisi'; // DEVISI
+                                                    $isLeftName = $column === 'cname'; // Nama
+
+                                                    $isLeft = $isLeftName || $isDesc;
+                                                    $isMultiline = $isDesc || $isDevisi; // DESC & DEVISI boleh 2 baris
                                                 @endphp
 
                                                 <td @class([
-                                                    'px-6 py-3 whitespace-nowrap text-sm',
-                                                    'text-right font-mono' => $isMoney || $isNum || $column === 'total_jam',
+                                                    'px-4 py-2 text-[11px]',
+                                                    'whitespace-nowrap' => !$isMultiline, // selain DESC/DEVISI: 1 baris
+                                                    'whitespace-normal break-words leading-snug' => $isMultiline, // DESC & DEVISI: boleh bungkus
+                                                    'text-left' => $isLeft,
+                                                    'text-center' => !$isLeft,
+                                                    'font-mono' => $isMoney || $isNum || $column === 'total_jam',
                                                     'text-emerald-700 font-medium' => $isMoney,
                                                 ])>
                                                     @if ($val === '' || is_null($val))
                                                         -
+                                                    @elseif ($column === 'devisi' && is_string($val) && str_contains($val, '-'))
+                                                        @php
+                                                            [$before, $after] = array_pad(explode('-', $val, 2), 2, '');
+                                                        @endphp
+
+                                                        <div class="flex flex-col leading-tight">
+                                                            <span>{{ trim($before) }}</span>
+                                                            @if (trim($after) !== '')
+                                                                <span>- {{ trim($after) }}</span>
+                                                            @endif
+                                                        </div>
                                                     @elseif ($column === 'total_jam')
                                                         {{ number_format($val, 1) }}
                                                     @elseif ($isMoney)
@@ -834,13 +1013,19 @@
                                                     @elseif ($isNum)
                                                         {{ (int) $val }}
                                                     @elseif ($isDate)
-                                                        {{ Carbon::createFromFormat('Ymd', $val)->isoFormat('YY-MM-DD') }}
+                                                        @php
+                                                            $dt = Carbon::createFromFormat('Ymd', $val);
+                                                        @endphp
+                                                        <div
+                                                            class="flex flex-col items-center leading-tight font-mono text-[12px]">
+                                                            <span>{{ $dt->format('Y') }}</span>
+                                                            <span>{{ $dt->format('m-d') }}</span>
+                                                        </div>
                                                     @else
                                                         {{ $val }}
                                                     @endif
                                                 </td>
                                             @endforeach
-
                                         </tr>
                                     @endforeach
                                 </tbody>
@@ -880,6 +1065,63 @@
         </div>
     @endif
 
+    {{-- ======================================================================== --}}
+    {{-- MODAL SAVE KE SAP (LOGIN SAP USER) --}}
+    {{-- ======================================================================== --}}
+    @if ($showSaveSapModal)
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm">
+            <div class="bg-white rounded-xl shadow-2xl border border-gray-200 w-full max-w-md p-6 animate-scale-in">
+                <h3 class="text-lg font-bold text-emerald-800 mb-4">
+                    Save ke SAP (Z_RFC_SAVE_YPPR058)
+                </h3>
+
+                <p class="text-xs text-gray-500 mb-4">
+                    Masukkan <span class="font-semibold text-emerald-700">SAP User</span> dan
+                    <span class="font-semibold text-emerald-700">Password</span> Anda.
+                    Data akan disimpan ke <code class="font-mono">ZTABLEYPPR058</code> dengan
+                    <code class="font-mono">createby = sy-uname</code>.
+                </p>
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">SAP User</label>
+                        <input type="text" wire:model.defer="sapUser"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm
+                               focus:ring-emerald-500 focus:border-emerald-500 text-sm">
+                        @error('sapUser')
+                            <span class="text-xs text-red-500 mt-1 block">{{ $message }}</span>
+                        @enderror
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">SAP Password</label>
+                        <input type="password" wire:model.defer="sapPass"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm
+                               focus:ring-emerald-500 focus:border-emerald-500 text-sm">
+                        @error('sapPass')
+                            <span class="text-xs text-red-500 mt-1 block">{{ $message }}</span>
+                        @enderror
+                    </div>
+                </div>
+
+                <div class="mt-6 flex justify-end gap-3">
+                    <button type="button" wire:click="closeSaveSapModal"
+                        class="px-4 py-2 text-sm rounded-md border border-gray-300
+                           bg-white text-gray-700 hover:bg-gray-50">
+                        Batal
+                    </button>
+
+                    <button type="button" wire:click="saveToSap"
+                        class="px-4 py-2 text-sm rounded-md bg-emerald-600 text-white
+                           hover:bg-emerald-700 shadow-sm">
+                        Save ke SAP
+                    </button>
+                </div>
+            </div>
+        </div>
+    @endif
+
+
     {{-- CSS ANIMASI --}}
     <style>
         @keyframes shine {
@@ -895,8 +1137,243 @@
         .animate-shine {
             animation: shine 3s infinite;
         }
+
+        @keyframes shrinkWidth {
+            from {
+                width: 100%;
+            }
+
+            to {
+                width: 0%;
+            }
+        }
+
+        .animate-shrink-width {
+            animation: shrinkWidth 6s linear forwards;
+        }
+
+        @keyframes slideInRight {
+            from {
+                opacity: 0;
+                transform: translateX(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .animate-slide-in-right {
+            animation: slideInRight 0.4s ease-out forwards;
+        }
+
+        @keyframes scaleIn {
+            from {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .animate-scale-in {
+            animation: scaleIn 0.2s ease-out forwards;
+        }
+
+        /* ===== TABEL SUMMARY: KOMPAK TAPI NYAMAN DIBACA ===== */
+
+        #web-summary-table {
+            table-layout: fixed;
+            font-size: 13px;
+            /* isi sedikit lebih kecil */
+        }
+
+        /* HEADER */
+        #web-summary-table thead th {
+            padding: 7px 6px;
+            line-height: 1.3;
+            white-space: normal;
+            /* boleh 2 baris */
+            font-size: 12px;
+            /* header lebih besar dari isi */
+            letter-spacing: 0.04em;
+        }
+
+        /* BODY */
+        #web-summary-table tbody td {
+            padding: 5px 6px;
+            line-height: 1.3;
+            white-space: normal;
+            word-wrap: break-word;
+        }
+
+        /* Kolom 1 = checkbox */
+        #web-summary-table th:nth-child(1),
+        #web-summary-table td:nth-child(1) {
+            width: 28px;
+        }
+
+        /* Kolom 2 = NO */
+        #web-summary-table th:nth-child(2),
+        #web-summary-table td:nth-child(2) {
+            width: 34px;
+            text-align: center;
+        }
+
+        /* Kolom 3 = PERSONAL NO */
+        #web-summary-table th:nth-child(3),
+        #web-summary-table td:nth-child(3) {
+            width: 75px;
+        }
+
+        /* Kolom 4 = RENTANG TANGGAL */
+        #web-summary-table th:nth-child(4),
+        #web-summary-table td:nth-child(4) {
+            width: 80px;
+        }
+
+        /* Kolom 5 = NAMA */
+        #web-summary-table th:nth-child(5),
+        #web-summary-table td:nth-child(5) {
+            width: 150px;
+        }
+
+        /* Kolom 6–7 = WC PERSONAL & WC KONFIRMASI */
+        #web-summary-table th:nth-child(6),
+        #web-summary-table td:nth-child(6),
+        #web-summary-table th:nth-child(7),
+        #web-summary-table td:nth-child(7) {
+            width: 70px;
+        }
+
+        /* Kolom 8 = DESC WC */
+        #web-summary-table th:nth-child(8),
+        #web-summary-table td:nth-child(8) {
+            width: 200px;
+        }
+
+        /* Kolom 9 = ROLE */
+        #web-summary-table th:nth-child(9),
+        #web-summary-table td:nth-child(9) {
+            width: 70px;
+            text-align: center;
+        }
+
+        /* Kolom 10 = DEVISI */
+        #web-summary-table th:nth-child(10),
+        #web-summary-table td:nth-child(10) {
+            width: 110px;
+        }
+
+        /* ===== BLOK ANGKA (MENIT/DETIK/UPAH/VAR) ===== */
+        #web-summary-table th:nth-child(11),
+        #web-summary-table td:nth-child(11) {
+            /* garis pemisah antara identitas & angka */
+            border-left: 1px solid #e5e7eb;
+        }
+
+        #web-summary-table th:nth-child(n+11),
+        #web-summary-table td:nth-child(n+11) {
+            width: 85px;
+            text-align: center;
+            font-weight: 600;
+            /* LEBIH TEBAL, MUDAH DILIHAT */
+            letter-spacing: 0.01em;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+                sans-serif;
+        }
+
+        #detail-table {
+            table-layout: fixed;
+            font-size: 12px;
+        }
+
+        #detail-table thead th {
+            padding: 6px 4px;
+            line-height: 1.25;
+            font-size: 11px;
+            text-align: center;
+            white-space: normal;
+            /* boleh 2 baris */
+        }
+
+        #detail-table tbody td {
+            padding: 4px 4px;
+            line-height: 1.25;
+        }
+
+        /* Lebar beberapa kolom penting supaya tidak terlalu melebar */
+        #detail-table th:nth-child(1),
+        #detail-table td:nth-child(1) {
+            width: 28px;
+            /* checkbox */
+        }
+
+        #detail-table th:nth-child(2),
+        #detail-table td:nth-child(2) {
+            width: 32px;
+            /* No */
+            text-align: center;
+        }
+
+        #detail-table th:nth-child(3),
+        #detail-table td:nth-child(3) {
+            width: 80px;
+            /* Personal No */
+        }
+
+        #detail-table th:nth-child(4),
+        #detail-table td:nth-child(4) {
+            width: 70px;
+            /* Tanggal */
+        }
+
+        #detail-table th:nth-child(5),
+        #detail-table td:nth-child(5) {
+            width: 150px;
+            /* Nama */
+        }
+
+        #detail-table th:nth-child(6),
+        #detail-table td:nth-child(6),
+        #detail-table th:nth-child(7),
+        #detail-table td:nth-child(7) {
+            width: 70px;
+            /* WC Personal & WC Konfirmasi */
+        }
+
+        /* DESC WC sedikit lebih lebar tapi tetap singkat */
+        #detail-table th:nth-child(8),
+        #detail-table td:nth-child(8) {
+            width: 175px;
+            /* bikin lebih sempit supaya text jadi 2 baris */
+        }
+
+        #detail-table thead th,
+        #detail-table tbody td {
+            border-right: 1px solid #e5e7eb;
+            /* garis vertikal tipis antar kolom */
+        }
+
+        #detail-table thead th:last-child,
+        #detail-table tbody td:last-child {
+            border-right: none;
+            /* kolom terakhir tanpa garis kanan */
+        }
+
+        /* Devisi – lebar sekitar 175px seperti summary */
+        #detail-table th:nth-child(10),
+        #detail-table td:nth-child(10) {
+            width: 175px;
+            text-align: center;
+        }
     </style>
 </div>
+
 
 {{-- ======= STYLE & SCRIPT BAWAAN ======= --}}
 @push('styles')
@@ -926,6 +1403,7 @@
                 window.__yppr058Bound = true;
 
                 const API_BASE = 'http://127.0.0.1:5010';
+                const API_REFRESH_URL = `${API_BASE}/api/yppr058/refresh`;
                 const CURRENT_WERKS = @json($werks ?? request()->route('werks'));
                 const LS_PREFILL = 'yppr058_prefill_q';
                 const LS_SUMMARY = 'yppr058_refresh_summary';
@@ -1008,7 +1486,8 @@
                         exportDetailMenu.classList.toggle('hidden');
                     });
                     document.addEventListener('click', function(e) {
-                        if (!exportDetailMenu.classList.contains('hidden') && !exportDetailBtn.contains(e.target) &&
+                        if (!exportDetailMenu.classList.contains('hidden') && !exportDetailBtn.contains(e
+                                .target) &&
                             !exportDetailMenu.contains(e.target)) {
                             exportDetailMenu.classList.add('hidden');
                         }
@@ -1130,7 +1609,7 @@
                                         <p class="text-xs text-gray-600 mt-1 break-all">${text}</p>
                                     </div>
                                     <button class="text-gray-400 hover:text-gray-600"
-                                        onclick="this.closest('div.pointer-events-auto').remove()">✕</button>
+                                            onclick="this.closest('div.pointer-events-auto').remove()">✕</button>
                                 </div>
                             </div>`;
                         const card = makeCard(html);
@@ -1239,7 +1718,7 @@
                         };
 
                         try {
-                            const resp = await fetch(`${API_BASE}/api/yppr058/refresh`, {
+                            const resp = await fetch(API_REFRESH_URL, {
                                 method: 'POST',
                                 headers: {
                                     'Content-Type': 'application/json'
@@ -1397,13 +1876,13 @@
                         updateProgress(done, total);
 
                         try {
-                            const resp = await fetch(`${API_BASE}/api/yppr058/refresh`, {
+                            const resp = await fetch(API_REFRESH_URL, {
                                 method: 'POST',
                                 headers: {
                                     'Content-Type': 'application/json'
                                 },
                                 body: JSON.stringify({
-                                    items: [item] // <-- 1 paket (bisa banyak NIK) per request
+                                    items: [item]
                                 }),
                             });
                             const data = await resp.json().catch(() => ({}));
