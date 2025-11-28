@@ -11,7 +11,7 @@
             <h2 class="text-3xl font-bold text-gray-800 tracking-tight">
                 Selamat Datang
             </h2>
-            <p class="text-base text-gray-500 mt-1">Masuk ke Dashboard Personalia Anda</p>
+            <p class="text-base text-gray-500 mt-1">Masuk ke Dashboard</p>
         </div>
 
         @if ($status)

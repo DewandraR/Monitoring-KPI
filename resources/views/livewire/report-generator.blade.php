@@ -130,367 +130,355 @@
         class="absolute top-0 right-0 -mt-4 -mr-4 w-64 h-64 bg-gradient-to-br from-emerald-100/40 to-transparent rounded-full blur-3xl pointer-events-none">
     </div>
 
-    {{-- ======================================================================== --}}
-    {{-- BAGIAN 1: HEADER MEWAH & TOMBOL EXPORT --}}
-    {{-- ======================================================================== --}}
-    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8 relative z-10">
+    {{-- BAGIAN 1: HEADER MEWAH & TOMBOL EXPORT (FULLY RESPONSIVE) --}}
+    <div class="flex flex-col gap-6 mb-8 relative z-10">
 
-        {{-- JUDUL HALAMAN --}}
-        <div>
-            <h3
-                class="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-800 to-teal-600 tracking-tight drop-shadow-sm">
-                {{ __('Report Data') }} <span class="text-emerald-900/20 font-light">—</span> yppr058_data
-            </h3>
-            <p class="mt-1.5 text-sm text-slate-500">
-                Plant terpilih:
-                <span
-                    class="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">{{ $werks ?? request()->route('werks') }}</span>
-            </p>
-            <p class="mt-0.5 text-xs text-gray-400">
-                (Ringkasan per Personal No.)
-            </p>
-        </div>
-
-        {{-- TOMBOL AKSI MODERN (HORIZONTAL LAYOUT) --}}
-        <div class="flex items-center gap-3">
-
-            {{-- BARIS HORIZONTAL: SEMUA TOMBOL --}}
-            <div class="flex items-center gap-2.5">
-
-                {{-- TOMBOL REFRESH BULAN INI --}}
-                <button id="btn-refresh-summary" type="button"
-                    class="group relative inline-flex items-center gap-2.5 rounded-xl 
-                   bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-700
-                   px-5 py-3 text-sm font-bold text-white 
-                   shadow-lg shadow-emerald-600/30 
-                   ring-1 ring-emerald-500/20
-                   transition-all duration-300 ease-out 
-                   hover:shadow-2xl hover:shadow-emerald-600/40 hover:scale-[1.02]
-                   hover:ring-emerald-400/40
-                   focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2
-                   disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100">
-
-                    {{-- Glow Effect --}}
-                    <div
-                        class="absolute inset-0 rounded-xl bg-gradient-to-r from-emerald-400/0 via-white/25 to-emerald-400/0 
-                        opacity-0 group-hover:opacity-100 blur-xl transition-opacity duration-500">
-                    </div>
-
-                    <svg xmlns="http://www.w3.org/2000/svg"
-                        class="h-5 w-5 relative z-10 transition-transform duration-300 group-hover:rotate-180"
-                        fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                        <path stroke-linecap="round" stroke-linejoin="round"
-                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-
-                    <span class="relative z-10">Refresh Bulan Ini</span>
-
-                    @if ($selectedCount > 0)
-                        <span
-                            class="flex h-6 w-6 items-center justify-center rounded-lg 
-                             bg-white text-emerald-700 text-[11px] font-black 
-                             shadow-md ring-2 ring-emerald-500/30 relative z-10
-                             transition-transform duration-300 group-hover:scale-110 group-hover:ring-emerald-400/50">
-                            {{ $selectedCount }}
-                        </span>
-                    @endif
-                </button>
-
-                {{-- TOMBOL COPY NIK --}}
-                <button id="btn-copy-nik" type="button"
-                    class="group relative inline-flex items-center gap-2.5 rounded-xl
-                   bg-gradient-to-r from-teal-600 via-emerald-600 to-emerald-700
-                   px-5 py-3 text-sm font-bold text-white
-                   shadow-lg shadow-teal-600/30
-                   ring-1 ring-teal-500/20
-                   transition-all duration-300 ease-out
-                   hover:shadow-2xl hover:shadow-teal-600/40 hover:scale-[1.02]
-                   hover:ring-teal-400/40
-                   focus:outline-none focus:ring-2 focus:ring-teal-400 focus:ring-offset-2
-                   disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100">
-
-                    {{-- Glow Effect --}}
-                    <div
-                        class="absolute inset-0 rounded-xl bg-gradient-to-r from-teal-400/0 via-white/25 to-teal-400/0 
-                        opacity-0 group-hover:opacity-100 blur-xl transition-opacity duration-500">
-                    </div>
-
-                    <svg xmlns="http://www.w3.org/2000/svg"
-                        class="h-5 w-5 relative z-10 transition-all duration-300 group-hover:scale-110" fill="none"
-                        viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                        <path stroke-linecap="round" stroke-linejoin="round"
-                            d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-
-                    <span class="relative z-10">Copy NIK</span>
-
-                    @if ($selectedCount > 0)
-                        <span
-                            class="flex h-6 w-6 items-center justify-center rounded-lg 
-                             bg-white text-teal-700 text-[11px] font-black 
-                             shadow-md ring-2 ring-teal-500/30 relative z-10
-                             transition-transform duration-300 group-hover:scale-110 group-hover:ring-teal-400/50">
-                            {{ $selectedCount }}
-                        </span>
-                    @endif
-                </button>
-
-                {{-- TOMBOL SAVE KE SAP (NEW: ROYAL TECH BLUE DESIGN) --}}
-                <button type="button" wire:click="openSaveSapModal"
-                    class="group relative inline-flex items-center gap-2.5 rounded-xl
-                           bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-700
-                           px-5 py-3 text-sm font-bold text-white
-                           shadow-lg shadow-blue-500/30
-                           ring-1 ring-white/20
-                           transition-all duration-300 ease-[cubic-bezier(0.23,1,0.32,1)]
-                           hover:shadow-2xl hover:shadow-indigo-500/50 hover:-translate-y-0.5 hover:scale-[1.02]
-                           focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2
-                           disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none">
-
-                    {{-- 1. Background Shine Animation (Efek Kilau Berjalan saat Hover) --}}
-                    <div class="absolute inset-0 overflow-hidden rounded-xl">
-                        <div
-                            class="absolute top-0 -left-[100%] h-full w-[50%] 
-                                    bg-gradient-to-r from-transparent via-white/20 to-transparent 
-                                    transform -skew-x-12 transition-all duration-1000 ease-in-out 
-                                    group-hover:left-[200%]">
-                        </div>
-                    </div>
-
-                    {{-- 2. Internal Glow (Efek Cahaya Dalam) --}}
-                    <div
-                        class="absolute inset-0 rounded-xl bg-gradient-to-b from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                    </div>
-
-                    {{-- 3. Icon (Floppy Disk / Save - Lebih Relevan) --}}
-                    <svg xmlns="http://www.w3.org/2000/svg"
-                        class="h-5 w-5 relative z-10 text-blue-100 transition-transform duration-300 group-hover:scale-110 group-hover:text-white"
-                        fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                        <path stroke-linecap="round" stroke-linejoin="round"
-                            d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-                    </svg>
-
-                    {{-- 4. Text --}}
-                    <span class="relative z-10 tracking-wide drop-shadow-sm">Save ke SAP</span>
-
-                    {{-- 5. Badge Counter (Desain Baru: Glassmorphism Blue) --}}
-                    @if ($selectedCount > 0)
-                        <span
-                            class="flex h-6 min-w-[24px] items-center justify-center rounded-lg 
-                                     bg-white/90 text-indigo-700 text-[11px] font-black 
-                                     shadow-md ring-1 ring-indigo-500/30 relative z-10 px-1.5
-                                     transition-all duration-300 group-hover:scale-110 group-hover:bg-white group-hover:text-indigo-800">
-                            {{ $selectedCount }}
-                        </span>
-                    @endif
-                </button>
-
-                {{-- DIVIDER --}}
-                <div class="h-10 w-px bg-gradient-to-b from-transparent via-gray-300 to-transparent"></div>
-
-                {{-- EXPORT REPORT (SUMMARY) --}}
-                <div class="relative inline-block text-left">
-                    <button id="export-dropdown-button" type="button"
-                        class="group relative inline-flex items-center gap-2.5 rounded-xl
-                       bg-gradient-to-r from-emerald-700 via-emerald-800 to-teal-900
-                       px-5 py-3 text-sm font-bold text-white
-                       shadow-lg shadow-emerald-700/30
-                       ring-1 ring-emerald-600/20
-                       transition-all duration-300 ease-out
-                       hover:shadow-2xl hover:shadow-emerald-700/40 hover:scale-[1.02]
-                       hover:ring-emerald-500/40
-                       focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2">
-
-                        {{-- Glow Effect --}}
-                        <div
-                            class="absolute inset-0 rounded-xl bg-gradient-to-r from-emerald-500/0 via-white/20 to-emerald-500/0 
-                            opacity-0 group-hover:opacity-100 blur-xl transition-opacity duration-500">
-                        </div>
-
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 relative z-10" fill="none"
-                            viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                            <path stroke-linecap="round" stroke-linejoin="round"
-                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                        </svg>
-
-                        <span class="relative z-10">Export Report</span>
-
-                        @if ($selectedCount > 0)
-                            <span
-                                class="flex h-6 w-6 items-center justify-center rounded-lg 
-                                 bg-white text-emerald-800 text-[11px] font-black 
-                                 shadow-md ring-2 ring-emerald-600/30 relative z-10
-                                 transition-transform duration-300 group-hover:scale-110 group-hover:ring-emerald-500/50">
-                                {{ $selectedCount }}
-                            </span>
-                        @endif
-
-                        <svg xmlns="http://www.w3.org/2000/svg"
-                            class="h-4 w-4 relative z-10 transition-transform duration-300 group-hover:rotate-180"
-                            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-                        </svg>
-                    </button>
-
-                    {{-- Dropdown Menu - Tema Hijau --}}
-                    <div id="export-dropdown-menu"
-                        class="hidden absolute right-0 mt-2 w-52 origin-top-right 
-                       rounded-xl bg-white shadow-2xl ring-1 ring-emerald-900/10
-                       focus:outline-none z-50 overflow-hidden
-                       border border-emerald-100">
-
-                        <div
-                            class="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest 
-                            text-emerald-700 bg-gradient-to-r from-emerald-50 to-teal-50 
-                            border-b border-emerald-100">
-                            📊 Summary Report
-                        </div>
-
-                        <div class="p-2">
-                            {{-- PDF Option --}}
-                            <button type="button" wire:click="export('pdf')"
-                                class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 
-                               text-sm font-semibold text-gray-700 
-                               transition-all hover:bg-red-50 hover:text-red-700 
-                               group/item">
-                                <div
-                                    class="flex h-8 w-8 items-center justify-center rounded-lg 
-                                    bg-gradient-to-br from-red-100 to-red-200 text-red-600 
-                                    shadow-sm group-hover/item:shadow-md 
-                                    group-hover/item:scale-110 transition-all">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
-                                        viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                        <path stroke-linecap="round" stroke-linejoin="round"
-                                            d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                                    </svg>
-                                </div>
-                                <span>Download PDF</span>
-                            </button>
-
-                            {{-- Excel Option --}}
-                            <button type="button" wire:click="export('excel')"
-                                class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 
-                               text-sm font-semibold text-gray-700 
-                               transition-all hover:bg-emerald-50 hover:text-emerald-700 
-                               group/item">
-                                <div
-                                    class="flex h-8 w-8 items-center justify-center rounded-lg 
-                                    bg-gradient-to-br from-emerald-100 to-emerald-200 text-emerald-600 
-                                    shadow-sm group-hover/item:shadow-md 
-                                    group-hover/item:scale-110 transition-all">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
-                                        viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                        <path stroke-linecap="round" stroke-linejoin="round"
-                                            d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                    </svg>
-                                </div>
-                                <span>Download Excel</span>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                {{-- EXPORT DETAIL --}}
-                <div class="relative inline-block text-left">
-                    <button id="export-detail-dropdown-button" type="button"
-                        class="group relative inline-flex items-center gap-2.5 rounded-xl
-                       bg-gradient-to-r from-slate-700 via-slate-800 to-gray-900
-                       px-5 py-3 text-sm font-bold text-white
-                       shadow-lg shadow-slate-700/30
-                       ring-1 ring-slate-600/20
-                       transition-all duration-300 ease-out
-                       hover:shadow-2xl hover:shadow-slate-700/40 hover:scale-[1.02]
-                       hover:ring-slate-500/40
-                       focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2">
-
-                        {{-- Glow Effect --}}
-                        <div
-                            class="absolute inset-0 rounded-xl bg-gradient-to-r from-slate-500/0 via-white/15 to-slate-500/0 
-                            opacity-0 group-hover:opacity-100 blur-xl transition-opacity duration-500">
-                        </div>
-
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
-                            stroke="currentColor" stroke-width="2.5">
-                            <path stroke-linecap="round" stroke-linejoin="round"
-                                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-
-                        <span>Export Detail</span>
-
-                        @if ($detailSelectedCount > 0)
-                            <span
-                                class="flex h-5 w-5 items-center justify-center rounded-full 
-                                 bg-white/90 text-slate-700 text-[10px] font-black 
-                                 shadow-sm ring-1 ring-slate-900/10
-                                 transition-transform duration-300 group-hover:scale-110">
-                                {{ $detailSelectedCount }}
-                            </span>
-                        @endif
-
-                        <svg xmlns="http://www.w3.org/2000/svg"
-                            class="h-3.5 w-3.5 transition-transform duration-300 group-hover:rotate-180"
-                            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-                        </svg>
-                    </button>
-
-                    {{-- Dropdown Menu --}}
-                    <div id="export-detail-dropdown-menu"
-                        class="hidden absolute right-0 mt-2 w-48 origin-top-right 
-                       rounded-lg bg-white shadow-xl ring-1 ring-black/5 
-                       focus:outline-none z-50 overflow-hidden
-                       border border-gray-100">
-
-                        <div
-                            class="px-3 py-2 text-[10px] font-bold uppercase tracking-wider 
-                            text-gray-500 bg-gray-50 border-b border-gray-100">
-                            Detail Report
-                        </div>
-
-                        <div class="p-1">
-                            {{-- PDF Option --}}
-                            <button type="button" wire:click="exportDetail('pdf')"
-                                class="flex w-full items-center gap-2.5 rounded-md px-3 py-2 
-                               text-sm font-medium text-gray-700 
-                               transition-colors hover:bg-red-50 hover:text-red-700 
-                               group/item">
-                                <div
-                                    class="flex h-7 w-7 items-center justify-center rounded-md 
-                                    bg-red-100 text-red-600 
-                                    group-hover/item:bg-red-200 transition-colors">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none"
-                                        viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                        <path stroke-linecap="round" stroke-linejoin="round"
-                                            d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                                    </svg>
-                                </div>
-                                <span>PDF</span>
-                            </button>
-
-                            {{-- Excel Option --}}
-                            <button type="button" wire:click="exportDetail('excel')"
-                                class="flex w-full items-center gap-2.5 rounded-md px-3 py-2 
-                               text-sm font-medium text-gray-700 
-                               transition-colors hover:bg-emerald-50 hover:text-emerald-700 
-                               group/item">
-                                <div
-                                    class="flex h-7 w-7 items-center justify-center rounded-md 
-                                    bg-emerald-100 text-emerald-600 
-                                    group-hover/item:bg-emerald-200 transition-colors">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none"
-                                        viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                        <path stroke-linecap="round" stroke-linejoin="round"
-                                            d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                    </svg>
-                                </div>
-                                <span>Excel</span>
-                            </button>
-                        </div>
-                    </div>
+        {{-- BARIS 1: JUDUL HALAMAN --}}
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            {{-- JUDUL --}}
+            <div class="space-y-2">
+                <h3
+                    class="text-3xl lg:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-800 to-teal-600 tracking-tight drop-shadow-sm animate-fade-in">
+                    {{ __('Report Data') }}
+                    <span class="text-emerald-900/20 font-light">—</span>
+                    <span class="text-2xl lg:text-3xl">yppr058_data</span>
+                </h3>
+                <div class="flex flex-wrap items-center gap-2 text-sm">
+                    <span class="text-slate-500">Plant terpilih:</span>
+                    <span class="font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-lg shadow-sm">
+                        {{ $werks ?? request()->route('werks') }}
+                    </span>
+                    <span class="text-xs text-gray-400 italic">
+                        (Ringkasan per Personal No.)
+                    </span>
                 </div>
             </div>
         </div>
+
+        {{-- BARIS 2: SEMUA TOMBOL AKSI (GRID RESPONSIVE) --}}
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
+
+            {{-- TOMBOL 1: REFRESH BULAN INI --}}
+            <button id="btn-refresh-summary" type="button"
+                class="group relative overflow-hidden rounded-xl 
+                   bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-700
+                   px-5 py-4 text-sm font-bold text-white 
+                   shadow-lg shadow-emerald-600/30 
+                   ring-1 ring-emerald-500/20
+                   transition-all duration-300 ease-out 
+                   hover:shadow-2xl hover:shadow-emerald-600/50 hover:-translate-y-1
+                   hover:ring-emerald-400/40
+                   focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2
+                   disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none
+                   flex items-center justify-center gap-2.5">
+
+                {{-- Shimmer Background Effect --}}
+                <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                    <div
+                        class="absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000">
+                    </div>
+                </div>
+
+                {{-- Icon --}}
+                <svg xmlns="http://www.w3.org/2000/svg"
+                    class="h-5 w-5 relative z-10 transition-transform duration-300 group-hover:rotate-180"
+                    fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+
+                <span class="relative z-10 whitespace-nowrap">Refresh Bulan Ini</span>
+
+                @if ($selectedCount > 0)
+                    <span
+                        class="flex h-6 min-w-[24px] items-center justify-center rounded-lg 
+                             bg-white/95 text-emerald-700 text-[11px] font-black 
+                             shadow-md ring-2 ring-white/50 relative z-10 px-1.5
+                             transition-transform duration-300 group-hover:scale-110 animate-pulse">
+                        {{ $selectedCount }}
+                    </span>
+                @endif
+            </button>
+
+            {{-- TOMBOL 2: COPY NIK --}}
+            <button id="btn-copy-nik" type="button"
+                class="group relative overflow-hidden rounded-xl
+                   bg-gradient-to-br from-teal-600 via-emerald-600 to-emerald-700
+                   px-5 py-4 text-sm font-bold text-white
+                   shadow-lg shadow-teal-600/30
+                   ring-1 ring-teal-500/20
+                   transition-all duration-300 ease-out
+                   hover:shadow-2xl hover:shadow-teal-600/50 hover:-translate-y-1
+                   hover:ring-teal-400/40
+                   focus:outline-none focus:ring-2 focus:ring-teal-400 focus:ring-offset-2
+                   disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none
+                   flex items-center justify-center gap-2.5">
+
+                <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                    <div
+                        class="absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000">
+                    </div>
+                </div>
+
+                <svg xmlns="http://www.w3.org/2000/svg"
+                    class="h-5 w-5 relative z-10 transition-all duration-300 group-hover:scale-110" fill="none"
+                    viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+
+                <span class="relative z-10 whitespace-nowrap">Copy NIK</span>
+
+                @if ($selectedCount > 0)
+                    <span
+                        class="flex h-6 min-w-[24px] items-center justify-center rounded-lg 
+                             bg-white/95 text-teal-700 text-[11px] font-black 
+                             shadow-md ring-2 ring-white/50 relative z-10 px-1.5
+                             transition-transform duration-300 group-hover:scale-110 animate-pulse">
+                        {{ $selectedCount }}
+                    </span>
+                @endif
+            </button>
+
+            {{-- TOMBOL 3: SAVE KE SAP --}}
+            <button type="button" wire:click="openSaveSapModal"
+                class="group relative overflow-hidden rounded-xl
+                   bg-gradient-to-br from-blue-600 via-indigo-600 to-indigo-700
+                   px-5 py-4 text-sm font-bold text-white
+                   shadow-lg shadow-blue-500/30
+                   ring-1 ring-white/20
+                   transition-all duration-300 ease-out
+                   hover:shadow-2xl hover:shadow-indigo-500/50 hover:-translate-y-1
+                   focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2
+                   disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none
+                   flex items-center justify-center gap-2.5">
+
+                {{-- Animated Shine --}}
+                <div class="absolute inset-0 overflow-hidden">
+                    <div
+                        class="absolute top-0 -left-[100%] h-full w-[50%] 
+                            bg-gradient-to-r from-transparent via-white/20 to-transparent 
+                            transform -skew-x-12 transition-all duration-1000 ease-in-out 
+                            group-hover:left-[200%]">
+                    </div>
+                </div>
+
+                <svg xmlns="http://www.w3.org/2000/svg"
+                    class="h-5 w-5 relative z-10 transition-transform duration-300 group-hover:scale-110" fill="none"
+                    viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                </svg>
+
+                <span class="relative z-10 whitespace-nowrap">Save ke SAP</span>
+
+                @if ($selectedCount > 0)
+                    <span
+                        class="flex h-6 min-w-[24px] items-center justify-center rounded-lg 
+                             bg-white/95 text-indigo-700 text-[11px] font-black 
+                             shadow-md ring-1 ring-indigo-500/30 relative z-10 px-1.5
+                             transition-all duration-300 group-hover:scale-110 animate-pulse">
+                        {{ $selectedCount }}
+                    </span>
+                @endif
+            </button>
+
+            {{-- TOMBOL 4: EXPORT REPORT (SUMMARY) --}}
+            <div class="relative inline-block w-full">
+                <button id="export-dropdown-button" type="button"
+                    class="group relative overflow-hidden rounded-xl w-full
+                       bg-gradient-to-br from-emerald-700 via-emerald-800 to-teal-900
+                       px-5 py-4 text-sm font-bold text-white
+                       shadow-lg shadow-emerald-700/30
+                       ring-1 ring-emerald-600/20
+                       transition-all duration-300 ease-out
+                       hover:shadow-2xl hover:shadow-emerald-700/50 hover:-translate-y-1
+                       hover:ring-emerald-500/40
+                       focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2
+                       flex items-center justify-center gap-2.5">
+
+                    <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                        <div
+                            class="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000">
+                        </div>
+                    </div>
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 relative z-10" fill="none"
+                        viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+
+                    <span class="relative z-10 whitespace-nowrap">Export Report</span>
+
+                    @if ($selectedCount > 0)
+                        <span
+                            class="flex h-6 min-w-[24px] items-center justify-center rounded-lg 
+                                 bg-white/95 text-emerald-800 text-[11px] font-black 
+                                 shadow-md ring-2 ring-white/50 relative z-10 px-1.5
+                                 transition-transform duration-300 group-hover:scale-110 animate-pulse">
+                            {{ $selectedCount }}
+                        </span>
+                    @endif
+
+                    <svg xmlns="http://www.w3.org/2000/svg"
+                        class="h-4 w-4 relative z-10 transition-transform duration-300 group-hover:rotate-180"
+                        fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                </button>
+
+                {{-- Dropdown Menu --}}
+                <div id="export-dropdown-menu"
+                    class="hidden absolute right-0 left-0 sm:left-auto sm:right-0 mt-2 sm:w-52 w-full origin-top
+                       rounded-xl bg-white shadow-2xl ring-1 ring-emerald-900/10
+                       focus:outline-none z-50 overflow-hidden
+                       border border-emerald-100 animate-scale-in">
+
+                    <div
+                        class="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest 
+                            text-emerald-700 bg-gradient-to-r from-emerald-50 to-teal-50 
+                            border-b border-emerald-100">
+                        📊 Summary Report
+                    </div>
+
+                    <div class="p-2">
+                        <button type="button" wire:click="export('pdf')"
+                            class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 
+                               text-sm font-semibold text-gray-700 
+                               transition-all hover:bg-red-50 hover:text-red-700 group/item">
+                            <div
+                                class="flex h-8 w-8 items-center justify-center rounded-lg 
+                                    bg-gradient-to-br from-red-100 to-red-200 text-red-600 
+                                    shadow-sm group-hover/item:shadow-md group-hover/item:scale-110 transition-all">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
+                                    viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                </svg>
+                            </div>
+                            <span>Download PDF</span>
+                        </button>
+
+                        <button type="button" wire:click="export('excel')"
+                            class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 
+                               text-sm font-semibold text-gray-700 
+                               transition-all hover:bg-emerald-50 hover:text-emerald-700 group/item">
+                            <div
+                                class="flex h-8 w-8 items-center justify-center rounded-lg 
+                                    bg-gradient-to-br from-emerald-100 to-emerald-200 text-emerald-600 
+                                    shadow-sm group-hover/item:shadow-md group-hover/item:scale-110 transition-all">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
+                                    viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                            </div>
+                            <span>Download Excel</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {{-- TOMBOL 5: EXPORT DETAIL --}}
+            <div class="relative inline-block w-full">
+                <button id="export-detail-dropdown-button" type="button"
+                    class="group relative overflow-hidden rounded-xl w-full
+                       bg-gradient-to-br from-slate-700 via-slate-800 to-gray-900
+                       px-5 py-4 text-sm font-bold text-white
+                       shadow-lg shadow-slate-700/30
+                       ring-1 ring-slate-600/20
+                       transition-all duration-300 ease-out
+                       hover:shadow-2xl hover:shadow-slate-700/50 hover:-translate-y-1
+                       hover:ring-slate-500/40
+                       focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2
+                       flex items-center justify-center gap-2.5">
+
+                    <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                        <div
+                            class="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000">
+                        </div>
+                    </div>
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 relative z-10" fill="none"
+                        viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+
+                    <span class="relative z-10 whitespace-nowrap">Export Detail</span>
+
+                    @if ($detailSelectedCount > 0)
+                        <span
+                            class="flex h-6 min-w-[24px] items-center justify-center rounded-lg 
+                                 bg-white/95 text-slate-700 text-[11px] font-black 
+                                 shadow-sm ring-1 ring-slate-900/20 relative z-10 px-1.5
+                                 transition-transform duration-300 group-hover:scale-110 animate-pulse">
+                            {{ $detailSelectedCount }}
+                        </span>
+                    @endif
+
+                    <svg xmlns="http://www.w3.org/2000/svg"
+                        class="h-3.5 w-3.5 relative z-10 transition-transform duration-300 group-hover:rotate-180"
+                        fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                </button>
+
+                {{-- Dropdown Menu --}}
+                <div id="export-detail-dropdown-menu"
+                    class="hidden absolute right-0 left-0 sm:left-auto sm:right-0 mt-2 sm:w-48 w-full origin-top
+                       rounded-lg bg-white shadow-xl ring-1 ring-black/5 
+                       focus:outline-none z-50 overflow-hidden
+                       border border-gray-100 animate-scale-in">
+
+                    <div
+                        class="px-3 py-2 text-[10px] font-bold uppercase tracking-wider 
+                            text-gray-500 bg-gray-50 border-b border-gray-100">
+                        📅 Detail Report
+                    </div>
+
+                    <div class="p-1">
+                        <button type="button" wire:click="exportDetail('pdf')"
+                            class="flex w-full items-center gap-2.5 rounded-md px-3 py-2 
+                               text-sm font-medium text-gray-700 
+                               transition-colors hover:bg-red-50 hover:text-red-700 group/item">
+                            <div
+                                class="flex h-7 w-7 items-center justify-center rounded-md 
+                                    bg-red-100 text-red-600 
+                                    group-hover/item:bg-red-200 transition-colors">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none"
+                                    viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                </svg>
+                            </div>
+                            <span>PDF</span>
+                        </button>
+
+                        <button type="button" wire:click="exportDetail('excel')"
+                            class="flex w-full items-center gap-2.5 rounded-md px-3 py-2 
+                               text-sm font-medium text-gray-700 
+                               transition-colors hover:bg-emerald-50 hover:text-emerald-700 group/item">
+                            <div
+                                class="flex h-7 w-7 items-center justify-center rounded-md 
+                                    bg-emerald-100 text-emerald-600 
+                                    group-hover/item:bg-emerald-200 transition-colors">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none"
+                                    viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                            </div>
+                            <span>Excel</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
     </div>
+
 
     {{-- ======================================================================== --}}
     {{-- BAGIAN 2: FILTER PENCARIAN --}}
@@ -1075,6 +1063,27 @@
                     Save ke SAP (Z_RFC_SAVE_YPPR058)
                 </h3>
 
+                @if ($sapAuthError)
+                    <div
+                        class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 flex gap-3 items-start shadow-sm">
+                        <div
+                            class="mt-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-red-100 text-red-600">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
+                                viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M12 9v3m0 4h.01M4.93 4.93l14.14 14.14M12 4a8 8 0 100 16 8 8 0 000-16z" />
+                            </svg>
+                        </div>
+                        <div class="text-sm text-red-800">
+                            <p class="font-semibold mb-1">
+                                SAP User tidak memiliki otorisasi
+                            </p>
+                            <p class="leading-snug">
+                                {{ $sapAuthError }}
+                            </p>
+                        </div>
+                    </div>
+                @endif
                 <p class="text-xs text-gray-500 mb-4">
                     Masukkan <span class="font-semibold text-emerald-700">SAP User</span> dan
                     <span class="font-semibold text-emerald-700">Password</span> Anda.
@@ -1370,6 +1379,45 @@
         #detail-table td:nth-child(10) {
             width: 175px;
             text-align: center;
+        }
+
+        @keyframes fade-in {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .animate-fade-in {
+            animation: fade-in 0.6s ease-out;
+        }
+
+        @keyframes scale-in {
+            from {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .animate-scale-in {
+            animation: scale-in 0.2s ease-out;
+        }
+
+        /* Responsive text sizes */
+        @media (max-width: 640px) {
+            h3 {
+                font-size: 1.5rem;
+            }
         }
     </style>
 </div>

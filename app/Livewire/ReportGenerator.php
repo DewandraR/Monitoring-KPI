@@ -43,6 +43,7 @@ class ReportGenerator extends Component
     public string $sapUser = '';
     public string $sapPass = '';
     public array $saveResults = [];
+    public ?string $sapAuthError = null;
 
     public function exportDetail(string $format)
     {
@@ -196,12 +197,17 @@ class ReportGenerator extends Component
         $this->sapUser = '';
         $this->sapPass = '';
         $this->saveResults = [];
+
+        // ⬇️ reset pesan error otorisasi setiap kali modal dibuka
+        $this->sapAuthError = null;
+        // ⬆️
+
         $this->showSaveSapModal = true;
     }
-
     public function closeSaveSapModal()
     {
         $this->showSaveSapModal = false;
+        $this->sapAuthError = null; // ⬅️ sekalian clear
     }
 
     public function saveToSap()
@@ -230,13 +236,22 @@ class ReportGenerator extends Component
         $currentSapUser  = strtolower(trim($this->sapUser));
 
         if (!in_array($currentSapUser, $allowedSapUsers, true)) {
+            // ⬇️ isi pesan khusus untuk ditampilkan di modal
+            $this->sapAuthError = sprintf(
+                'SAP User "%s" tidak memiliki otorisasi untuk SAVE YPPR058. Silakan gunakan SAP user lain yang berhak.',
+                $this->sapUser
+            );
+
+            // optional: tetap pakai flash global kalau layout Anda sudah punya toast umum
             session()->flash(
                 'error',
                 'SAP User ' . $this->sapUser . ' tidak memiliki otorisasi untuk save YPPR058.'
             );
-            $this->showSaveSapModal = true;
-            return;
+
+            $this->showSaveSapModal = true; // tetap biarkan modal terbuka
+            return; // dan JANGAN kirim ke API
         }
+        $this->sapAuthError = null;
 
         // Ambil summary dari DB khusus pernr yang dipilih
         $baseQuery = ReportData::query()
