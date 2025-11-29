@@ -29,197 +29,280 @@
 @endphp
 
 {{-- ROOT ELEMENT DIMULAI DI SINI --}}
-<div
-    class="bg-white overflow-hidden shadow-[0_25px_50px_-12px_rgba(0,0,0,0.15)] sm:rounded-xl p-8 border border-emerald-50 relative">
+{{-- <div id="wc-person-root"
+    class="relative bg-white overflow-hidden shadow-[0_20px_45px_rgba(15,23,42,0.10)] sm:rounded-2xl p-6 sm:p-8 border border-slate-200"> --}}
+<div id="wc-person-root"
+    class="relative bg-gradient-to-br from-emerald-50 via-white to-teal-50 overflow-hidden shadow-[0_25px_50px_-12px_rgba(0,0,0,0.22)] sm:rounded-2xl p-6 sm:p-8 border border-emerald-100/80">
 
-    {{-- DEKORASI LATAR BELAKANG --}}
+    {{-- DEKORASI LATAR BELAKANG AURORA --}}
     <div
-        class="absolute top-0 right-0 -mt-4 -mr-4 w-64 h-64 bg-gradient-to-br from-emerald-100/40 to-transparent rounded-full blur-3xl pointer-events-none">
+        class="pointer-events-none absolute -top-24 -right-10 h-64 w-64 rounded-full bg-emerald-300/25 blur-3xl mix-blend-multiply">
+    </div>
+    <div
+        class="pointer-events-none absolute -bottom-32 -left-10 h-72 w-72 rounded-full bg-teal-300/25 blur-3xl mix-blend-multiply">
+    </div>
+    <div class="pointer-events-none absolute inset-0 opacity-40">
+        <div class="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.08),_transparent_60%)]"></div>
+        <div class="absolute inset-0 bg-[radial-gradient(circle_at_bottom,_rgba(20,184,166,0.08),_transparent_60%)]">
+        </div>
+    </div>
+
+    {{-- GRID HALUS DI BELAKANG --}}
+    <div class="pointer-events-none absolute inset-0 opacity-25 mix-blend-overlay">
+        <div
+            class="h-full w-full bg-[linear-gradient(to_right,rgba(148,163,184,0.12)_1px,transparent_1px),linear-gradient(to_bottom,rgba(148,163,184,0.12)_1px,transparent_1px)] bg-[size:40px_40px]">
+        </div>
     </div>
 
     {{-- ======================================================================== --}}
     {{-- BAGIAN TAMBAHAN: SYNC WORK CENTER MANUAL --}}
     {{-- ======================================================================== --}}
-    <div
-        class="mb-6 p-6 bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-emerald-100 relative z-20 overflow-visible">
+    <div class="mb-8 relative z-20 overflow-visible">
 
+        {{-- OUTER WRAPPER DENGAN AURORA BORDER --}}
+        <div
+            class="relative p-[1px] rounded-2xl bg-gradient-to-r from-emerald-500/40 via-emerald-300/40 to-teal-400/40 shadow-[0_18px_45px_rgba(16,185,129,0.40)]">
+            <div
+                class="relative p-5 sm:p-6 bg-white/95 rounded-2xl border border-emerald-100/70 backdrop-blur-xl overflow-visible">
 
-        <div class="relative z-10">
-            <h4 class="text-lg font-bold text-emerald-800 mb-1 flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24"
-                    stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                {{ __('Sync Data SAP') }}
-            </h4>
-            <p class="text-sm text-slate-500 mb-4">
-                Tarik data terbaru (Personil, Role Induk, Deskripsi) untuk Work Center tertentu.
-            </p>
-
-            <div class="flex flex-col sm:flex-row items-end gap-4">
-                {{-- INPUT WORK CENTER --}}
-                <div class="w-full sm:w-1/3">
-                    <label for="manual-arbpl" class="block text-xs font-bold text-gray-500 uppercase mb-1 ml-1">Work
-                        Center</label>
-                    <input type="text" id="manual-arbpl" placeholder="Contoh: WC007"
-                        class="w-full rounded-lg border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 text-sm uppercase font-mono font-bold h-10 placeholder:font-sans placeholder:font-normal">
+                {{-- garis tipis glowing di atas --}}
+                <div
+                    class="pointer-events-none absolute inset-x-6 -top-px h-px bg-gradient-to-r from-transparent via-emerald-400/80 to-transparent opacity-80">
                 </div>
 
-                {{-- INPUT PLANT (CUSTOM DROPDOWN) --}}
-                <div class="w-full sm:w-1/4">
-                    <label for="wc-plant-dropdown-button"
-                        class="block text-xs font-bold text-emerald-700 uppercase mb-1 ml-1">Plant</label>
-
-                    <div class="relative" id="wc-plant-dropdown">
-                        {{-- Tombol tampilan --}}
-                        <button type="button" id="wc-plant-dropdown-button"
-                            class="inline-flex items-center justify-between w-full
-                                        rounded-lg border border-emerald-300
-                                        bg-gradient-to-r from-emerald-50 via-white to-teal-50
-                                        px-3 py-2 h-10 text-xs sm:text-sm font-semibold text-emerald-900
-                                        shadow-sm transition-all
-                                        hover:border-emerald-400 hover:bg-emerald-50/80
-                                        focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
-                            <span id="wc-plant-dropdown-label" class="truncate text-emerald-400">
-                                Pilih Plant
-                            </span>
-                            <span class="ml-2 flex items-center justify-center rounded-full bg-emerald-100/80 p-1">
-                                <svg xmlns="http://www.w3.org/2000/svg" id="wc-plant-dropdown-chevron"
-                                    class="h-4 w-4 text-emerald-600 transition-transform duration-200" fill="none"
-                                    viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-                                </svg>
-                            </span>
-                        </button>
-
-                        {{-- Menu pilihan --}}
-                        <div id="wc-plant-dropdown-menu"
-                            class="hidden absolute z-30 mt-1 w-full origin-top rounded-xl
-                                        bg-white shadow-2xl shadow-emerald-900/10 ring-1 ring-black/5
-                                        border border-emerald-100 overflow-hidden">
+                <div class="relative z-10">
+                    <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
+                        <div>
                             <div
-                                class="px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-400 bg-emerald-50/70">
-                                Pilih Plant
+                                class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 text-[10px] font-bold tracking-[0.18em] text-emerald-700 uppercase mb-2">
+                                <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                Manual Sync Mode
                             </div>
 
-                            @php
-                                $plants = [
-                                    ['value' => '1000', 'label' => 'Plant 1000'],
-                                    ['value' => '1001', 'label' => 'Plant 1001'],
-                                    ['value' => '2000', 'label' => 'Plant 2000'],
-                                    ['value' => '3000', 'label' => 'Plant 3000'],
-                                ];
-                            @endphp
-
-                            @foreach ($plants as $plantItem)
-                                <button type="button"
-                                    class="flex w-full items-center justify-between px-3 py-2 text-xs text-emerald-900
-                                            hover:bg-emerald-50 hover:text-emerald-800 transition-colors"
-                                    data-value="{{ $plantItem['value'] }}" data-label="{{ $plantItem['label'] }}">
-                                    <span class="font-semibold text-emerald-700">
-                                        {{ $plantItem['label'] }}
-                                    </span>
-                                    <span
-                                        class="option-check hidden h-4 w-4 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 text-[10px]">
-                                        ✓
-                                    </span>
-                                </button>
-                            @endforeach
-                        </div>
-                    </div>
-
-                    {{-- hidden input untuk JS sinkronisasi --}}
-                    <input type="hidden" id="manual-werks" value="">
-                </div>
-
-                {{-- BUTTON ACTION --}}
-                <div class="w-full sm:w-auto">
-                    <button type="button" id="btn-manual-sync"
-                        class="w-full sm:w-auto inline-flex justify-center items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white shadow-md hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 transition-all h-10">
-                        <span>Sync Sekarang</span>
-                        <svg id="icon-sync-ready" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
-                            viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M13 10V3L4 14h7v7l9-11h-7z" />
-                        </svg>
-                        <svg id="icon-sync-loading" class="animate-spin h-4 w-4 hidden"
-                            xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor"
-                                stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z">
-                            </path>
-                        </svg>
-                    </button>
-                </div>
-            </div>
-
-            {{-- LOG CARD: RINGKASAN PROSES SINKRON --}}
-            <div id="manual-sync-log-wrapper" class="mt-4 hidden">
-                <div
-                    class="relative overflow-hidden rounded-xl border border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-teal-50 shadow-[0_18px_45px_rgba(16,185,129,0.30)]">
-                    {{-- efek glow --}}
-                    <div class="pointer-events-none absolute inset-0">
-                        <div class="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-emerald-200/40 blur-3xl">
-                        </div>
-                        <div class="absolute -left-16 bottom-0 h-32 w-32 rounded-full bg-teal-200/40 blur-3xl"></div>
-                    </div>
-
-                    <div class="relative p-4 sm:p-5">
-                        {{-- HEADER LOG --}}
-                        <div class="flex items-start justify-between gap-3">
-                            <div class="flex items-center gap-3">
-                                <div
-                                    class="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-600 text-white shadow-lg shadow-emerald-400/60">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none"
-                                        viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                        <path stroke-linecap="round" stroke-linejoin="round"
+                            <h4
+                                class="text-lg sm:text-xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-800 to-teal-600 flex items-center gap-2">
+                                <span
+                                    class="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 shadow-inner shadow-emerald-200/80 wc-sync-icon-wrapper">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 wc-sync-icon" fill="none"
+                                        viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                             d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                     </svg>
-                                </div>
-                                <div>
-                                    <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-600">
-                                        Log Sinkronisasi
-                                    </p>
-                                    <p id="manual-sync-log-title"
-                                        class="text-sm sm:text-base font-bold text-emerald-950">
-                                        Menunggu permintaan...
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div class="flex flex-col items-end gap-1">
-                                <span id="manual-sync-status-pill"
-                                    class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-[10px] font-semibold uppercase text-slate-700">
-                                    Idle
                                 </span>
-                                <span id="manual-sync-time" class="text-[11px] font-mono text-emerald-900/60">-</span>
-                            </div>
+                                <span>{{ __('Sync Data SAP') }}</span>
+                            </h4>
+                            <p class="text-xs sm:text-sm text-slate-500 mt-1">
+                                Tarik data terbaru (Personil, Role Induk, Deskripsi) untuk Work Center tertentu.
+                            </p>
                         </div>
 
-                        {{-- ISI LOG --}}
-                        <div id="manual-sync-feedback"
-                            class="mt-4 space-y-1.5 text-xs font-medium leading-relaxed text-slate-700 sm:text-[13px]">
-                            {{-- baris log diisi via JS --}}
-                        </div>
-
-                        {{-- PROGRESS BAR --}}
-                        <div class="mt-4">
-                            <div class="h-1.5 w-full overflow-hidden rounded-full bg-emerald-100/80">
-                                <div id="manual-sync-progress"
-                                    class="h-full w-0 rounded-full bg-gradient-to-r from-emerald-500 via-emerald-400 to-teal-500 transition-all duration-500">
-                                </div>
-                            </div>
-                            <div class="mt-1.5 flex items-center justify-between text-[11px] text-slate-500">
-                                <span id="manual-sync-progress-label">Menunggu...</span>
-                                <span id="manual-sync-progress-percent">0%</span>
+                        {{-- BADGE INFO KECIL --}}
+                        <div class="flex flex-col items-end gap-1 text-[10px] text-slate-500">
+                            <div
+                                class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50/70 border border-emerald-100 text-emerald-700 font-semibold">
+                                <span class="h-1.5 w-1.5 rounded-full bg-lime-400 animate-pulse"></span>
+                                Highly Recommended
                             </div>
                         </div>
                     </div>
-                </div>
-            </div>
 
-        </div>
+                    <div class="flex flex-col sm:flex-row items-end gap-4">
+
+                        {{-- INPUT WORK CENTER (NEUTRAL / NON-HIJAU) --}}
+                        <div class="w-full sm:w-1/3">
+                            <label for="manual-arbpl"
+                                class="block text-[10px] font-bold text-gray-500 uppercase mb-1 ml-1 tracking-[0.16em]">
+                                Work Center
+                            </label>
+
+                            <div class="relative">
+                                <input type="text" id="manual-arbpl" placeholder="Contoh: WC007"
+                                    class="w-full h-10 rounded-xl border border-slate-300 bg-white
+                   text-sm uppercase font-mono font-semibold
+                   placeholder:font-sans placeholder:font-normal placeholder:text-xs placeholder:text-slate-400
+                   shadow-sm
+                   focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/70
+                   transition-all duration-200" />
+
+                                <div
+                                    class="pointer-events-none absolute inset-y-0 right-3 flex items-center
+                   text-[11px] font-mono text-slate-400">
+                                    SAP
+                                </div>
+                            </div>
+                        </div>
+
+                        {{-- INPUT PLANT (CUSTOM DROPDOWN) --}}
+                        <div class="w-full sm:w-1/4">
+                            <label for="wc-plant-dropdown-button"
+                                class="block text-[10px] font-bold text-emerald-700 uppercase mb-1 ml-1 tracking-[0.16em]">Plant</label>
+
+                            <div class="relative" id="wc-plant-dropdown">
+                                {{-- Tombol tampilan --}}
+                                <button type="button" id="wc-plant-dropdown-button"
+                                    class="inline-flex items-center justify-between w-full
+                                            rounded-xl border border-emerald-200/80
+                                            bg-gradient-to-r from-emerald-50 via-white to-teal-50
+                                            px-3 py-2 h-10 text-xs sm:text-sm font-semibold text-emerald-900
+                                            shadow-sm transition-all
+                                            hover:border-emerald-400 hover:bg-emerald-50/90
+                                            focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+                                    <span id="wc-plant-dropdown-label" class="truncate text-emerald-400">
+                                        Pilih Plant
+                                    </span>
+                                    <span
+                                        class="ml-2 flex items-center justify-center rounded-full bg-emerald-100/90 p-1 shadow-sm">
+                                        <svg xmlns="http://www.w3.org/2000/svg" id="wc-plant-dropdown-chevron"
+                                            class="h-4 w-4 text-emerald-700 transition-transform duration-200"
+                                            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </span>
+                                </button>
+
+                                {{-- Menu pilihan --}}
+                                <div id="wc-plant-dropdown-menu"
+                                    class="hidden absolute z-30 mt-1 w-full origin-top rounded-2xl
+                                            bg-white/95 shadow-2xl shadow-emerald-900/15 ring-1 ring-black/5
+                                            border border-emerald-100 overflow-hidden backdrop-blur">
+                                    <div
+                                        class="px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-500 bg-emerald-50/80 border-b border-emerald-100">
+                                        Pilih Plant
+                                    </div>
+
+                                    @php
+                                        $plants = [
+                                            ['value' => '1000', 'label' => 'Plant 1000'],
+                                            ['value' => '1001', 'label' => 'Plant 1001'],
+                                            ['value' => '2000', 'label' => 'Plant 2000'],
+                                            ['value' => '3000', 'label' => 'Plant 3000'],
+                                        ];
+                                    @endphp
+
+                                    @foreach ($plants as $plantItem)
+                                        <button type="button"
+                                            class="flex w-full items-center justify-between px-3 py-2 text-xs text-emerald-900
+                                                    hover:bg-emerald-50 hover:text-emerald-800 transition-colors"
+                                            data-value="{{ $plantItem['value'] }}"
+                                            data-label="{{ $plantItem['label'] }}">
+                                            <span class="font-semibold text-emerald-700">
+                                                {{ $plantItem['label'] }}
+                                            </span>
+                                            <span
+                                                class="option-check hidden h-4 w-4 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 text-[10px]">
+                                                ✓
+                                            </span>
+                                        </button>
+                                    @endforeach
+                                </div>
+                            </div>
+
+                            {{-- hidden input untuk JS sinkronisasi --}}
+                            <input type="hidden" id="manual-werks" value="">
+                        </div>
+
+                        {{-- BUTTON ACTION --}}
+                        <div class="w-full sm:w-auto">
+                            <button type="button" id="btn-manual-sync"
+                                class="w-full sm:w-auto inline-flex justify-center items-center gap-2 rounded-full bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-700 px-5 py-2.5 text-sm font-bold text-white shadow-[0_14px_35px_rgba(16,185,129,0.60)] hover:from-emerald-500 hover:to-teal-600 focus:outline-none focus:ring-2 focus:ring-emerald-400/80 focus:ring-offset-2 focus:ring-offset-emerald-50 transition-all h-10 active:scale-[0.98]">
+                                <span class="tracking-wide flex items-center gap-1">
+                                    <span class="hidden sm:inline">Sync Sekarang</span>
+                                    <span class="inline sm:hidden">Sync</span>
+                                </span>
+                                <svg id="icon-sync-ready" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4"
+                                    fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                </svg>
+                                <svg id="icon-sync-loading" class="animate-spin h-4 w-4 hidden"
+                                    xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10"
+                                        stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor"
+                                        d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z">
+                                    </path>
+                                </svg>
+                            </button>
+                            <p class="mt-1 text-[10px] text-slate-400 text-right">
+                                hanya NIK <span class="font-semibold text-emerald-700">baru</span> yang di-refresh.
+                            </p>
+                        </div>
+                    </div>
+
+                    {{-- LOG CARD: RINGKASAN PROSES SINKRON --}}
+                    <div id="manual-sync-log-wrapper" class="mt-4 hidden">
+                        <div
+                            class="relative overflow-hidden rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-teal-50 shadow-[0_18px_45px_rgba(16,185,129,0.35)]">
+
+                            {{-- efek glow --}}
+                            <div class="pointer-events-none absolute inset-0">
+                                <div
+                                    class="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-emerald-200/40 blur-3xl">
+                                </div>
+                                <div class="absolute -left-16 bottom-0 h-32 w-32 rounded-full bg-teal-200/40 blur-3xl">
+                                </div>
+                            </div>
+
+                            <div class="relative p-4 sm:p-5">
+                                {{-- HEADER LOG --}}
+                                <div class="flex items-start justify-between gap-3">
+                                    <div class="flex items-center gap-3">
+                                        <div
+                                            class="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-600 text-white shadow-lg shadow-emerald-400/70">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none"
+                                                viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                                <path stroke-linecap="round" stroke-linejoin="round"
+                                                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                            </svg>
+                                        </div>
+                                        <div>
+                                            <p
+                                                class="text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-600">
+                                                Log Sinkronisasi
+                                            </p>
+                                            <p id="manual-sync-log-title"
+                                                class="text-sm sm:text-base font-bold text-emerald-950">
+                                                Menunggu permintaan...
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div class="flex flex-col items-end gap-1">
+                                        <span id="manual-sync-status-pill"
+                                            class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-[10px] font-semibold uppercase text-slate-700">
+                                            Idle
+                                        </span>
+                                        <span id="manual-sync-time"
+                                            class="text-[11px] font-mono text-emerald-900/60">-</span>
+                                    </div>
+                                </div>
+
+                                {{-- ISI LOG --}}
+                                <div id="manual-sync-feedback"
+                                    class="mt-4 space-y-1.5 text-xs font-medium leading-relaxed text-slate-700 sm:text-[13px]">
+                                    {{-- baris log diisi via JS --}}
+                                </div>
+
+                                {{-- PROGRESS BAR --}}
+                                <div class="mt-4">
+                                    <div class="h-1.5 w-full overflow-hidden rounded-full bg-emerald-100/80">
+                                        <div id="manual-sync-progress"
+                                            class="h-full w-0 rounded-full bg-gradient-to-r from-emerald-500 via-emerald-400 to-teal-500 transition-all duration-500">
+                                        </div>
+                                    </div>
+                                    <div
+                                        class="mt-1.5 flex items-center justify-between text-[11px] text-slate-500 font-medium">
+                                        <span id="manual-sync-progress-label">Menunggu...</span>
+                                        <span id="manual-sync-progress-percent">0%</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div> {{-- relative z-10 --}}
+            </div> {{-- inner card --}}
+        </div> {{-- gradient border wrapper --}}
     </div>
 
     {{-- ======================================================================== --}}
@@ -229,28 +312,29 @@
         {{-- JUDUL HALAMAN --}}
         <div>
             <h3
-                class="text-2xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-800 to-teal-600 tracking-tight drop-shadow-sm">
-                {{ __('WC Person') }} <span class="text-emerald-900/20 font-light">—</span> wc_person_data
+                class="text-2xl md:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-800 via-emerald-700 to-teal-600 tracking-tight drop-shadow-sm flex items-center gap-2">
+                {{ __('WC Person') }}
             </h3>
-            <p class="mt-1 text-xs text-slate-500 max-w-2xl leading-relaxed">
-                Data Personalia Work Center (Master Data).
+            <p class="mt-1 text-xs sm:text-sm text-slate-500 max-w-2xl leading-relaxed">
+                Data personil Work Center (master data) yang terhubung dengan sistem SAP.
+                Gunakan filter di bawah untuk fokus ke Plant, NIK duplikat, atau kata kunci tertentu.
             </p>
         </div>
 
         {{-- TOMBOL EXPORT --}}
-        <div class="flex flex-col items-end">
+        <div class="flex flex-col items-end gap-2">
             <div class="relative inline-block text-left group">
                 {{-- Tombol Utama --}}
                 <button id="wc-export-dropdown-button" type="button"
-                    class="group relative inline-flex items-center gap-2 rounded-full 
-                            bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 
-                            px-4 py-2 text-xs font-bold text-white shadow-lg shadow-emerald-600/30 
-                            ring-1 ring-white/20 transition-all duration-300 ease-out 
-                            hover:scale-[1.02] hover:shadow-emerald-600/50 hover:ring-white/40 hover:from-emerald-500 hover:to-teal-700
+                    class="group relative inline-flex items-center gap-2 rounded-full
+                            bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800
+                            px-4 py-2 text-xs font-bold text-white shadow-[0_18px_40px_rgba(16,185,129,0.60)]
+                            ring-1 ring-white/25 transition-all duration-300 ease-out
+                            hover:scale-[1.02] hover:shadow-[0_24px_55px_rgba(16,185,129,0.70)] hover:ring-white/40 hover:from-emerald-500 hover:to-teal-700
                             focus:outline-none focus:ring-4 focus:ring-emerald-500/30">
 
                     <div
-                        class="absolute inset-0 rounded-full bg-gradient-to-r from-transparent via-white/20 to-transparent opacity-0 group-hover:animate-shine pointer-events-none">
+                        class="absolute inset-0 rounded-full bg-gradient-to-r from-transparent via-white/25 to-transparent opacity-0 group-hover:animate-shine pointer-events-none">
                     </div>
 
                     <svg xmlns="http://www.w3.org/2000/svg"
@@ -270,7 +354,7 @@
                     @endif
 
                     <svg xmlns="http://www.w3.org/2000/svg"
-                        class="h-3.5 w-3.5 text-emerald-200/70 transition-transform duration-300 group-hover:rotate-180"
+                        class="h-3.5 w-3.5 text-emerald-200/80 transition-transform duration-300 group-hover:rotate-180"
                         fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
                     </svg>
@@ -278,13 +362,13 @@
 
                 {{-- Dropdown Menu --}}
                 <div id="wc-export-dropdown-menu"
-                    class="hidden absolute right-0 mt-3 w-48 origin-top-right rounded-xl bg-white p-2 shadow-2xl shadow-emerald-900/10 ring-1 ring-black/5 focus:outline-none z-50 transform transition-all duration-200 border border-gray-100">
+                    class="hidden absolute right-0 mt-3 w-52 origin-top-right rounded-2xl bg-white/95 p-2 shadow-2xl shadow-emerald-900/15 ring-1 ring-black/5 focus:outline-none z-50 transform transition-all duration-200 border border-gray-100 backdrop-blur">
                     <div
                         class="px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider text-gray-400 border-b border-gray-100 mb-1">
                         Pilih Format
                     </div>
                     <button type="button" wire:click.prevent="export('pdf')"
-                        class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-gray-700 transition-all hover:bg-red-50 hover:text-red-700 group/item mb-1">
+                        class="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium text-gray-700 transition-all hover:bg-red-50 hover:text-red-700 group/item mb-1">
                         <div
                             class="flex h-7 w-7 items-center justify-center rounded-full bg-red-100 text-red-600 group-hover/item:bg-red-200 transition-colors">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none"
@@ -296,44 +380,57 @@
                         <span>Download PDF</span>
                     </button>
                     <button type="button" wire:click.prevent="export('excel')"
-                        class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-gray-700 transition-all hover:bg-emerald-50 hover:text-emerald-700 group/item">
+                        class="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium text-gray-700 transition-all hover:bg-emerald-50 hover:text-emerald-700 group/item">
                         <div
                             class="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 group-hover/item:bg-emerald-200 transition-colors">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none"
                                 viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                 <path stroke-linecap="round" stroke-linejoin="round"
-                                    d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    d="M9 17v-2m3 2v-4m3 2v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
                         </div>
                         <span>Download Excel</span>
                     </button>
                 </div>
             </div>
+
+            <p class="text-[11px] text-slate-400 flex items-center gap-1">
+                <span class="inline-block h-1 w-1 rounded-full bg-emerald-400"></span>
+                Export akan mengikuti
+                <span class="font-semibold text-emerald-700">filter + pilihan NIK</span> yang aktif.
+            </p>
         </div>
     </div>
 
     {{-- ======================================================================== --}}
-    {{-- BAGIAN 2: FILTER PENCARIAN (REVISI TATA LETAK RADIO BUTTONS) --}}
+    {{-- BAGIAN 2: FILTER PENCARIAN --}}
     {{-- ======================================================================== --}}
-    <div class="mb-6 p-4 bg-emerald-50/50 rounded-xl shadow-inner border border-emerald-100/80 backdrop-blur-sm">
+    <div
+        class="mb-6 p-4 sm:p-5 bg-emerald-50/60 rounded-2xl shadow-[inset_0_0_0_1px_rgba(16,185,129,0.15)] border border-emerald-100/80 backdrop-blur-sm relative z-10 overflow-hidden">
+        <div class="pointer-events-none absolute -right-10 -top-6 h-24 w-24 rounded-full bg-white/50 blur-3xl"></div>
 
-        {{-- Header Filter & Radio Buttons (Dibuat sejajar: Kiri-Kanan) --}}
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3">
+        {{-- Header Filter & Radio Buttons --}}
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 gap-3">
             {{-- Kiri: Judul Filter --}}
             <p class="text-sm font-bold text-emerald-800 flex items-center gap-2">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                </svg>
-                {{ __('Filter Data:') }}
+                <span
+                    class="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white text-emerald-600 shadow-sm shadow-emerald-100">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                </span>
+                <span>{{ __('Filter Data') }}</span>
             </p>
 
             {{-- Kanan: Radio Buttons Plant --}}
             <div class="mt-2 sm:mt-0 flex flex-wrap gap-x-6 gap-y-2 justify-start sm:justify-end">
-                {{-- Label Teks (Dibuat lebih kecil) --}}
-                <label class="block text-xs font-bold text-gray-500 uppercase self-center whitespace-nowrap">
+                {{-- Label Teks --}}
+                <label
+                    class="block text-[11px] font-bold text-gray-500 uppercase self-center whitespace-nowrap tracking-[0.16em]">
                     PILIH PLANT:
                 </label>
+
                 {{-- Loop Radio Buttons --}}
                 @foreach ($plantOptions as $code => $label)
                     @php
@@ -342,24 +439,26 @@
                     <div class="inline-flex items-center" wire:key="plant-radio-{{ $code }}">
                         <input id="plant-radio-{{ $code }}" name="plant-filter" type="radio"
                             value="{{ $code }}" wire:model.live="plant" @checked($isActive)
-                            class="h-4 w-4 text-emerald-600 border-gray-300 focus:ring-emerald-500 cursor-pointer">
+                            class="h-4 w-4 text-emerald-600 border-gray-300 focus:ring-emerald-500 cursor-pointer rounded-full" />
                         <label for="plant-radio-{{ $code }}"
-                            class="ml-2 block text-sm font-medium cursor-pointer @if ($isActive) text-emerald-700 font-semibold @else text-gray-700 @endif">
+                            class="ml-2 block text-xs sm:text-sm font-medium cursor-pointer transition-colors
+                                @if ($isActive) text-emerald-700 font-semibold @else text-gray-700 hover:text-emerald-700 @endif">
                             {{ $label }}
                         </label>
                     </div>
                 @endforeach
+
                 {{-- Tombol filter NIK duplikat --}}
                 <div class="inline-flex items-center" wire:key="btn-duplicate-filter">
                     <button type="button" wire:click="$toggle('onlyDuplicate')"
-                        class="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold
-                        @if ($onlyDuplicate) bg-red-50 border-red-500 text-red-700
+                        class="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold shadow-sm transition-all
+                        @if ($onlyDuplicate) bg-red-50 border-red-500 text-red-700 shadow-red-100
                         @else
-                            bg-white border-emerald-300 text-emerald-700 @endif">
+                            bg-white border-emerald-300 text-emerald-700 hover:border-emerald-500 hover:bg-emerald-50 @endif">
                         <span>NIK duplikat saja</span>
                         <span
                             class="text-[10px] uppercase tracking-wide
-                        @if ($onlyDuplicate) text-red-700 @else text-slate-400 @endif">
+                            @if ($onlyDuplicate) text-red-700 @else text-slate-400 @endif">
                             {{ $onlyDuplicate ? 'ON' : 'OFF' }}
                         </span>
                     </button>
@@ -367,30 +466,42 @@
             </div>
         </div>
 
-        {{-- Input kata kunci (Dipisahkan dengan garis tipis untuk tampilan yang lebih rapi) --}}
+        {{-- Input kata kunci --}}
         <div class="mt-4 border-t border-emerald-100 pt-4">
             <div class="grid grid-cols-1 gap-4">
                 <div class="relative group">
                     <input type="text" id="q-input" wire:model.live.debounce.500ms="q" placeholder=" "
-                        class="peer block w-full pt-5 pb-1.5 px-3 border-gray-300 text-sm text-gray-900 bg-white rounded-lg shadow-sm focus:border-emerald-500 focus:ring-emerald-500 focus:ring-2 transition-all duration-200 placeholder-transparent h-11" />
+                        class="peer block w-full pt-5 pb-1.5 px-3 border border-emerald-200/90 text-sm text-gray-900 bg-white/95 rounded-xl shadow-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/70 transition-all duration-200 placeholder-transparent h-11" />
 
                     <label for="q-input"
-                        class="absolute text-gray-500 duration-300 transform top-3 left-3 z-10 origin-[0] -translate-y-2.5 scale-75 text-emerald-600 font-bold peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-placeholder-shown:text-gray-500 peer-placeholder-shown:font-normal peer-focus:scale-75 peer-focus:-translate-y-2.5 peer-focus:text-emerald-600 peer-focus:font-bold">
+                        class="absolute text-gray-500 duration-300 transform top-3 left-3 z-10 origin-[0] -translate-y-2.5 scale-75 text-emerald-600 font-bold tracking-[0.08em]
+                            peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-placeholder-shown:text-gray-500 peer-placeholder-shown:font-normal
+                            peer-focus:scale-75 peer-focus:-translate-y-2.5 peer-focus:text-emerald-600 peer-focus:font-bold">
                         {{ __('Kata Kunci Pencarian') }}
                     </label>
 
-                    <p class="mt-1 text-xs text-gray-500">
+                    <div class="mt-1 text-[11px] text-gray-500 space-y-0.5">
                         @if ($onlyDuplicate)
-                            <p class="mt-1 text-xs text-red-600">
+                            <div class="text-[11px] text-red-600">
                                 Sedang menampilkan <strong>hanya NIK yang muncul lebih dari 1 baris</strong>.
-                            </p>
+                            </div>
                         @endif
 
-                        Cari:
-                        <span class="font-semibold text-emerald-700">
-                            NIK, Nama, WC, Desc WC, Devisi
-                        </span>.
-                    </p>
+                        <div>
+                            Cari:
+                            <span class="font-semibold text-emerald-700">
+                                NIK, Nama, WC, Desc WC, Devisi
+                            </span>.
+                        </div>
+
+                        <div class="text-[10px] text-emerald-700/90">
+                            Untuk pencarian <strong>spesifik</strong> gunakan tanda kutip (<code>"..."</code>) pada:
+                            <span
+                                class="inline-flex flex-wrap gap-1 font-mono text-[10px] bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100">
+                                "Nama", "Deskripsi Work Center", "DEVISI"
+                            </span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -399,8 +510,9 @@
     {{-- ======================================================================== --}}
     {{-- BAGIAN 3: TABEL DATA --}}
     {{-- ======================================================================== --}}
-    <div class="overflow-y-auto max-h-[75vh] shadow-xl sm:rounded-xl border border-gray-200/75">
-        <table class="wc-person-table min-w-full table-fixed divide-y divide-gray-200">
+    <div
+        class="overflow-y-auto max-h-[75vh] shadow-[0_20px_45px_rgba(15,23,42,0.18)] sm:rounded-2xl border border-emerald-100/80 bg-white/95 relative z-10">
+        <table class="wc-person-table min-w-full table-fixed divide-y divide-emerald-50">
             <colgroup>
                 <col class="w-[40px]" />
                 <col class="w-[40px]" />
@@ -413,24 +525,26 @@
                 <col class="w-[120px]" />
                 <col class="w-[70px]" />
             </colgroup>
-            <thead class="sticky top-0 z-10 bg-gradient-to-r from-emerald-800 to-teal-900 text-white shadow-md">
+            <thead
+                class="sticky top-0 z-10 bg-gradient-to-r from-emerald-800 via-emerald-900 to-teal-900 text-white shadow-md">
                 <tr>
-                    <th scope="col" class="px-2 py-3 text-center text-[11px] font-bold uppercase tracking-wider">
+                    <th scope="col"
+                        class="px-2 py-3 text-center text-[11px] font-bold uppercase tracking-wider border-r border-emerald-600/60">
                         <label class="inline-flex items-center gap-1 select-none cursor-pointer group">
                             <input id="wc-check-all" type="checkbox" wire:click="toggleSelectAll"
                                 @checked($isAllSelected)
-                                class="rounded border-gray-300 text-emerald-500 focus:ring-emerald-500 transition-colors cursor-pointer bg-white/90 h-3.5 w-3.5" />
+                                class="rounded border-emerald-300 text-emerald-300 focus:ring-emerald-200 transition-colors cursor-pointer bg-emerald-900/60 h-3.5 w-3.5" />
                         </label>
                     </th>
                     @foreach ($headers as $header)
                         <th scope="col"
-                            class="px-2 py-3 text-center text-[11px] font-bold uppercase tracking-wider truncate">
+                            class="px-2 py-3 text-center text-[11px] font-bold uppercase tracking-[0.18em] truncate text-emerald-50/95">
                             {{ __($header) }}
                         </th>
                     @endforeach
                 </tr>
             </thead>
-            <tbody class="bg-white divide-y divide-gray-200">
+            <tbody class="bg-white divide-y divide-gray-100">
                 @forelse ($rows as $row)
                     @php
                         $isInduk = isset($row->role) && strtoupper($row->role) === 'INDUK';
@@ -438,10 +552,10 @@
                         $isChecked = isset($selectedSet[$pernrKey]);
                     @endphp
                     <tr wire:key="wc-row-{{ $row->id }}" @class([
-                        'transition-all duration-200 ease-in-out hover:bg-emerald-50',
+                        'transition-all duration-200 ease-out hover:bg-emerald-50/70 hover:-translate-y-[1px] hover:shadow-[0_12px_30px_rgba(16,185,129,0.18)]',
                         'bg-white' => $loop->odd && !$isChecked,
-                        'bg-slate-50/50' => $loop->even && !$isChecked,
-                        'bg-emerald-50 ring-1 ring-inset ring-emerald-200' => $isChecked,
+                        'bg-slate-50/60' => $loop->even && !$isChecked,
+                        'bg-emerald-50/90 ring-1 ring-inset ring-emerald-300 wc-row-selected' => $isChecked,
                     ])>
                         {{-- Checkbox --}}
                         <td class="px-2 py-2 whitespace-nowrap align-middle text-center">
@@ -451,18 +565,20 @@
                         </td>
 
                         {{-- No --}}
-                        <td class="px-2 py-2 whitespace-nowrap font-bold text-emerald-800/80 text-center align-middle">
+                        <td
+                            class="px-2 py-2 whitespace-nowrap font-bold text-emerald-800/80 text-center align-middle text-[11px]">
                             {{ $loop->iteration }}
                         </td>
 
                         {{-- NIK --}}
                         <td
-                            class="px-2 py-2 whitespace-nowrap text-slate-700 text-center font-mono tracking-tight align-middle">
+                            class="px-2 py-2 whitespace-nowrap text-slate-700 text-center font-mono tracking-tight align-middle text-[13px]">
                             {{ $row->pernr }}
                         </td>
 
                         {{-- Tgl Mulai --}}
-                        <td class="px-2 py-2 whitespace-nowrap text-slate-500 font-mono text-center align-middle">
+                        <td
+                            class="px-2 py-2 whitespace-nowrap text-slate-500 font-mono text-center align-middle text-[12px]">
                             @if ($row->begda && preg_match('/^\d{8}$/', $row->begda))
                                 {{ Carbon::createFromFormat('Ymd', $row->begda)->isoFormat('YY-MM-DD') }}
                             @else
@@ -470,7 +586,7 @@
                             @endif
                         </td>
 
-                        {{-- Nama (tetap rata kiri) --}}
+                        {{-- Nama --}}
                         <td
                             class="px-2 py-2 text-slate-800 font-semibold whitespace-normal break-words max-w-[160px] align-middle text-left">
                             {{ $row->stext }}
@@ -481,37 +597,38 @@
                             @if ($isInduk)
                                 <span
                                     class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full
-                   bg-gradient-to-b from-yellow-100 to-amber-200
-                   text-[11px] font-extrabold text-amber-900
-                   shadow-sm border border-amber-300 uppercase tracking-wide">
+                                           bg-gradient-to-b from-yellow-100 to-amber-200
+                                           text-[11px] font-extrabold text-amber-900
+                                           shadow-sm border border-amber-300 uppercase tracking-wide">
                                     <span class="leading-none">👑</span>
                                     <span>INDUK</span>
                                 </span>
                             @else
-                                <span class="text-slate-400 text-[11px]">-</span>
+                                <span class="text-slate-300 text-[11px]">-</span>
                             @endif
                         </td>
 
                         {{-- Work Center --}}
-                        <td class="px-2 py-2 whitespace-nowrap text-slate-600 font-medium align-middle text-center">
+                        <td
+                            class="px-2 py-2 whitespace-nowrap text-slate-600 font-semibold align-middle text-center text-[13px]">
                             {{ $row->arbpl }}
                         </td>
 
                         {{-- Deskripsi Work Center --}}
                         <td
-                            class="px-2 py-2 text-slate-600 whitespace-normal break-words max-w-[260px] align-middle text-center">
+                            class="px-2 py-2 text-slate-600 whitespace-normal break-words max-w-[260px] align-middle text-center text-[13px]">
                             {{ $row->desc ?? $row->short }}
                         </td>
 
                         {{-- Devisi --}}
                         <td
-                            class="px-2 py-2 text-slate-700 font-semibold whitespace-normal break-words max-w-[130px] align-middle text-center">
+                            class="px-2 py-2 text-slate-700 font-semibold whitespace-normal break-words max-w-[130px] align-middle text-center text-[13px]">
                             {{ $row->devisi ?? '-' }}
                         </td>
 
                         {{-- Plant --}}
                         <td
-                            class="px-2 py-2 whitespace-nowrap text-slate-700 text-center font-mono bg-slate-50/50 align-middle">
+                            class="px-2 py-2 whitespace-nowrap text-slate-700 text-center font-mono bg-slate-50/70 align-middle text-[12px]">
                             {{ $row->werks }}
                         </td>
                     </tr>
@@ -519,13 +636,25 @@
                     <tr>
                         <td colspan="{{ count($headers) + 1 }}" class="px-6 py-12 text-center">
                             <div class="flex flex-col items-center justify-center text-gray-400">
-                                <svg class="w-12 h-12 mb-3 text-gray-300" fill="none" stroke="currentColor"
-                                    viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z">
-                                    </path>
-                                </svg>
-                                <span class="text-lg font-medium">{{ __('Tidak ada data ditemukan.') }}</span>
+                                <div
+                                    class="relative mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-50 shadow-inner shadow-white">
+                                    <div
+                                        class="absolute inset-0 rounded-full bg-gradient-to-tr from-emerald-100/40 to-teal-100/60 opacity-70 blur-xl">
+                                    </div>
+                                    <svg class="relative w-10 h-10 text-gray-300" fill="none"
+                                        stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z">
+                                        </path>
+                                    </svg>
+                                </div>
+                                <span
+                                    class="text-lg font-semibold text-slate-500 mb-1">{{ __('Tidak ada data ditemukan.') }}</span>
+                                <p class="text-xs text-slate-400 max-w-sm">
+                                    Coba ubah filter Plant, matikan filter
+                                    <span class="font-semibold text-emerald-700">NIK duplikat</span>, atau gunakan kata
+                                    kunci lain.
+                                </p>
                             </div>
                         </td>
                     </tr>
@@ -536,48 +665,7 @@
 
     {{-- CSS --}}
     <style>
-        .animate-shine {
-            animation: shine 3s infinite;
-        }
-
-        /* Ukuran dasar untuk seluruh tabel */
-        .wc-person-table {
-            font-size: 0.85rem;
-            /* ±13.6px, sedikit lebih besar dari sebelumnya */
-        }
-
-        /* Header tabel (judul kolom) */
-        .wc-person-table thead th {
-            font-size: 0.8rem;
-            /* ±12px, lebih besar tapi tetap rapat */
-        }
-
-        /* Isi tabel MAINKAN DI SINI*/
-        .wc-person-table tbody td {
-            font-size: 0.9rem;
-            /* ±14.4px, enak dibaca */
-            line-height: 1.3;
-        }
-
-        /* Kurangi padding kiri-kanan supaya tidak melebar */
-        .wc-person-table th,
-        .wc-person-table td {
-            padding-left: 0.35rem;
-            /* < dari px-2 (0.5rem) */
-            padding-right: 0.35rem;
-        }
-
-        /* Di layar kecil, sedikit dikecilkan lagi supaya tetap muat */
-        @media (max-width: 1024px) {
-            .wc-person-table {
-                font-size: 0.8rem;
-            }
-
-            .wc-person-table tbody td {
-                font-size: 0.85rem;
-            }
-        }
-
+        /* SHINE EFFECT UNTUK TOMBOL EXPORT */
         @keyframes shine {
             0% {
                 transform: translateX(-150%) skewX(-20deg);
@@ -590,6 +678,131 @@
 
         .animate-shine {
             animation: shine 3s infinite;
+        }
+
+        /* FONT & TABEL */
+        .wc-person-table {
+            font-size: 0.85rem;
+        }
+
+        .wc-person-table thead th {
+            font-size: 0.8rem;
+        }
+
+        .wc-person-table tbody td {
+            font-size: 0.9rem;
+            line-height: 1.3;
+        }
+
+        .wc-person-table th,
+        .wc-person-table td {
+            padding-left: 0.35rem;
+            padding-right: 0.35rem;
+        }
+
+        @media (max-width: 1024px) {
+            .wc-person-table {
+                font-size: 0.8rem;
+            }
+
+            .wc-person-table tbody td {
+                font-size: 0.85rem;
+            }
+        }
+
+        /* ICON SYNC LEMBUT */
+        @keyframes wc-sync-orbit {
+            0% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-2px);
+            }
+
+            100% {
+                transform: translateY(0);
+            }
+        }
+
+        .wc-sync-icon {
+            animation: wc-sync-orbit 2.3s ease-in-out infinite;
+        }
+
+        /* ROW SELECTED GLOW – dibuat lebih soft */
+        @keyframes wc-row-selected-glow {
+            0% {
+                box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+            }
+
+            40% {
+                /* tadinya 6px & 0.25, sekarang lebih kecil & tipis */
+                box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.18);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+            }
+        }
+
+        .wc-row-selected {
+            animation: wc-row-selected-glow 1.1s ease-out;
+        }
+
+        /* HOVER ROW TABEL – kasih shadow tipis netral */
+        .wc-person-table tbody tr {
+            transition:
+                box-shadow 180ms ease-out,
+                transform 160ms ease-out,
+                background-color 160ms ease-out;
+        }
+
+        .wc-person-table tbody tr:hover {
+            /* netral, nggak hijau kuat lagi */
+            box-shadow: 0 5px 18px rgba(15, 23, 42, 0.08);
+        }
+
+        /* ROOT CARD: shadow dasar & hover dibuat lebih smooth & netral */
+        #wc-person-root {
+            transition: box-shadow 260ms ease-out, border-color 260ms ease-out, background 260ms ease-out;
+            /* sebelumnya shadow hitam + shadow hijau dari class, kita override jadi netral & tipis */
+            box-shadow: 0 18px 40px rgba(15, 23, 42, 0.14);
+        }
+
+        #wc-person-root:hover {
+            box-shadow: 0 22px 55px rgba(15, 23, 42, 0.18);
+            border-color: rgba(52, 211, 153, 0.55);
+        }
+
+        /* CARD SYNC & CARD LOG – kurangi “glow hijau” jadi netral lembut */
+        /* Outer gradient wrapper bagian sync WC */
+        #wc-person-root>.mb-8>.relative {
+            /* override shadow-[0_18px_45px_rgba(16,185,129,0.40)] */
+            box-shadow: 0 14px 32px rgba(15, 23, 42, 0.14);
+        }
+
+        /* Log wrapper di bawahnya */
+        #manual-sync-log-wrapper>div {
+            /* override shadow-[0_18px_45px_rgba(16,185,129,0.35)] */
+            box-shadow: 0 12px 28px rgba(15, 23, 42, 0.10);
+        }
+
+        /* CONTAINER TABEL BESAR – tetap floating, tapi nggak terlalu “ngejreng” */
+        #wc-person-root>.overflow-y-auto {
+            /* override shadow-[0_20px_45px_rgba(15,23,42,0.18)] jadi sedikit lebih halus */
+            box-shadow: 0 18px 36px rgba(15, 23, 42, 0.14);
+        }
+
+        /* TOMBOL-TOMBOL UTAMA: Export & Sync – tonenya diturunkan */
+        #wc-export-dropdown-button,
+        #btn-manual-sync {
+            /* tadinya 0_18px_40px_rgba(16,185,129,0.60) dan sejenisnya */
+            box-shadow: 0 10px 24px rgba(16, 185, 129, 0.26);
+        }
+
+        #wc-export-dropdown-button:hover,
+        #btn-manual-sync:hover {
+            box-shadow: 0 12px 26px rgba(16, 185, 129, 0.30);
         }
     </style>
 
@@ -763,7 +976,8 @@
             function makeWcToast(html) {
                 ensureWcToastStack();
                 const card = document.createElement('div');
-                card.className = 'pointer-events-auto w-[360px] rounded-xl border bg-white shadow-2xl ring-1 ring-black/5';
+                card.className =
+                    'pointer-events-auto w-[360px] rounded-xl border bg-white shadow-2xl ring-1 ring-black/5 overflow-hidden';
                 card.innerHTML = html;
                 wcToastStack.appendChild(card);
                 return card;
@@ -781,7 +995,6 @@
                         refreshFail = 0,
                         ok = true,
                         errorMessage = null,
-                        // info NIK baru & lama (opsional)
                         newPernrsCount = null,
                         oldPernrsCount = null,
                 } = summary || {};
@@ -1236,9 +1449,6 @@
                             const daySet = new Set(items.map(it => it.begda));
                             const daysCount = daySet.size;
 
-                            // Tampilkan beberapa tanggal pertama di log untuk memperjelas
-                            const sortedDates = Array.from(daySet).sort().reverse(); // terbaru dulu
-
                             appendLogLine(
                                 'Menyiapkan refresh <code>yppr058_data</code> untuk <b>' +
                                 pernrsNew.length +
@@ -1357,7 +1567,7 @@
                                 setProgress(100,
                                     'Sinkronisasi master WC selesai (data yppr058_data dikosongkan).');
                             } else if (pernrsRemoved.length > 0) {
-                                // Kasus: masih ada personil di WC tsb, tapi ada beberapa NIK yang hilang (contoh 002)
+                                // Kasus: masih ada personil di WC tsb, tapi ada beberapa NIK yang hilang
                                 appendLogLine(
                                     'Tidak ada NIK baru, tetapi terdapat <b>' + pernrsRemoved.length +
                                     '</b> NIK yang sekarang <b>tidak lagi terdaftar</b> di WC ini. ' +
@@ -1382,7 +1592,6 @@
 
                             setStatus('Selesai', 'success');
                         }
-
 
                         // Bersihkan input WC di form
                         inpArbpl.value = '';

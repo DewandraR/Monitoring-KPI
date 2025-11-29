@@ -682,11 +682,11 @@ def get_plant_nik_counts(conn, table_name: str) -> Dict[str, int]:
 
 def sync_yppr_with_wc_person(conn, dry_run: bool = False) -> None:
     """
-    Pastikan semua PERNR di yppr058_data ada di wc_person_data.
-    - Jika ada PERNR di yppr058_data yg TIDAK ada di wc_person_data:
-      -> hapus semua baris untuk PERNR tsb dari yppr058_data (kecuali dry_run/no-delete).
-    - Sekaligus log rekap jumlah NIK per PLANT sebelum & sesudah,
-      supaya bisa dicek kesesuaian dengan WC Person (seperti kartu Plant).
+    Pastikan isi yppr058_data selalu konsisten dengan wc_person_data.
+
+    Level 1  : buang PERNR yang sama sekali tidak ada di wc_person_data.
+    Level 2  : untuk PERNR yang masih ada di wc_person_data, buang kombinasi
+               (PERNR, ARBPL, WERKS) yang tidak ada lagi di wc_person_data.
     """
     hr("=")
     logger.info("CEK SINKRON PERNR antara wc_person_data dan yppr058_data ...")
@@ -695,13 +695,15 @@ def sync_yppr_with_wc_person(conn, dry_run: bool = False) -> None:
 
     # DISTINCT PERNR dari wc_person_data
     cur.execute(
-        f"SELECT DISTINCT pernr FROM `{WC_TABLE}` WHERE pernr IS NOT NULL AND pernr<>''"
+        f"SELECT DISTINCT pernr FROM `{WC_TABLE}` "
+        "WHERE pernr IS NOT NULL AND pernr<>''"
     )
     wc_pernrs = {norm_pernr(p) for (p,) in cur.fetchall() if p}
 
     # DISTINCT PERNR dari yppr058_data
     cur.execute(
-        f"SELECT DISTINCT pernr FROM `{OUT_TABLE}` WHERE pernr IS NOT NULL AND pernr<>''"
+        f"SELECT DISTINCT pernr FROM `{OUT_TABLE}` "
+        "WHERE pernr IS NOT NULL AND pernr<>''"
     )
     yppr_pernrs = {norm_pernr(p) for (p,) in cur.fetchall() if p}
 
@@ -727,88 +729,245 @@ def sync_yppr_with_wc_person(conn, dry_run: bool = False) -> None:
         logger.info(f"{w or '-':<5} | {c_wc:>15} | {c_yp:>11}")
     subhr()
 
+    # -------------------- LEVEL 1: SYNC PERNR --------------------
     if not missing_pernrs:
         logger.info(
-            "OK: Semua PERNR di yppr058_data sudah ada di wc_person_data. "
-            "Tidak ada yang perlu dihapus."
+            "OK: Semua PERNR di yppr058_data sudah ada di wc_person_data "
+            "(level PERNR)."
         )
-        hr("=")
-        cur.close()
-        return
-
-    logger.info(
-        f"WARNING: DITEMUKAN {len(missing_pernrs)} PERNR di {OUT_TABLE} "
-        f"yang sudah tidak ada di {WC_TABLE}."
-    )
-    logger.info(
-        "   Contoh PERNR yang akan diproses: "
-        + ", ".join(missing_pernrs[:20])
-        + (" ..." if len(missing_pernrs) > 20 else "")
-    )
-
-    # Rekap berapa NIK & baris yg akan kena per plant
-    placeholders = ",".join(["%s"] * len(missing_pernrs))
-    stats_sql = f"""
-        SELECT werks, COUNT(DISTINCT pernr) AS nik_cnt, COUNT(*) AS row_cnt
-        FROM `{OUT_TABLE}`
-        WHERE pernr IN ({placeholders})
-        GROUP BY werks
-        ORDER BY werks
-    """
-    try:
-        cur.execute(stats_sql, missing_pernrs)
-        stats = cur.fetchall()
-    except Exception as e:
-        logger.info(f"[WARN] Gagal hitung statistik per-plant untuk PERNR hilang: {e}")
-        stats = []
-
-    if stats:
-        subhr()
-        logger.info("DETAIL NIK YANG AKAN DIHAPUS (berdasarkan PLANT di YPPR):")
-        logger.info("PLANT | NIK YPPR TIDAK ADA DI WC | JUMLAH BARIS YANG AKAN DIHAPUS")
-        subhr()
-        for werks, nik_cnt, row_cnt in stats:
-            logger.info(
-                f"{(werks or '-'):>5} | {int(nik_cnt):>24} | {int(row_cnt):>29}"
-            )
-        subhr()
-
-    if dry_run:
+    else:
         logger.info(
-            "[DRY-RUN / --no-delete] Mode simulasi, TIDAK ada baris yg dihapus "
-            "dari yppr058_data. Hanya cek & log saja."
+            f"WARNING: DITEMUKAN {len(missing_pernrs)} PERNR di {OUT_TABLE} "
+            f"yang sudah tidak ada di {WC_TABLE}."
         )
-        hr("=")
-        cur.close()
-        return
+        logger.info(
+            "   Contoh PERNR yang akan diproses: "
+            + ", ".join(missing_pernrs[:20])
+            + (" ..." if len(missing_pernrs) > 20 else "")
+        )
 
-    # Eksekusi DELETE per batch agar aman kalau PERNR banyak
-    total_deleted = 0
-    BATCH_DEL = 500
-    logger.info(
-        f"Mulai menghapus data YPPR untuk {len(missing_pernrs)} PERNR "
-        f"dalam batch {BATCH_DEL} ..."
-    )
-    for i in range(0, len(missing_pernrs), BATCH_DEL):
-        batch = missing_pernrs[i : i + BATCH_DEL]
-        ph = ",".join(["%s"] * len(batch))
-        del_sql = f"DELETE FROM `{OUT_TABLE}` WHERE pernr IN ({ph})"
+        # Rekap berapa NIK & baris yg akan kena per plant
+        placeholders = ",".join(["%s"] * len(missing_pernrs))
+        stats_sql = f"""
+            SELECT werks, COUNT(DISTINCT pernr) AS nik_cnt, COUNT(*) AS row_cnt
+            FROM `{OUT_TABLE}`
+            WHERE pernr IN ({placeholders})
+            GROUP BY werks
+            ORDER BY werks
+        """
         try:
-            cur.execute(del_sql, batch)
-            total_deleted += cur.rowcount
-        except mysql.connector.Error as e:
-            logger.info(f"[ERROR] DELETE batch PERNR: {e}")
-            conn.rollback()
-            cur.close()
-            hr("=")
-            return
-    conn.commit()
+            cur.execute(stats_sql, missing_pernrs)
+            stats = cur.fetchall()
+        except Exception as e:
+            logger.info(f"[WARN] Gagal hitung statistik per-plant untuk PERNR hilang: {e}")
+            stats = []
+
+        if stats:
+            subhr()
+            logger.info("DETAIL NIK YANG AKAN DIHAPUS (level PERNR; berdasarkan PLANT di YPPR):")
+            logger.info("PLANT | NIK YPPR TIDAK ADA DI WC | JUMLAH BARIS YANG AKAN DIHAPUS")
+            subhr()
+            for werks, nik_cnt, row_cnt in stats:
+                logger.info(
+                    f"{(werks or '-'):>5} | {int(nik_cnt):>24} | {int(row_cnt):>29}"
+                )
+            subhr()
+
+        if dry_run:
+            logger.info(
+                "[DRY-RUN / --no-delete] Mode simulasi, TIDAK ada baris yg dihapus "
+                "dari yppr058_data (level PERNR)."
+            )
+        else:
+            total_deleted_pernr = 0
+            BATCH_DEL = 500
+            logger.info(
+                f"Mulai menghapus data YPPR untuk {len(missing_pernrs)} PERNR "
+                f"dalam batch {BATCH_DEL} (level PERNR)..."
+            )
+            for i in range(0, len(missing_pernrs), BATCH_DEL):
+                batch = missing_pernrs[i : i + BATCH_DEL]
+                ph = ",".join(["%s"] * len(batch))
+                del_sql = f"DELETE FROM `{OUT_TABLE}` WHERE pernr IN ({ph})"
+                try:
+                    cur.execute(del_sql, batch)
+                    total_deleted_pernr += cur.rowcount
+                except mysql.connector.Error as e:
+                    logger.info(f"[ERROR] DELETE batch PERNR: {e}")
+                    conn.rollback()
+                    cur.close()
+                    hr("=")
+                    return
+            conn.commit()
+            logger.info(
+                f"✅ Hapus selesai (level PERNR). Total {total_deleted_pernr} baris di {OUT_TABLE} "
+                f"untuk {len(missing_pernrs)} PERNR yang sudah tidak ada di WC Person."
+            )
+
+    # ---------------- LEVEL 2: SYNC (PERNR, ARBPL, WERKS) ----------------
+    subhr()
     logger.info(
-        f"✅ Hapus selesai. Total {total_deleted} baris di {OUT_TABLE} "
-        f"untuk {len(missing_pernrs)} PERNR yang sudah tidak ada di WC Person."
+        "CEK SINKRON KOMBINASI (PERNR, ARBPL, WERKS) antara wc_person_data "
+        "dan yppr058_data ..."
     )
 
-    # Rekap plant SESUDAH sync
+    # Ambil semua kombinasi di WC (master)
+    cur.execute(
+        f"""
+        SELECT DISTINCT pernr, arbpl, werks
+        FROM `{WC_TABLE}`
+        WHERE pernr IS NOT NULL AND pernr<>'' 
+          AND arbpl IS NOT NULL AND arbpl<>'' 
+          AND werks IS NOT NULL AND werks<>''
+        """
+    )
+    wc_pairs = set()
+    for pernr, arbpl, werks in cur.fetchall():
+        p = norm_pernr(pernr)
+        if not p:
+            continue
+        a = (arbpl or "").strip()
+        w = (werks or "").strip()
+        if not a or not w:
+            continue
+        wc_pairs.add((p, a, w))
+
+    # Ambil semua kombinasi di YPPR (hasil)
+    cur.execute(
+        f"""
+        SELECT DISTINCT pernr, arbpl, werks
+        FROM `{OUT_TABLE}`
+        WHERE pernr IS NOT NULL AND pernr<>'' 
+          AND arbpl IS NOT NULL AND arbpl<>'' 
+          AND werks IS NOT NULL AND werks<>''
+        """
+    )
+    yp_pairs = set()
+    for pernr, arbpl, werks in cur.fetchall():
+        p = norm_pernr(pernr)
+        if not p:
+            continue
+        a = (arbpl or "").strip()
+        w = (werks or "").strip()
+        if not a or not w:
+            continue
+        yp_pairs.add((p, a, w))
+
+    logger.info(
+        f"TOTAL pasangan WC   (PERNR,ARBPL,WERKS): {len(wc_pairs)}"
+    )
+    logger.info(
+        f"TOTAL pasangan YPPR (PERNR,ARBPL,WERKS): {len(yp_pairs)}"
+    )
+
+    # Kombinasi yang ADA di YPPR tapi TIDAK ADA di WC
+    # namun PERNR-nya masih ada di WC (sesuai requirement-mu).
+    combos_missing = {
+        (p, a, w)
+        for (p, a, w) in yp_pairs
+        if (p in wc_pernrs) and ((p, a, w) not in wc_pairs)
+    }
+
+    if not combos_missing:
+        logger.info(
+            "OK: Tidak ada kombinasi (PERNR,ARBPL,WERKS) di yppr058_data "
+            "yang tidak ada di wc_person_data."
+        )
+        # Rekap akhir dan selesai
+    else:
+        logger.info(
+            f"WARNING: ditemukan {len(combos_missing)} kombinasi (PERNR,ARBPL,WERKS) "
+            f"di {OUT_TABLE} yang tidak ada di {WC_TABLE}."
+        )
+        sample = ", ".join(
+            [f"{p}:{a}:{w}" for (p, a, w) in list(combos_missing)[:20]]
+        )
+        logger.info(
+            "   Contoh kombinasi yang akan diproses: "
+            + sample
+            + (" ..." if len(combos_missing) > 20 else "")
+        )
+
+        # Hitung statistik baris yang akan dihapus
+        triple_list = list(combos_missing)
+        stats = []
+        BATCH_COMBO = 300
+        try:
+            for i in range(0, len(triple_list), BATCH_COMBO):
+                batch = triple_list[i : i + BATCH_COMBO]
+                ph = ",".join(["(%s,%s,%s)"] * len(batch))
+                stats_sql2 = f"""
+                    SELECT pernr, arbpl, werks, COUNT(*) AS row_cnt
+                    FROM `{OUT_TABLE}`
+                    WHERE (pernr, arbpl, werks) IN ({ph})
+                    GROUP BY pernr, arbpl, werks
+                """
+                params = []
+                for p, a, w in batch:
+                    params.extend([p, a, w])
+                cur.execute(stats_sql2, params)
+                stats.extend(cur.fetchall())
+        except mysql.connector.Error as e:
+            logger.info(
+                f"[WARN] Gagal hitung statistik baris untuk kombinasi PERNR-ARBPL-WERKS: {e}"
+            )
+            stats = []
+
+        if stats:
+            subhr()
+            logger.info(
+                "DETAIL KOMBINASI YANG AKAN DIBERSIHKAN (level PERNR+ARBPL+WERKS):"
+            )
+            logger.info("PERNR    | ARBPL      | WERKS | JUMLAH BARIS")
+            subhr()
+            for pernr, arbpl, werks, row_cnt in stats:
+                logger.info(
+                    f"{(pernr or '-'):>8} | {(arbpl or '-'):<10} | "
+                    f"{(werks or '-'):>5} | {int(row_cnt):>12}"
+                )
+            subhr()
+
+        if dry_run:
+            logger.info(
+                "[DRY-RUN / --no-delete] Mode simulasi, TIDAK ada baris yg dihapus "
+                "untuk kombinasi (PERNR,ARBPL,WERKS) tersebut."
+            )
+        else:
+            total_deleted_pairs = 0
+            logger.info(
+                f"Mulai menghapus baris YPPR berdasarkan {len(combos_missing)} "
+                "kombinasi (PERNR,ARBPL,WERKS) yang sudah tidak ada di WC Person ..."
+            )
+            for i in range(0, len(triple_list), BATCH_COMBO):
+                batch = triple_list[i : i + BATCH_COMBO]
+                ph = ",".join(["(%s,%s,%s)"] * len(batch))
+                del_sql2 = f"""
+                    DELETE FROM `{OUT_TABLE}`
+                    WHERE (pernr, arbpl, werks) IN ({ph})
+                """
+                params = []
+                for p, a, w in batch:
+                    params.extend([p, a, w])
+                try:
+                    cur.execute(del_sql2, params)
+                    total_deleted_pairs += cur.rowcount
+                except mysql.connector.Error as e:
+                    logger.info(
+                        f"[ERROR] DELETE batch kombinasi PERNR-ARBPL-WERKS: {e}"
+                    )
+                    conn.rollback()
+                    cur.close()
+                    hr("=")
+                    return
+
+            conn.commit()
+            logger.info(
+                f"✅ Hapus selesai (level PERNR+ARBPL+WERKS). "
+                f"Total {total_deleted_pairs} baris di {OUT_TABLE} "
+                "yang kombinasi WC-nya sudah tidak ada di wc_person_data."
+            )
+
+    # Rekap plant SESUDAH semua sync
     yp_counts_after = get_plant_nik_counts(conn, OUT_TABLE)
     subhr()
     logger.info("REKAP DISTINCT NIK per PLANT (setelah sync YPPR vs WC):")
@@ -822,7 +981,6 @@ def sync_yppr_with_wc_person(conn, dry_run: bool = False) -> None:
     subhr()
     hr("=")
     cur.close()
-
 
 # ---------- Core per-hari ----------
 def process_one_day(
