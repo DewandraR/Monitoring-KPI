@@ -1113,17 +1113,42 @@
                     </div>
                 </div>
 
-                <div class="mt-6 flex justify-end gap-3">
+                <div class="mt-6 flex justify-end gap-3 items-center">
+                    {{-- Status kecil di kiri saat sedang proses --}}
+                    <div class="mr-auto text-xs text-gray-500" wire:loading wire:target="saveToSap">
+                        Sedang mengirim data ke SAP, mohon tunggu...
+                    </div>
+
+                    {{-- Tombol Batal --}}
                     <button type="button" wire:click="closeSaveSapModal"
                         class="px-4 py-2 text-sm rounded-md border border-gray-300
-                           bg-white text-gray-700 hover:bg-gray-50">
+               bg-white text-gray-700 hover:bg-gray-50">
                         Batal
                     </button>
 
-                    <button type="button" wire:click="saveToSap"
-                        class="px-4 py-2 text-sm rounded-md bg-emerald-600 text-white
-                           hover:bg-emerald-700 shadow-sm">
-                        Save ke SAP
+                    {{-- Tombol Save dengan state loading --}}
+                    <button type="button" wire:click="saveToSap" wire:loading.attr="disabled"
+                        wire:target="saveToSap"
+                        class="relative px-4 py-2 text-sm rounded-md bg-emerald-600 text-white
+               hover:bg-emerald-700 shadow-sm flex items-center gap-2">
+
+                        {{-- Icon spinner saat loading --}}
+                        <svg wire:loading wire:target="saveToSap" class="h-4 w-4 animate-spin"
+                            xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor"
+                                stroke-width="4" />
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                        </svg>
+
+                        {{-- Teks normal --}}
+                        <span wire:loading.remove wire:target="saveToSap">
+                            Save ke SAP
+                        </span>
+
+                        {{-- Teks saat loading --}}
+                        <span wire:loading wire:target="saveToSap">
+                            Proses...
+                        </span>
                     </button>
                 </div>
             </div>

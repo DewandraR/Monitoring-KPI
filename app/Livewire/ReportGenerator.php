@@ -5,12 +5,10 @@ namespace App\Livewire;
 use Livewire\Component;
 use Livewire\Attributes\Layout;
 use App\Models\ReportData;
+use App\Models\Yppr058SapLog;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
-use App\Models\Yppr058SapLog;
 use Illuminate\Support\Str;
-
 
 #[Layout('layouts.app')]
 class ReportGenerator extends Component
@@ -22,11 +20,15 @@ class ReportGenerator extends Component
     public $selectedPernr = null;
     public $detailData = [];
 
+    // Simpan pilihan user & list pernr di halaman saat ini
     // <<< BARU: simpan pilihan user & list pernr di halaman saat ini >>>
     public array $selectedPernrs = [];
     public array $currentPagePernrs = [];
 
-    private $aggregateColumns = [
+    // Versi array dari summary, khusus untuk saveToSap (JANGAN bernama reportData)
+    public array $reportDataForSave = [];
+
+    private array $aggregateColumns = [
         'total_jam',
         'mint2',
         'mintu',
@@ -34,25 +36,30 @@ class ReportGenerator extends Component
         'mintu3',
         'gji',
         'gji2',
-        'varnt',   // varnt1 dihilangkan, nanti dihitung manual
+        'varnt',   // varnt1 dihilangkan, nanti dihitung manual di SQL
     ];
 
-    public array $selectedDetailKeys = [];   // pernr|begda yang dicentang di modal
+    // pernr|begda yang dicentang di modal detail
+    public array $selectedDetailKeys = [];
 
     public bool $onlyInduk = false;
 
+    // SAVE ke SAP
     public bool $showSaveSapModal = false;
     public string $sapUser = '';
     public string $sapPass = '';
     public array $saveResults = [];
     public ?string $sapAuthError = null;
 
+    // -------------------------------------------------------------------------
+    // EXPORT DETAIL (PDF / EXCEL) - pakai session
+    // -------------------------------------------------------------------------
     public function exportDetail(string $format)
     {
         // Kumpulkan semua NIK dari:
         // 1) checkbox detail (selectedDetailKeys: "pernr|begda")
         // 2) checkbox summary (selectedPernrs)
-        // Per NIK -> selalu export FULL range tanggal (1..H-1), bukan hanya tanggal yang dicentang.
+        // Per NIK -> selalu export FULL range tanggal (1..H-1)
 
         $pernrSet = [];
 
@@ -108,13 +115,17 @@ class ReportGenerator extends Component
         }
     }
 
-
+    // -------------------------------------------------------------------------
+    // LIFECYCLE
+    // -------------------------------------------------------------------------
     public function mount($werks)
     {
         $this->werks = strtoupper(trim($werks));
     }
 
-    /** ==== DETAIL: isi tanggal kosong dengan placeholder ('-') sampai H-1 ==== */
+    // -------------------------------------------------------------------------
+    // DETAIL PER NIK (isi tanggal kosong dengan placeholder sampai H-1)
+    // -------------------------------------------------------------------------
     public function showPernrDetail($clickedPernr)
     {
         $clickedPernr = (string) $clickedPernr;
@@ -132,7 +143,6 @@ class ReportGenerator extends Component
             $end   = $today->copy()->subDay();
         }
 
-        // (opsional) guard, tapi sekarang harusnya selalu start <= end
         if ($end->lt($start)) {
             $this->detailData = [];
             $this->showDetailModal = false;
@@ -151,6 +161,7 @@ class ReportGenerator extends Component
 
         $detail = [];
         $cursor = $start->copy();
+
         while ($cursor->lte($end)) {
             $key = $cursor->format('Ymd');
 
@@ -189,10 +200,13 @@ class ReportGenerator extends Component
     public function closeDetailModal()
     {
         $this->showDetailModal = false;
-        $this->selectedPernr = null;
-        $this->detailData = [];
+        $this->selectedPernr   = null;
+        $this->detailData      = [];
     }
 
+    // -------------------------------------------------------------------------
+    // MODAL SAVE SAP
+    // -------------------------------------------------------------------------
     public function openSaveSapModal()
     {
         // pastikan ada NIK dicentang di summary
@@ -205,28 +219,29 @@ class ReportGenerator extends Component
             return;
         }
 
-        $this->sapUser = '';
-        $this->sapPass = '';
-        $this->saveResults = [];
-
-        // ⬇️ reset pesan error otorisasi setiap kali modal dibuka
+        $this->sapUser      = '';
+        $this->sapPass      = '';
+        $this->saveResults  = [];
         $this->sapAuthError = null;
-        // ⬆️
 
         $this->showSaveSapModal = true;
     }
+
     public function closeSaveSapModal()
     {
         $this->showSaveSapModal = false;
-        $this->sapAuthError = null; // ⬅️ sekalian clear
+        $this->sapAuthError     = null;
     }
 
+    // -------------------------------------------------------------------------
+    // SAVE KE SAP (CALL API PYTHON + LOG KE DB)
+    // -------------------------------------------------------------------------
     public function saveToSap()
     {
         // Reset error & state SAP
         $this->resetErrorBag(['sapUser', 'sapPass']);
-        $this->sapAuthError = null;
-        $this->saveResults = [];
+        $this->sapAuthError  = null;
+        $this->saveResults   = [];
 
         // 1. Validasi input SAP user & password
         $this->validate(
@@ -252,9 +267,8 @@ class ReportGenerator extends Component
             return;
         }
 
-        // 3. Ambil data summary ($reportData) dan mapping jadi items[] untuk API Python
-        $reportCollection = collect($this->reportData ?? []);
-
+        // 3. Ambil data summary (disimpan di reportDataForSave) dan mapping jadi items[] untuk API Python
+        $reportCollection = collect($this->reportDataForSave ?? []);
         $items = [];
 
         foreach ($selectedPernrs as $pernr) {
@@ -268,7 +282,7 @@ class ReportGenerator extends Component
                 return (string) ($row->pernr ?? '') === (string) $pernr;
             });
 
-            if (! $row) {
+            if (!$row) {
                 continue;
             }
 
@@ -285,7 +299,7 @@ class ReportGenerator extends Component
             $items[] = [
                 'pernr'      => (string) $get($row, 'pernr'),
                 'cname'      => (string) $get($row, 'cname'),
-                'arbpl'      => (string) $get($row, 'arbpl'),     // WC personal (kalau mau pakai arbpl2, silakan ganti)
+                'arbpl'      => (string) $get($row, 'arbpl'),     // WC personal
                 'start_date' => (string) $get($row, 'min_begda'), // yyyymmdd
                 'end_date'   => (string) $get($row, 'max_begda'), // yyyymmdd
                 'mint2'      => (int) ($get($row, 'mint2') ?? 0),    // Menit Conf
@@ -302,9 +316,7 @@ class ReportGenerator extends Component
 
         // 4. Siapkan info batch & URL API Python
         $batchId = (string) Str::uuid();
-
-        // Bisa kamu pindah ke config('services.yppr058_save.url') kalau mau
-        $apiUrl = 'http://127.0.0.1:5011/api/yppr058/save';
+        $apiUrl  = 'http://127.0.0.1:5011/api/yppr058/save';
 
         // 5. Call API Flask
         try {
@@ -376,24 +388,16 @@ class ReportGenerator extends Component
         }
 
         // 9. Oper ke view untuk toast "Proses Simpan Selesai"
-        $this->saveResults = $results;
-
-        // Kalau mau: tutup modal & kosongkan password
-        $this->sapPass = '';
+        $this->saveResults      = $results;
+        $this->sapPass          = '';
         $this->showSaveSapModal = false;
-
-        // Opsional: kalau semua gagal, kamu bisa tambahkan warning tambahan
-        // berdasarkan $body['summary'] atau $body['ok']
-        // misal:
-        // if (isset($body['ok']) && $body['ok'] === false) {
-        //     $this->addError('sapUser', 'Semua item gagal disimpan ke SAP. Lihat detail log di bawah.');
-        // }
     }
 
-    /** ==== EXPORT PDF / EXCEL (gunakan session) ==== */
+    // -------------------------------------------------------------------------
+    // EXPORT SUMMARY (PDF / EXCEL) - pakai session
+    // -------------------------------------------------------------------------
     public function export(string $format)
     {
-        // pastikan unik & string
         $pernrs = array_values(array_unique(
             array_map('strval', $this->selectedPernrs ?? [])
         ));
@@ -413,7 +417,9 @@ class ReportGenerator extends Component
         }
     }
 
-    /** ==== Toggle "Pilih semua" untuk baris yang sedang ditampilkan ==== */
+    // -------------------------------------------------------------------------
+    // Toggle "Pilih semua" untuk baris yang sedang ditampilkan
+    // -------------------------------------------------------------------------
     public function toggleSelectAll()
     {
         $current = array_map('strval', $this->currentPagePernrs ?? []);
@@ -434,6 +440,9 @@ class ReportGenerator extends Component
         }
     }
 
+    // -------------------------------------------------------------------------
+    // RENDER
+    // -------------------------------------------------------------------------
     public function render()
     {
         $headers = [
@@ -455,7 +464,7 @@ class ReportGenerator extends Component
         $baseQuery = ReportData::query()
             ->whereRaw('UPPER(TRIM(werks)) = ?', [$this->werks]);
 
-        // >>> FILTER: kalau toggle hanya Role INDUK aktif <<<
+        // Filter role INDUK
         if ($this->onlyInduk) {
             $baseQuery->whereRaw('UPPER(TRIM(role)) = ?', ['INDUK']);
         }
@@ -463,8 +472,9 @@ class ReportGenerator extends Component
         // === Parsing input search ===
         $raw = trim((string) $this->q);
 
-        // 1) ambil semua yang di dalam tanda kutip -> $namePhrases
+        // frasa di dalam tanda kutip -> $namePhrases
         preg_match_all('/"([^"]+)"/u', $raw, $m);
+
         $namePhrases = collect($m[1] ?? [])
             ->map(fn($p) => mb_strtolower(trim($p)))
             ->filter()
@@ -473,7 +483,7 @@ class ReportGenerator extends Component
         // buang yang di-kutip dari string mentah
         $rest = preg_replace('/"([^"]+)"/u', ' ', $raw);
 
-        // 2) token sisa (dipisah spasi/koma)
+        // token sisa (dipisah spasi/koma)
         $tokens = collect(preg_split('/[\s,]+/u', $rest))
             ->filter()
             ->map(fn($t) => trim($t))
@@ -484,49 +494,51 @@ class ReportGenerator extends Component
         // token lain (kode WC, nama, desc, dll)
         $arbplTokens = $tokens->diff($pernrTokens)->values();
 
-        // 3) fallback: kalau belum ada frasa di-kutip,
-        //    dan input hanya terdiri dari huruf & spasi (tidak ada angka),
-        //    maka anggap seluruh input sebagai frasa nama/desc
+        // fallback: kalau belum ada frasa di-kutip,
+        // dan input hanya huruf & spasi → anggap sebagai frasa nama/desc
         if ($namePhrases->isEmpty() && $raw !== '' && preg_match('/^[\p{L}\s]+$/u', $raw)) {
             $namePhrases = collect([mb_strtolower($raw)]);
         }
 
-        $baseQuery->where(function ($q) use ($pernrTokens, $arbplTokens, $namePhrases) {
-            // --- NIK (pernr) ---
-            if ($pernrTokens->isNotEmpty()) {
-                $q->where(function ($qq) use ($pernrTokens) {
-                    foreach ($pernrTokens as $t) {
-                        $qq->orWhere('pernr', 'LIKE', "%{$t}%");
-                    }
-                });
-            }
+        if ($pernrTokens->isNotEmpty() || $arbplTokens->isNotEmpty() || $namePhrases->isNotEmpty()) {
+            $baseQuery->where(function ($q) use ($pernrTokens, $arbplTokens, $namePhrases) {
+                // NIK
+                if ($pernrTokens->isNotEmpty()) {
+                    $q->where(function ($qq) use ($pernrTokens) {
+                        foreach ($pernrTokens as $t) {
+                            $qq->orWhere('pernr', 'LIKE', "%{$t}%");
+                        }
+                    });
+                }
 
-            // --- Token non-angka: cari WC code, DESC WC, dan NAMA (cname) ---
-            if ($arbplTokens->isNotEmpty()) {
-                $q->where(function ($qq) use ($arbplTokens) {
-                    foreach ($arbplTokens as $t) {
-                        $lower = mb_strtolower($t);
-                        $qq->orWhere('arbpl', 'LIKE', "%{$t}%")
-                            ->orWhere('desc',  'LIKE', "%{$t}%")
-                            ->orWhereRaw('LOWER(cname) LIKE ?',   ["%{$lower}%"])
-                            ->orWhereRaw('LOWER(devisi) LIKE ?',  ["%{$lower}%"]); // <<< Devisi ikut dicari
-                    }
-                });
-            }
+                // WC / DESC / NAMA / DEVISI
+                if ($arbplTokens->isNotEmpty()) {
+                    $q->where(function ($qq) use ($arbplTokens) {
+                        foreach ($arbplTokens as $t) {
+                            $lower = mb_strtolower($t);
 
-            // --- Frasa di dalam tanda kutip (lebih spesifik) ---
-            if ($namePhrases->isNotEmpty()) {
-                $q->where(function ($qq) use ($namePhrases) {
-                    foreach ($namePhrases as $p) {
-                        $qq->orWhereRaw('LOWER(cname)   LIKE ?', ["%{$p}%"])
-                            ->orWhereRaw('LOWER(`desc`) LIKE ?', ["%{$p}%"])
-                            ->orWhereRaw('LOWER(devisi) LIKE ?', ["%{$p}%"]); // <<< frasa spesifik ke devisi juga
-                    }
-                });
-            }
-        });
+                            $qq->orWhere('arbpl', 'LIKE', "%{$t}%")
+                                ->orWhere('desc',  'LIKE', "%{$t}%")
+                                ->orWhereRaw('LOWER(cname)  LIKE ?', ["%{$lower}%"])
+                                ->orWhereRaw('LOWER(devisi) LIKE ?', ["%{$lower}%"]);
+                        }
+                    });
+                }
 
-        // === Aggregate per pernr (summary) ===
+                // Frasa spesifik dalam tanda kutip
+                if ($namePhrases->isNotEmpty()) {
+                    $q->where(function ($qq) use ($namePhrases) {
+                        foreach ($namePhrases as $p) {
+                            $qq->orWhereRaw('LOWER(cname)   LIKE ?', ["%{$p}%"])
+                                ->orWhereRaw('LOWER(`desc`)   LIKE ?', ["%{$p}%"])
+                                ->orWhereRaw('LOWER(devisi)   LIKE ?', ["%{$p}%"]);
+                        }
+                    });
+                }
+            });
+        }
+
+        // Aggregate per pernr (summary)
         $sumSelects = array_map(fn($col) => "SUM($col) as $col", $this->aggregateColumns);
 
         // non-aggregate (MAX) termasuk DESC WC, role, dan devisi
@@ -534,13 +546,10 @@ class ReportGenerator extends Component
             fn($col) => "MAX(`$col`) as `$col`",
             ['cname', 'arbpl', 'desc', 'arbpl2', 'werks', 'role', 'devisi']
         );
-
         $nonAggSelects[] = 'MIN(shift) as shift';
 
         $dateRangeSel = ['MIN(begda) as min_begda', 'MAX(begda) as max_begda'];
 
-        // RATA-RATA PERSENTASE VAR PER HARI:
-        //   AVG( (varnt / gji) * 100 )  -> kalau gji = 0, anggap 0%
         // Persentase Var = (TOTAL Var Upah / TOTAL Upah Inspect) * 100
         $persenVarExpr = "
             CASE
@@ -557,19 +566,26 @@ class ReportGenerator extends Component
             [$persenVarExpr]
         );
 
+        // $reportData UNTUK VIEW (Collection of objects)
         $reportData = $baseQuery
             ->selectRaw(implode(', ', $selects))
             ->groupBy('pernr')
             ->get();
-        // simpan daftar pernr yang muncul di halaman ini
+
+        // simpan daftar pernr yang muncul di halaman ini (untuk toggleSelectAll & JS)
         $this->currentPagePernrs = $reportData
             ->pluck('pernr')
             ->map(fn($p) => (string) $p)
             ->values()
             ->all();
 
+        // simpan VERSI ARRAY ke properti Livewire untuk saveToSap()
+        $this->reportDataForSave = $reportData
+            ->map(fn($row) => $row->toArray())
+            ->all();
+
         return view('livewire.report-generator', [
-            'reportData' => $reportData,
+            'reportData' => $reportData, // Collection (dipakai di Blade: $data->pernr)
             'headers'    => $headers,
         ]);
     }
