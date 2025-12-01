@@ -189,6 +189,7 @@ class ReportPdfController extends Controller
     {
         $items = (array) $request->session()->get('report_export_detail.items', []);
 
+        // Ambil list pernr unik dari session
         $pernrs = collect($items)
             ->map(fn($row) => trim((string) ($row['pernr'] ?? '')))
             ->filter()
@@ -202,8 +203,8 @@ class ReportPdfController extends Controller
 
         $werks = strtoupper(trim($werks));
 
-        $start = Carbon::now()->startOfMonth()->format('Ymd');
-        $end   = Carbon::now()->subDay()->format('Ymd');
+        // ✅ range tanggal yang benar (handle kasus tanggal 1)
+        [$start, $end] = $this->getDetailDateRange();
 
         $rows = ReportData::query()
             ->whereRaw('UPPER(TRIM(werks)) = ?', [$werks])
@@ -217,6 +218,7 @@ class ReportPdfController extends Controller
             abort(404, 'Data detail tidak ditemukan untuk pilihan tersebut.');
         }
 
+        // bersihkan session setelah dipakai
         $request->session()->forget('report_export_detail.items');
 
         $pdf = Pdf::loadView('pdf.report-detail', [
@@ -248,8 +250,8 @@ class ReportPdfController extends Controller
 
         $werks = strtoupper(trim($werks));
 
-        $start = Carbon::now()->startOfMonth()->format('Ymd');
-        $end   = Carbon::now()->subDay()->format('Ymd');
+        // ✅ pakai helper yang sama
+        [$start, $end] = $this->getDetailDateRange();
 
         $rows = ReportData::query()
             ->whereRaw('UPPER(TRIM(werks)) = ?', [$werks])
@@ -268,5 +270,20 @@ class ReportPdfController extends Controller
         $filename = "report-data-detail-{$werks}.xlsx";
 
         return Excel::download(new ReportDetailExport($rows, $werks), $filename);
+    }
+
+    protected function getDetailDateRange(): array
+    {
+        $today = Carbon::today();
+
+        if ($today->day === 1) {
+            $start = $today->copy()->subMonth()->startOfMonth();
+            $end   = $today->copy()->subMonth()->endOfMonth();
+        } else {
+            $start = $today->copy()->startOfMonth();
+            $end   = $today->copy()->subDay();
+        }
+
+        return [$start->format('Ymd'), $end->format('Ymd')];
     }
 }

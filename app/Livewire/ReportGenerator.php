@@ -118,10 +118,19 @@ class ReportGenerator extends Component
         $clickedPernr = (string) $clickedPernr;
         $this->selectedPernr = $clickedPernr;
 
-        // Rentang tetap: 1 s.d kemarin pada bulan & tahun SAAT INI
-        $start = Carbon::now()->startOfMonth();
-        $end   = Carbon::now()->subDay();
+        $today = Carbon::today();
 
+        // Kalau hari ini tgl 1 → pakai bulan sebelumnya full
+        if ($today->day === 1) {
+            $start = $today->copy()->subMonth()->startOfMonth();
+            $end   = $today->copy()->subMonth()->endOfMonth();
+        } else {
+            // Selain itu: 1 s.d kemarin di bulan ini
+            $start = $today->copy()->startOfMonth();
+            $end   = $today->copy()->subDay();
+        }
+
+        // (opsional) guard, tapi sekarang harusnya selalu start <= end
         if ($end->lt($start)) {
             $this->detailData = [];
             $this->showDetailModal = false;
@@ -160,8 +169,8 @@ class ReportGenerator extends Component
                     'varnt'     => null,
                     'arbpl'     => null,
                     'desc'      => null,
-                    'role'      => null,          // <--- baru
-                    'devisi'    => null,          // <--- baru
+                    'role'      => null,
+                    'devisi'    => null,
                     'arbpl2'    => null,
                     'werks'     => $this->werks,
                     'shift'     => null,
