@@ -8,6 +8,8 @@ use App\Models\ReportData;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use App\Models\Yppr058SapLog;
+use Illuminate\Support\Str;
 
 
 #[Layout('layouts.app')]
@@ -221,158 +223,171 @@ class ReportGenerator extends Component
 
     public function saveToSap()
     {
-        $pernrs = array_values(array_unique(
-            array_map('strval', $this->selectedPernrs ?? [])
-        ));
-
-        if (empty($pernrs)) {
-            session()->flash('error', 'Pilih minimal satu Personal No. di tabel ringkasan.');
-            $this->showSaveSapModal = false;
-            return;
-        }
-
-        // Validasi SAP user/pass
-        $this->validate([
-            'sapUser' => 'required|string',
-            'sapPass' => 'required|string',
-        ], [
-            'sapUser.required' => 'SAP User wajib diisi.',
-            'sapPass.required' => 'SAP Password wajib diisi.',
-        ]);
-
-        // === Validasi otorisasi SAP user (hanya user tertentu yang boleh save) ===
-        $allowedSapUsers = ['abaper01', 'auto_email', 'kmi-u030']; // semua lowercase
-        $currentSapUser  = strtolower(trim($this->sapUser));
-
-        if (!in_array($currentSapUser, $allowedSapUsers, true)) {
-            // ⬇️ isi pesan khusus untuk ditampilkan di modal
-            $this->sapAuthError = sprintf(
-                'SAP User "%s" tidak memiliki otorisasi untuk SAVE YPPR058. Silakan gunakan SAP user lain yang berhak.',
-                $this->sapUser
-            );
-
-            // optional: tetap pakai flash global kalau layout Anda sudah punya toast umum
-            session()->flash(
-                'error',
-                'SAP User ' . $this->sapUser . ' tidak memiliki otorisasi untuk save YPPR058.'
-            );
-
-            $this->showSaveSapModal = true; // tetap biarkan modal terbuka
-            return; // dan JANGAN kirim ke API
-        }
+        // Reset error & state SAP
+        $this->resetErrorBag(['sapUser', 'sapPass']);
         $this->sapAuthError = null;
+        $this->saveResults = [];
 
-        // Ambil summary dari DB khusus pernr yang dipilih
-        $baseQuery = ReportData::query()
-            ->whereRaw('UPPER(TRIM(werks)) = ?', [$this->werks])
-            ->whereIn('pernr', $pernrs);
+        // 1. Validasi input SAP user & password
+        $this->validate(
+            [
+                'sapUser' => ['required', 'string'],
+                'sapPass' => ['required', 'string'],
+            ],
+            [
+                'sapUser.required' => 'SAP User wajib diisi.',
+                'sapPass.required' => 'SAP Password wajib diisi.',
+            ]
+        );
 
-        if ($this->onlyInduk) {
-            $baseQuery->whereRaw('UPPER(TRIM(role)) = ?', ['INDUK']);
-        }
+        // 2. Ambil daftar NIK yang dipilih di summary
+        $selectedPernrs = collect($this->selectedPernrs ?? [])
+            ->filter()
+            ->map(fn($p) => trim((string) $p))
+            ->unique()
+            ->values();
 
-        $rows = $baseQuery
-            ->selectRaw('
-            pernr,
-            MAX(cname)  as cname,
-            MAX(arbpl)  as arbpl,
-            MIN(begda)  as min_begda,
-            MAX(begda)  as max_begda,
-            SUM(mint2)  as mint2,
-            SUM(mintu)  as mintu,
-            SUM(mintu2) as mintu2,
-            SUM(mintu3) as mintu3
-        ')
-            ->groupBy('pernr')
-            ->get();
-
-        if ($rows->isEmpty()) {
-            session()->flash('error', 'Data YPPR058 untuk NIK yang dipilih tidak ditemukan.');
-            $this->showSaveSapModal = false;
+        if ($selectedPernrs->isEmpty()) {
+            $this->addError('sapUser', 'Tidak ada Personal No. yang dipilih untuk di-SAVE.');
             return;
         }
 
-        // Payload items untuk API Flask
-        $items = $rows->map(function ($r) {
-            return [
-                'pernr'      => (string) $r->pernr,
-                'cname'      => (string) $r->cname,
-                // pastikan WC uppercase & tanpa spasi
-                'arbpl'      => strtoupper(trim((string) $r->arbpl)),
-                // 20251101, akan dikonversi ke DATS di Flask
-                'start_date' => (string) $r->min_begda,
-                'end_date'   => (string) $r->max_begda,
-                'mint2'      => (int) $r->mint2,
-                'mintu'      => (int) $r->mintu,
-                'mintu2'     => (int) $r->mintu2,
-                'mintu3'     => (int) $r->mintu3,
+        // 3. Ambil data summary ($reportData) dan mapping jadi items[] untuk API Python
+        $reportCollection = collect($this->reportData ?? []);
+
+        $items = [];
+
+        foreach ($selectedPernrs as $pernr) {
+            // Cari baris summary untuk NIK ini
+            $row = $reportCollection->first(function ($row) use ($pernr) {
+                // Support array atau object (stdClass/Eloquent)
+                if (is_array($row)) {
+                    return (string) ($row['pernr'] ?? '') === (string) $pernr;
+                }
+
+                return (string) ($row->pernr ?? '') === (string) $pernr;
+            });
+
+            if (! $row) {
+                continue;
+            }
+
+            // Helper ambil field, aman untuk array/obj
+            $get = function ($row, string $key) {
+                if (is_array($row)) {
+                    return $row[$key] ?? null;
+                }
+
+                return $row->$key ?? null;
+            };
+
+            // Sesuai format yang diminta API Flask app_yppr058_save.py
+            $items[] = [
+                'pernr'      => (string) $get($row, 'pernr'),
+                'cname'      => (string) $get($row, 'cname'),
+                'arbpl'      => (string) $get($row, 'arbpl'),     // WC personal (kalau mau pakai arbpl2, silakan ganti)
+                'start_date' => (string) $get($row, 'min_begda'), // yyyymmdd
+                'end_date'   => (string) $get($row, 'max_begda'), // yyyymmdd
+                'mint2'      => (int) ($get($row, 'mint2') ?? 0),    // Menit Conf
+                'mintu'      => (int) ($get($row, 'mintu') ?? 0),    // Menit Inspect
+                'mintu2'     => (int) ($get($row, 'mintu2') ?? 0),   // Detik Inspect
+                'mintu3'     => (int) ($get($row, 'mintu3') ?? 0),   // Detik Konfirmasi
             ];
-        })->values()->all();
+        }
 
-        $url = config('services.yppr058_save.url');
+        if (empty($items)) {
+            $this->addError('sapUser', 'Tidak berhasil membangun data SAVE dari pilihan saat ini.');
+            return;
+        }
 
+        // 4. Siapkan info batch & URL API Python
+        $batchId = (string) Str::uuid();
+
+        // Bisa kamu pindah ke config('services.yppr058_save.url') kalau mau
+        $apiUrl = 'http://127.0.0.1:5011/api/yppr058/save';
+
+        // 5. Call API Flask
         try {
-            Log::info('YPPR058 SAVE: send to Flask', [
-                'url'      => $url,
-                'werks'    => $this->werks,
-                'sap_user' => $this->sapUser,
-                'pernrs'   => $pernrs,
-                'items'    => $items,
-            ]);
-
-            $response = Http::timeout(60)->post($url, [
+            $response = Http::timeout(90)->post($apiUrl, [
                 'sap_user' => $this->sapUser,
                 'sap_pass' => $this->sapPass,
                 'items'    => $items,
             ]);
-
-            $status = $response->status();
-            $data   = $response->json();
-
-            // pastikan selalu array
-            if (!is_array($data)) {
-                $data = [];
-            }
-            if ($status === 403) {
-                $msg = $data['error'] ?? 'SAP user tidak memiliki otorisasi untuk SAVE YPPR058.';
-                session()->flash('error', $msg);
-                $this->saveResults = [];
-                $this->showSaveSapModal = false;
-                return;
-            }
-
-            Log::info('YPPR058 SAVE: response from Flask', [
-                'status' => $status,
-                'body'   => $data,
-            ]);
-
-            $this->saveResults = $data['results'] ?? [];
-
-            $ok   = collect($this->saveResults)->where('ok', true)->count();
-            $fail = max(0, count($this->saveResults) - $ok);
-
-            if ($fail === 0 && $ok > 0) {
-                session()->flash(
-                    'success',
-                    "Save ke SAP berhasil. Berhasil: {$ok}, Gagal: {$fail}."
-                );
-            } else {
-                session()->flash(
-                    'error',
-                    "Save ke SAP selesai dengan error (HTTP {$status}). Berhasil: {$ok}, Gagal: {$fail}."
-                );
-            }
         } catch (\Throwable $e) {
-            Log::error('YPPR058 SAVE: exception', [
-                'message' => $e->getMessage(),
-                'trace'   => $e->getTraceAsString(),
-            ]);
-
-            session()->flash('error', 'Gagal save ke SAP: ' . $e->getMessage());
-            $this->saveResults = [];
+            // Gagal konek ke servis Python
+            $this->addError('sapUser', 'Gagal terhubung ke service SAVE SAP: ' . $e->getMessage());
+            return;
         }
 
+        $status = $response->status();
+        $body   = $response->json() ?? [];
+
+        // 6. Handle khusus unauthorized / logon error
+        if ($status === 403) {
+            // Sesuai kode Python: user SAP tidak memiliki otorisasi
+            $this->sapAuthError = $body['error'] ?? 'SAP user tidak memiliki otorisasi untuk SAVE YPPR058.';
+            return;
+        }
+
+        if ($status === 401) {
+            // Logon SAP gagal (password salah / user tidak valid)
+            $this->sapAuthError = $body['error'] ?? 'SAP logon failed. Periksa user & password.';
+            return;
+        }
+
+        // 7. Ambil results dari API (baik status 200 maupun 500)
+        $results = $body['results'] ?? [];
+
+        if (empty($results)) {
+            // Kalau nggak ada results sama sekali → anggap error
+            $this->addError('sapUser', $body['error'] ?? 'Service SAVE SAP tidak mengembalikan hasil.');
+            return;
+        }
+
+        // 8. Simpan setiap hasil ke DB (tabel yppr058_sap_logs)
+        foreach ($results as $r) {
+            Yppr058SapLog::create([
+                'batch_id'        => $batchId,
+                'sap_user'        => $this->sapUser,
+
+                'pernr'           => $r['pernr'] ?? null,
+                'cname'           => $r['cname'] ?? null,
+                'arbpl'           => $r['arbpl'] ?? null,
+                'start_date'      => $r['start_date'] ?? null,
+                'end_date'        => $r['end_date'] ?? null,
+
+                'mint2'           => $r['mint2'] ?? null,
+                'mintu'           => $r['mintu'] ?? null,
+                'mintu2'          => $r['mintu2'] ?? null,
+                'mintu3'          => $r['mintu3'] ?? null,
+
+                'ok'              => (bool) ($r['ok'] ?? false),
+                'return_type'     => $r['return_type'] ?? null,
+                'return_id'       => $r['return_id'] ?? null,
+                'return_number'   => $r['return_number'] ?? null,
+                'return_message'  => $r['return_message'] ?? ($r['error'] ?? null),
+                'message_v1'      => $r['message_v1'] ?? null,
+                'message_v2'      => $r['message_v2'] ?? null,
+                'message_v3'      => $r['message_v3'] ?? null,
+                'message_v4'      => $r['message_v4'] ?? null,
+
+                'error_raw'       => $r['error'] ?? null,
+            ]);
+        }
+
+        // 9. Oper ke view untuk toast "Proses Simpan Selesai"
+        $this->saveResults = $results;
+
+        // Kalau mau: tutup modal & kosongkan password
+        $this->sapPass = '';
         $this->showSaveSapModal = false;
+
+        // Opsional: kalau semua gagal, kamu bisa tambahkan warning tambahan
+        // berdasarkan $body['summary'] atau $body['ok']
+        // misal:
+        // if (isset($body['ok']) && $body['ok'] === false) {
+        //     $this->addError('sapUser', 'Semua item gagal disimpan ke SAP. Lihat detail log di bawah.');
+        // }
     }
 
     /** ==== EXPORT PDF / EXCEL (gunakan session) ==== */
