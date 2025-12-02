@@ -20,6 +20,8 @@ class ReportGenerator extends Component
     public $selectedPernr = null;
     public $detailData = [];
 
+    public string $monthFilter = 'this';
+
     // Simpan pilihan user & list pernr di halaman saat ini
     // <<< BARU: simpan pilihan user & list pernr di halaman saat ini >>>
     public array $selectedPernrs = [];
@@ -105,6 +107,7 @@ class ReportGenerator extends Component
 
         // Simpan ke session untuk dibaca controller export detail
         session()->put('report_export_detail.items', $items);
+        session()->put('report_export_detail.month_filter', $this->monthFilter); // <<< TAMBAH INI
 
         if ($format === 'pdf') {
             return redirect()->route('report-data.export-detail-pdf', ['werks' => $this->werks]);
@@ -123,6 +126,45 @@ class ReportGenerator extends Component
         $this->werks = strtoupper(trim($werks));
     }
 
+    protected function getDateRangeForFilter(): array
+    {
+        $today = Carbon::today();
+
+        if ($this->monthFilter === 'prev') {
+            // BULAN KEMARIN: full 1..akhir
+            $start = $today->copy()->subMonth()->startOfMonth();
+            $end   = $today->copy()->subMonth()->endOfMonth();
+        } else {
+            // BULAN INI: 1..H-1 (kemarin)
+            if ($today->day === 1) {
+                // Kalau tgl 1, tidak ada H-1 → fallback bulan kemarin full
+                $start = $today->copy()->subMonth()->startOfMonth();
+                $end   = $today->copy()->subMonth()->endOfMonth();
+            } else {
+                $start = $today->copy()->startOfMonth();
+                $end   = $today->copy()->subDay();
+            }
+        }
+
+        return [$start, $end];
+    }
+
+    /**
+     * Dipanggil dari Blade saat user klik toggle Bulan ini/Bulan kemarin.
+     */
+    public function setMonthFilter(string $mode): void
+    {
+        $mode = $mode === 'prev' ? 'prev' : 'this';
+
+        $this->monthFilter = $mode;
+
+        // Tutup modal detail kalau sedang terbuka, supaya tidak pakai bulan lama
+        $this->detailData     = [];
+        $this->selectedPernr  = null;
+        $this->showDetailModal = false;
+    }
+
+
     // -------------------------------------------------------------------------
     // DETAIL PER NIK (isi tanggal kosong dengan placeholder sampai H-1)
     // -------------------------------------------------------------------------
@@ -131,17 +173,8 @@ class ReportGenerator extends Component
         $clickedPernr = (string) $clickedPernr;
         $this->selectedPernr = $clickedPernr;
 
-        $today = Carbon::today();
-
-        // Kalau hari ini tgl 1 → pakai bulan sebelumnya full
-        if ($today->day === 1) {
-            $start = $today->copy()->subMonth()->startOfMonth();
-            $end   = $today->copy()->subMonth()->endOfMonth();
-        } else {
-            // Selain itu: 1 s.d kemarin di bulan ini
-            $start = $today->copy()->startOfMonth();
-            $end   = $today->copy()->subDay();
-        }
+        // ambil range tanggal sesuai filter bulan global
+        [$start, $end] = $this->getDateRangeForFilter();
 
         if ($end->lt($start)) {
             $this->detailData = [];
@@ -407,6 +440,7 @@ class ReportGenerator extends Component
         }
 
         session()->put('report_export.pernrs', $pernrs);
+        session()->put('report_export.month_filter', $this->monthFilter); // <<< TAMBAH INI
 
         if ($format === 'pdf') {
             return redirect()->route('report-data.export-pdf', ['werks' => $this->werks]);
@@ -461,8 +495,11 @@ class ReportGenerator extends Component
             'Persentase Var',
         ];
 
+        [$start, $end] = $this->getDateRangeForFilter();
+
         $baseQuery = ReportData::query()
-            ->whereRaw('UPPER(TRIM(werks)) = ?', [$this->werks]);
+            ->whereRaw('UPPER(TRIM(werks)) = ?', [$this->werks])
+            ->whereBetween('begda', [$start->format('Ymd'), $end->format('Ymd')]);
 
         // Filter role INDUK
         if ($this->onlyInduk) {

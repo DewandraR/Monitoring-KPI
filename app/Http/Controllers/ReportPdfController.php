@@ -13,6 +13,30 @@ use Carbon\Carbon;
 
 class ReportPdfController extends Controller
 {
+    protected function getDateRangeForMonth(?string $monthFilter): array
+    {
+        $today = Carbon::today();
+        $monthFilter = $monthFilter === 'prev' ? 'prev' : 'this';
+
+        if ($monthFilter === 'prev') {
+            // Bulan kemarin full
+            $start = $today->copy()->subMonth()->startOfMonth();
+            $end   = $today->copy()->subMonth()->endOfMonth();
+        } else {
+            // Bulan ini: 1 .. H-1 (kemarin),
+            // kalau hari ini tgl 1 → fallback bulan kemarin full (sama seperti Livewire)
+            if ($today->day === 1) {
+                $start = $today->copy()->subMonth()->startOfMonth();
+                $end   = $today->copy()->subMonth()->endOfMonth();
+            } else {
+                $start = $today->copy()->startOfMonth();
+                $end   = $today->copy()->subDay();
+            }
+        }
+
+        return [$start->format('Ymd'), $end->format('Ymd')];
+    }
+
     /**
      * Ambil summary rows (sama persis dengan query di ReportGenerator)
      *
@@ -20,7 +44,7 @@ class ReportPdfController extends Controller
      * @param  string $werks
      * @return \Illuminate\Support\Collection
      */
-    protected function getSummaryRows(array $pernrs, string $werks): Collection
+    protected function getSummaryRows(array $pernrs, string $werks, ?array $dateRange = null): Collection
     {
         // kolom yang di-SUM
         $aggregateColumns = [
@@ -59,9 +83,17 @@ class ReportPdfController extends Controller
             [$persenVarExpr]
         );
 
-        return ReportData::query()
+        $query = ReportData::query()
             ->whereRaw('UPPER(TRIM(werks)) = ?', [$werks])
-            ->whereIn('pernr', $pernrs)
+            ->whereIn('pernr', $pernrs);
+
+        // <<< FILTER TANGGAL SESUAI BULAN >>>
+        if ($dateRange) {
+            [$start, $end] = $dateRange;
+            $query->whereBetween('begda', [$start, $end]);
+        }
+
+        return $query
             ->selectRaw(implode(', ', $selects))
             ->groupBy('pernr')
             ->orderBy('pernr')
@@ -137,13 +169,16 @@ class ReportPdfController extends Controller
 
         $werks = strtoupper(trim($werks));
 
-        $rows = $this->getSummaryRows($pernrs, $werks);
+        $monthFilter = (string) $request->session()->get('report_export.month_filter', 'this');
+        $dateRange   = $this->getDateRangeForMonth($monthFilter);
+
+        $rows = $this->getSummaryRows($pernrs, $werks, $dateRange);
 
         if ($rows->isEmpty()) {
             abort(404, 'Data tidak ditemukan untuk pilihan tersebut.');
         }
 
-        $request->session()->forget('report_export.pernrs');
+        $request->session()->forget(['report_export.pernrs', 'report_export.month_filter']);
 
         $pdf = Pdf::loadView('pdf.report-summary', [
             'rows'  => $rows,
@@ -168,13 +203,16 @@ class ReportPdfController extends Controller
 
         $werks = strtoupper(trim($werks));
 
-        $rows = $this->getSummaryRows($pernrs, $werks);
+        $monthFilter = (string) $request->session()->get('report_export.month_filter', 'this');
+        $dateRange   = $this->getDateRangeForMonth($monthFilter);
+
+        $rows = $this->getSummaryRows($pernrs, $werks, $dateRange);
 
         if ($rows->isEmpty()) {
             abort(404, 'Data tidak ditemukan untuk pilihan tersebut.');
         }
 
-        $request->session()->forget('report_export.pernrs');
+        $request->session()->forget(['report_export.pernrs', 'report_export.month_filter']);
 
         $filename = "report-data-{$werks}.xlsx";
 
@@ -203,8 +241,9 @@ class ReportPdfController extends Controller
 
         $werks = strtoupper(trim($werks));
 
-        // ✅ range tanggal yang benar (handle kasus tanggal 1)
-        [$start, $end] = $this->getDetailDateRange();
+        $monthFilter = (string) $request->session()->get('report_export_detail.month_filter', 'this');
+        // ✅ range tanggal yang benar (handle kasus tanggal 1 + filter bulan)
+        [$start, $end] = $this->getDetailDateRange($monthFilter);
 
         $rows = ReportData::query()
             ->whereRaw('UPPER(TRIM(werks)) = ?', [$werks])
@@ -219,7 +258,7 @@ class ReportPdfController extends Controller
         }
 
         // bersihkan session setelah dipakai
-        $request->session()->forget('report_export_detail.items');
+        $request->session()->forget(['report_export_detail.items', 'report_export_detail.month_filter']);
 
         $pdf = Pdf::loadView('pdf.report-detail', [
             'rows'  => $rows,
@@ -250,8 +289,9 @@ class ReportPdfController extends Controller
 
         $werks = strtoupper(trim($werks));
 
+        $monthFilter = (string) $request->session()->get('report_export_detail.month_filter', 'this');
         // ✅ pakai helper yang sama
-        [$start, $end] = $this->getDetailDateRange();
+        [$start, $end] = $this->getDetailDateRange($monthFilter);
 
         $rows = ReportData::query()
             ->whereRaw('UPPER(TRIM(werks)) = ?', [$werks])
@@ -265,25 +305,15 @@ class ReportPdfController extends Controller
             abort(404, 'Data detail tidak ditemukan untuk pilihan tersebut.');
         }
 
-        $request->session()->forget('report_export_detail.items');
+        $request->session()->forget(['report_export_detail.items', 'report_export_detail.month_filter']);
 
         $filename = "report-data-detail-{$werks}.xlsx";
 
         return Excel::download(new ReportDetailExport($rows, $werks), $filename);
     }
 
-    protected function getDetailDateRange(): array
+    protected function getDetailDateRange(?string $monthFilter = null): array
     {
-        $today = Carbon::today();
-
-        if ($today->day === 1) {
-            $start = $today->copy()->subMonth()->startOfMonth();
-            $end   = $today->copy()->subMonth()->endOfMonth();
-        } else {
-            $start = $today->copy()->startOfMonth();
-            $end   = $today->copy()->subDay();
-        }
-
-        return [$start->format('Ymd'), $end->format('Ymd')];
+        return $this->getDateRangeForMonth($monthFilter);
     }
 }

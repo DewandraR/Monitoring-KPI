@@ -122,7 +122,7 @@
 @endphp
 
 {{-- ROOT ELEMENT --}}
-<div
+<div id="yppr058-root" data-month-filter="{{ $monthFilter ?? 'this' }}"
     class="bg-white overflow-hidden shadow-[0_25px_50px_-12px_rgba(0,0,0,0.15)] sm:rounded-xl p-8 border border-emerald-50 relative">
 
     {{-- DEKORASI LATAR BELAKANG --}}
@@ -151,6 +151,84 @@
                     <span class="text-xs text-gray-400 italic">
                         (Ringkasan per Personal No.)
                     </span>
+                </div>
+            </div>
+
+            {{-- TOGGLE BULAN GLOBAL (kanan judul) --}}
+            {{-- TOGGLE BULAN GLOBAL (kanan judul) - SUPER FANCY VERSION --}}
+            <div class="flex items-center gap-3 group/toggle">
+                <span
+                    class="hidden sm:inline text-[11px] uppercase tracking-widest text-emerald-900/70 font-black flex items-center gap-2">
+                    <svg class="w-4 h-4 text-emerald-600 animate-pulse" fill="none" stroke="currentColor"
+                        viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    Periode
+                </span>
+
+                <div
+                    class="relative inline-flex rounded-2xl bg-gradient-to-r from-emerald-100 via-teal-100 to-emerald-100 p-1.5 shadow-lg ring-2 ring-emerald-200/50 backdrop-blur-sm">
+                    {{-- Background Slider Animasi --}}
+                    <div class="absolute inset-1.5 rounded-xl bg-gradient-to-r from-white via-emerald-50 to-white shadow-inner transition-all duration-500 ease-out {{ $monthFilter === 'this' ? 'translate-x-0' : 'translate-x-[calc(100%-4px)]' }}"
+                        style="width: calc(50% - 2px);"></div>
+
+                    {{-- Tombol Bulan Ini --}}
+                    <button type="button" wire:click="setMonthFilter('this')"
+                        class="relative z-10 px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 ease-out flex items-center gap-2 group/btn
+                        {{ $monthFilter === 'this'
+                            ? 'text-emerald-700 scale-105'
+                            : 'text-emerald-600/60 hover:text-emerald-700 hover:scale-105' }}">
+
+                        {{-- Icon Calendar dengan animasi --}}
+                        <svg class="w-4 h-4 transition-all duration-300 {{ $monthFilter === 'this' ? 'rotate-0 scale-110' : 'rotate-12 scale-90 opacity-70' }}"
+                            fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+
+                        <span class="whitespace-nowrap">Bulan Ini</span>
+
+                        {{-- Sparkle Effect saat aktif --}}
+                        @if ($monthFilter === 'this')
+                            <span class="absolute -top-1 -right-1 flex h-3 w-3">
+                                <span
+                                    class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                <span
+                                    class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500 shadow-lg shadow-emerald-500/50"></span>
+                            </span>
+                        @endif
+                    </button>
+
+                    {{-- Tombol Bulan Kemarin --}}
+                    <button type="button" wire:click="setMonthFilter('prev')"
+                        class="relative z-10 px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 ease-out flex items-center gap-2 group/btn
+                        {{ $monthFilter === 'prev' ? 'text-teal-700 scale-105' : 'text-teal-600/60 hover:text-teal-700 hover:scale-105' }}">
+
+                        {{-- Icon History dengan animasi --}}
+                        <svg class="w-4 h-4 transition-all duration-300 {{ $monthFilter === 'prev' ? 'rotate-0 scale-110' : '-rotate-12 scale-90 opacity-70' }}"
+                            fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+
+                        <span class="whitespace-nowrap">Bulan Lalu</span>
+
+                        {{-- Sparkle Effect saat aktif --}}
+                        @if ($monthFilter === 'prev')
+                            <span class="absolute -top-1 -right-1 flex h-3 w-3">
+                                <span
+                                    class="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75"></span>
+                                <span
+                                    class="relative inline-flex rounded-full h-3 w-3 bg-teal-500 shadow-lg shadow-teal-500/50"></span>
+                            </span>
+                        @endif
+                    </button>
+
+                    {{-- Decorative Glow Effect --}}
+                    <div
+                        class="absolute -inset-1 bg-gradient-to-r from-emerald-400/20 via-teal-400/20 to-emerald-400/20 rounded-2xl blur-lg opacity-0 group-hover/toggle:opacity-100 transition-opacity duration-500 -z-10">
+                    </div>
                 </div>
             </div>
         </div>
@@ -1483,6 +1561,11 @@
                 const $ = (sel, root = document) => root.querySelector(sel);
                 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
+                function getMonthFilter() {
+                    const root = document.getElementById('yppr058-root');
+                    return (root && root.dataset.monthFilter) ? root.dataset.monthFilter : 'this';
+                }
+
                 // === CACHE PILIHAN SUMMARY (SUPAYA TETAP INGAT WALAU FILTER BERUBAH) ===
 
                 // Set NIK yang pernah dicentang di summary
@@ -1878,21 +1961,34 @@
                     const today = new Date();
                     let year = today.getFullYear();
                     let month = today.getMonth() + 1; // 1..12
-                    const todayDate = today.getDate();
                     let startDay = 1;
                     let endDay;
 
-                    if (todayDate === 1) {
-                        // Kalau hari ini tgl 1 -> pakai full bulan sebelumnya
+                    const monthFilter = getMonthFilter();
+
+                    if (monthFilter === 'prev') {
+                        // BULAN KEMARIN: full 1..akhir bulan lalu
                         month -= 1;
                         if (month === 0) {
                             month = 12;
                             year -= 1;
                         }
-                        endDay = new Date(year, month, 0).getDate(); // last day bulan tsb
+                        endDay = new Date(year, month, 0).getDate();
                     } else {
-                        // 1 .. H-1 (kemarin)
-                        endDay = todayDate - 1;
+                        // BULAN INI: 1..H-1 (kemarin), sama dengan logic awal
+                        const todayDate = today.getDate();
+
+                        if (todayDate === 1) {
+                            // Kalau tgl 1 → fallback ke bulan kemarin full
+                            month -= 1;
+                            if (month === 0) {
+                                month = 12;
+                                year -= 1;
+                            }
+                            endDay = new Date(year, month, 0).getDate();
+                        } else {
+                            endDay = todayDate - 1;
+                        }
                     }
 
                     if (endDay < startDay) {
