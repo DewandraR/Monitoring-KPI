@@ -53,6 +53,13 @@ class ReportGenerator extends Component
     public array $saveResults = [];
     public ?string $sapAuthError = null;
 
+    public bool $showTotalUpahModal = false;
+    public string $totalUpahPin = '';
+    public ?string $totalUpahError = null;
+    public ?float $totalUpahGji = null;
+    public ?float $totalUpahGji2 = null;
+    public ?string $totalUpahPeriodLabel = null;
+
     // -------------------------------------------------------------------------
     // EXPORT DETAIL (PDF / EXCEL) - pakai session
     // -------------------------------------------------------------------------
@@ -124,6 +131,10 @@ class ReportGenerator extends Component
     public function mount($werks)
     {
         $this->werks = strtoupper(trim($werks));
+
+        // Ambil state bulan terakhir dari session (default 'this')
+        $saved = session('yppr058.month_filter', 'this');
+        $this->monthFilter = $saved === 'prev' ? 'prev' : 'this';
     }
 
     protected function getDateRangeForFilter(): array
@@ -154,13 +165,18 @@ class ReportGenerator extends Component
      */
     public function setMonthFilter(string $mode): void
     {
+        // Normalisasi nilai
         $mode = $mode === 'prev' ? 'prev' : 'this';
 
+        // Update state Livewire
         $this->monthFilter = $mode;
 
-        // Tutup modal detail kalau sedang terbuka, supaya tidak pakai bulan lama
-        $this->detailData     = [];
-        $this->selectedPernr  = null;
+        // SIMPAN ke session supaya bertahan setelah reload
+        session(['yppr058.month_filter' => $this->monthFilter]);
+
+        // Opsional: tutup modal detail supaya tidak pakai bulan lama
+        $this->detailData      = [];
+        $this->selectedPernr   = null;
         $this->showDetailModal = false;
     }
 
@@ -264,6 +280,59 @@ class ReportGenerator extends Component
     {
         $this->showSaveSapModal = false;
         $this->sapAuthError     = null;
+    }
+
+    public function openTotalUpahModal(): void
+    {
+        $this->totalUpahPin = '';
+        $this->totalUpahError = null;
+        $this->totalUpahGji = null;
+        $this->totalUpahGji2 = null;
+        $this->totalUpahPeriodLabel = null;
+
+        $this->showTotalUpahModal = true;
+    }
+
+    public function closeTotalUpahModal(): void
+    {
+        $this->showTotalUpahModal = false;
+        $this->totalUpahError = null;
+    }
+
+    public function calculateTotalUpah(): void
+    {
+        // PIN hardcode 332211
+        if ($this->totalUpahPin !== '332211') {
+            $this->totalUpahError = 'PIN salah. Silakan coba lagi.';
+            $this->totalUpahGji = null;
+            $this->totalUpahGji2 = null;
+            $this->totalUpahPeriodLabel = null;
+            return;
+        }
+
+        $this->totalUpahError = null;
+
+        // Ambil range tanggal yang sama dengan filter bulan global
+        [$start, $end] = $this->getDateRangeForFilter();
+
+        $query = ReportData::query()
+            ->whereRaw('UPPER(TRIM(werks)) = ?', [$this->werks])
+            ->whereBetween('begda', [$start->format('Ymd'), $end->format('Ymd')]);
+
+        // Kalau mau total mengikuti filter "onlyInduk", buka komentar ini:
+        // if ($this->onlyInduk) {
+        //     $query->whereRaw('UPPER(TRIM(role)) = ?', ['INDUK']);
+        // }
+
+        $totals = $query
+            ->selectRaw('COALESCE(SUM(gji),0) AS total_gji, COALESCE(SUM(gji2),0) AS total_gji2')
+            ->first();
+
+        $this->totalUpahGji  = (float) ($totals->total_gji  ?? 0);
+        $this->totalUpahGji2 = (float) ($totals->total_gji2 ?? 0);
+
+        // Label periode untuk ditampilkan di modal
+        $this->totalUpahPeriodLabel = $start->format('d-m-Y') . ' s.d. ' . $end->format('d-m-Y');
     }
 
     // -------------------------------------------------------------------------
@@ -622,8 +691,10 @@ class ReportGenerator extends Component
             ->all();
 
         return view('livewire.report-generator', [
-            'reportData' => $reportData, // Collection (dipakai di Blade: $data->pernr)
+            'reportData' => $reportData,
             'headers'    => $headers,
+            'rangeStart' => $start->format('Ymd'), // contoh: 20251201
+            'rangeEnd'   => $end->format('Ymd'),   // contoh: 20251217
         ]);
     }
 }

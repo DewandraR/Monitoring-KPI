@@ -122,9 +122,9 @@
 @endphp
 
 {{-- ROOT ELEMENT --}}
-<div id="yppr058-root" data-month-filter="{{ $monthFilter ?? 'this' }}"
+<div id="yppr058-root" data-month-filter="{{ $monthFilter ?? 'this' }}" data-range-start="{{ $rangeStart }}"
+    data-range-end="{{ $rangeEnd }}"
     class="bg-white overflow-hidden shadow-[0_25px_50px_-12px_rgba(0,0,0,0.15)] sm:rounded-xl p-8 border border-emerald-50 relative">
-
     {{-- DEKORASI LATAR BELAKANG --}}
     <div
         class="absolute top-0 right-0 -mt-4 -mr-4 w-64 h-64 bg-gradient-to-br from-emerald-100/40 to-transparent rounded-full blur-3xl pointer-events-none">
@@ -236,47 +236,123 @@
         {{-- BARIS 2: SEMUA TOMBOL AKSI (GRID RESPONSIVE) --}}
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
 
-            {{-- TOMBOL 1: REFRESH BULAN INI --}}
-            <button id="btn-refresh-summary" type="button"
-                class="group relative overflow-hidden rounded-xl 
-                   bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-700
-                   px-5 py-4 text-sm font-bold text-white 
-                   shadow-lg shadow-emerald-600/30 
-                   ring-1 ring-emerald-500/20
-                   transition-all duration-300 ease-out 
-                   hover:shadow-2xl hover:shadow-emerald-600/50 hover:-translate-y-1
-                   hover:ring-emerald-400/40
-                   focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2
-                   disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none
-                   flex items-center justify-center gap-2.5">
+            {{-- TOMBOL 1: REFRESH (DROPDOWN) - GREEN HERO & COMPACT VERSION --}}
+            <div class="relative inline-block w-full group/main h-full">
 
-                {{-- Shimmer Background Effect --}}
-                <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
-                    <div
-                        class="absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000">
-                    </div>
+                {{-- 1. GLOW EFFECT (Nuansa Hijau Neon) --}}
+                <div
+                    class="absolute -inset-0.5 bg-gradient-to-r from-emerald-400 to-lime-400 rounded-xl blur opacity-20 group-hover/main:opacity-60 transition duration-500">
                 </div>
 
-                {{-- Icon --}}
-                <svg xmlns="http://www.w3.org/2000/svg"
-                    class="h-5 w-5 relative z-10 transition-transform duration-300 group-hover:rotate-180"
-                    fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                    <path stroke-linecap="round" stroke-linejoin="round"
-                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
+                {{-- 2. TOMBOL UTAMA (Deep Green & Tinggi Sinkron) --}}
+                <button id="btn-refresh-dropdown" type="button" onclick="toggleRefreshMenu()"
+                    class="relative w-full h-full overflow-hidden rounded-xl 
+                           bg-gradient-to-br from-emerald-900 via-teal-900 to-emerald-950
+                           px-4 py-2.5 text-white shadow-xl ring-1 ring-white/10 
+                           transition-all duration-300 hover:scale-[1.02] 
+                           focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2
+                           flex items-center justify-between gap-3">
 
-                <span class="relative z-10 whitespace-nowrap">Refresh Bulan Ini</span>
+                    {{-- Background Shine Effect --}}
+                    <div
+                        class="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent opacity-0 group-hover/main:opacity-100 transition-opacity duration-500">
+                    </div>
 
-                @if ($selectedCount > 0)
-                    <span
-                        class="flex h-6 min-w-[24px] items-center justify-center rounded-lg 
-                             bg-white/95 text-emerald-700 text-[11px] font-black 
-                             shadow-md ring-2 ring-white/50 relative z-10 px-1.5
-                             transition-transform duration-300 group-hover:scale-110 animate-pulse">
-                        {{ $selectedCount }}
-                    </span>
-                @endif
-            </button>
+                    {{-- Bagian KIRI: Ikon & Teks (Layout Rapat) --}}
+                    <div class="flex items-center gap-3 relative z-10">
+                        {{-- Ikon Sync (Ukuran disesuaikan agar tidak membuat tombol terlalu tinggi) --}}
+                        <div
+                            class="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-b from-emerald-500 to-teal-600 shadow-lg shadow-emerald-900/50 group-hover/main:shadow-emerald-500/40 transition-all duration-300 border-t border-white/20">
+                            <svg xmlns="http://www.w3.org/2000/svg"
+                                class="h-5 w-5 text-white transition-transform duration-700 ease-in-out group-hover/main:rotate-[360deg]"
+                                fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                        </div>
+
+                        {{-- Teks (Leading diperketat agar pas di tinggi tombol standar) --}}
+                        <div class="flex flex-col items-start text-left justify-center">
+                            <span
+                                class="text-[10px] font-bold text-emerald-300 uppercase tracking-wider leading-none mb-0.5">Tarik
+                                Data</span>
+                            <span
+                                class="text-sm font-extrabold text-white tracking-tight leading-none shadow-black drop-shadow-md">Sync
+                                SAP</span>
+                        </div>
+                    </div>
+
+                    {{-- Bagian KANAN: Badge Count & Caret --}}
+                    <div class="flex items-center gap-2 relative z-10">
+                        @if ($selectedCount > 0)
+                            <span
+                                class="hidden xl:flex items-center justify-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-white/20 text-white border border-white/10 animate-pulse">
+                                {{ $selectedCount }}
+                            </span>
+                        @endif
+
+                        {{-- Caret Icon --}}
+                        <svg xmlns="http://www.w3.org/2000/svg"
+                            class="h-4 w-4 text-emerald-400/70 transition-transform duration-300 group-hover/main:text-white group-hover/main:translate-y-0.5"
+                            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </div>
+                </button>
+
+                {{-- 3. MENU DROPDOWN --}}
+                <div id="refresh-menu"
+                    class="hidden absolute right-0 left-0 mt-2 w-full origin-top-right rounded-xl bg-white p-1.5 shadow-2xl ring-1 ring-emerald-900/5 backdrop-blur-xl z-50 transform transition-all animate-scale-in border border-emerald-100/50">
+
+                    {{-- Opsi 1: Bulan Ini --}}
+                    <button id="btn-refresh-month" type="button"
+                        class="group/item flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all hover:bg-emerald-50 border border-transparent hover:border-emerald-100">
+
+                        <div
+                            class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-emerald-100 text-emerald-600 group-hover/item:bg-emerald-500 group-hover/item:text-white transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                                stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                        </div>
+
+                        <div class="flex flex-col items-start">
+                            <span class="font-bold text-slate-700 group-hover/item:text-emerald-800 text-xs">Bulan
+                                Ini</span>
+                            <span
+                                class="text-[10px] text-slate-400 group-hover/item:text-emerald-600/80 leading-tight">Tarik
+                                ulang data full</span>
+                        </div>
+                    </button>
+
+                    {{-- Separator Tipis --}}
+                    <div class="h-px bg-slate-50 my-1"></div>
+
+                    {{-- Opsi 2: Tanggal Terakhir --}}
+                    <button id="btn-refresh-lastday" type="button"
+                        class="group/item flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all hover:bg-teal-50 border border-transparent hover:border-teal-100">
+
+                        <div
+                            class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-teal-100 text-teal-600 group-hover/item:bg-teal-500 group-hover/item:text-white transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none"
+                                viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+
+                        <div class="flex flex-col items-start">
+                            <span class="font-bold text-slate-700 group-hover/item:text-teal-800 text-xs">Tanggal
+                                Terakhir</span>
+                            <span
+                                class="text-[10px] text-slate-400 group-hover/item:text-teal-600/80 leading-tight">Hanya
+                                update hari terakhir</span>
+                        </div>
+                    </button>
+                </div>
+            </div>
+
 
             {{-- TOMBOL 2: COPY NIK --}}
             <button id="btn-copy-nik" type="button"
@@ -342,8 +418,8 @@
                 </div>
 
                 <svg xmlns="http://www.w3.org/2000/svg"
-                    class="h-5 w-5 relative z-10 transition-transform duration-300 group-hover:scale-110" fill="none"
-                    viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    class="h-5 w-5 relative z-10 transition-transform duration-300 group-hover:scale-110"
+                    fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                     <path stroke-linecap="round" stroke-linejoin="round"
                         d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
                 </svg>
@@ -911,6 +987,60 @@
             </table>
         </div>
     </div>
+    {{-- TOMBOL TOTAL UPAH (PIN) DI BAWAH TABEL - SECURE VAULT STYLE --}}
+    <div
+        class="mt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 rounded-xl bg-gradient-to-r from-emerald-50 to-white border border-emerald-100 shadow-sm">
+
+        <div class="flex items-start gap-3">
+            <div
+                class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
+            <div class="text-xs text-gray-500 leading-relaxed">
+                <span class="block font-bold text-emerald-800 text-sm mb-0.5">Informasi Sensitif</span>
+                Total upah dihitung berdasarkan Plant
+                <span
+                    class="font-bold text-emerald-700 bg-emerald-100/50 px-1 rounded">{{ $werks ?? request()->route('werks') }}</span>
+                dan periode
+                <span class="font-bold text-emerald-700 bg-emerald-100/50 px-1 rounded">
+                    {{ $monthFilter === 'prev' ? 'bulan lalu' : 'bulan ini' }}
+                </span>.
+            </div>
+        </div>
+
+        <button type="button" wire:click="openTotalUpahModal"
+            class="group relative inline-flex items-center justify-center gap-2 rounded-lg
+                   bg-slate-800 px-6 py-3 text-sm font-bold text-white
+                   shadow-lg shadow-slate-900/20 ring-1 ring-white/10
+                   transition-all duration-300
+                   hover:bg-slate-700 hover:shadow-xl hover:shadow-slate-900/30 hover:-translate-y-0.5 
+                   focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2">
+
+            {{-- Efek Kunci --}}
+            <svg xmlns="http://www.w3.org/2000/svg"
+                class="h-4 w-4 text-emerald-400 transition-transform group-hover:scale-110" fill="none"
+                viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+
+            <span>Buka Total Upah</span>
+
+            {{-- Indikator PIN --}}
+            <span class="ml-1 flex gap-0.5">
+                <span
+                    class="h-1 w-1 rounded-full bg-slate-500 group-hover:bg-emerald-400 transition-colors delay-75"></span>
+                <span
+                    class="h-1 w-1 rounded-full bg-slate-500 group-hover:bg-emerald-400 transition-colors delay-100"></span>
+                <span
+                    class="h-1 w-1 rounded-full bg-slate-500 group-hover:bg-emerald-400 transition-colors delay-150"></span>
+            </span>
+        </button>
+    </div>
 
     {{-- ======================================================================== --}}
     {{-- BAGIAN 4: MODAL DETAIL --}}
@@ -1232,297 +1362,182 @@
             </div>
         </div>
     @endif
+    {{-- ======================================================================== --}}
+    {{-- MODAL TOTAL UPAH (MOBILE BANKING PIN STYLE) --}}
+    {{-- ======================================================================== --}}
+    @if ($showTotalUpahModal)
+        <div class="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto overflow-x-hidden bg-slate-900/80 backdrop-blur-sm transition-all p-4 sm:p-0"
+            x-data="{
+                pin: ['', '', '', '', '', ''],
+                loading: false,
+                focusNext(index) {
+                    if (this.pin[index].length === 1) {
+                        if (index < 5) {
+                            this.$refs['pin' + (index + 1)].focus();
+                        } else {
+                            // Submit otomatis jika digit ke-6 terisi
+                            this.submitPin();
+                        }
+                    }
+                },
+                focusPrev(index) {
+                    if (this.pin[index].length === 0 && index > 0) {
+                        this.$refs['pin' + (index - 1)].focus();
+                    }
+                },
+                submitPin() {
+                    let fullPin = this.pin.join('');
+                    if (fullPin.length === 6) {
+                        this.loading = true;
+                        @this.set('totalUpahPin', fullPin);
+                        @this.call('calculateTotalUpah').then(() => {
+                            this.loading = false;
+                        });
+                    }
+                }
+            }" x-init="$nextTick(() => $refs.pin0.focus())">
 
+            <div
+                class="relative w-full max-w-sm transform rounded-2xl bg-white shadow-2xl transition-all animate-scale-in overflow-hidden border border-gray-100">
 
-    {{-- CSS ANIMASI --}}
-    <style>
-        @keyframes shine {
-            0% {
-                transform: translateX(-150%) skewX(-20deg);
-            }
+                {{-- Header Modal --}}
+                <div class="bg-slate-50 px-6 py-6 text-center border-b border-gray-100">
+                    <div
+                        class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 ring-4 ring-emerald-50">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-bold text-slate-800">Keamanan Diperlukan</h3>
+                    <p class="mt-2 text-xs text-gray-500 px-4">
+                        Masukkan <span class="font-bold text-slate-900">6 Digit PIN</span> otorisasi Anda untuk membuka
+                        data sensitif Upah Plant {{ $werks }}.
+                    </p>
+                </div>
 
-            100% {
-                transform: translateX(150%) skewX(-20deg);
-            }
-        }
+                <div class="px-6 py-6">
+                    {{-- JIKA BELUM ADA HASIL (INPUT PIN STATE) --}}
+                    @if (is_null($totalUpahGji) || is_null($totalUpahGji2))
 
-        .animate-shine {
-            animation: shine 3s infinite;
-        }
+                        {{-- 6 Digit Input Boxes --}}
+                        <div class="mb-6 flex justify-center gap-2 sm:gap-3">
+                            <template x-for="(digit, index) in pin" :key="index">
+                                <input type="password" inputmode="numeric" pattern="[0-9]*" maxlength="1"
+                                    {{-- ATRIBUT ANTI-AUTOFILL --}} autocomplete="one-time-code" data-lpignore="true"
+                                    :name="'pin_digit_' + index" x-model="pin[index]" :x-ref="'pin' + index"
+                                    @input="focusNext(index)" @keydown.backspace="focusPrev(index)"
+                                    @focus="$event.target.select()"
+                                    class="h-12 w-10 sm:h-14 sm:w-12 rounded-lg border-2 border-gray-200 text-center text-xl font-bold text-slate-800 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/20 transition-all caret-emerald-500"
+                                    :class="{
+                                        'border-red-300 focus:border-red-500 focus:ring-red-200': '{{ $totalUpahError }}'
+                                        !== ''
+                                    }" />
+                            </template>
+                        </div>
 
-        @keyframes shrinkWidth {
-            from {
-                width: 100%;
-            }
+                        {{-- Pesan Error --}}
+                        @if ($totalUpahError)
+                            <div
+                                class="mb-4 flex items-center justify-center gap-2 text-xs font-medium text-red-600 bg-red-50 py-2 rounded-lg animate-pulse">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20"
+                                    fill="currentColor">
+                                    <path fill-rule="evenodd"
+                                        d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                                        clip-rule="evenodd" />
+                                </svg>
+                                {{ $totalUpahError }}
+                            </div>
+                        @endif
 
-            to {
-                width: 0%;
-            }
-        }
+                        {{-- Loading Indicator --}}
+                        <div x-show="loading"
+                            class="text-center text-xs text-emerald-600 font-semibold mb-4 flex justify-center items-center gap-2">
+                            <svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none"
+                                viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10"
+                                    stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z">
+                                </path>
+                            </svg>
+                            Memverifikasi PIN...
+                        </div>
+                    @else
+                        {{-- JIKA SUDAH BERHASIL (RECEIPT STATE) --}}
+                        <div
+                            class="relative overflow-hidden rounded-xl border border-emerald-100 bg-emerald-50/50 p-5 animate-fade-in">
+                            {{-- Dekorasi bulat --}}
+                            <div class="absolute -right-6 -top-6 h-20 w-20 rounded-full bg-emerald-100 blur-2xl"></div>
+                            <div class="absolute -left-6 -bottom-6 h-20 w-20 rounded-full bg-teal-100 blur-2xl"></div>
 
-        .animate-shrink-width {
-            animation: shrinkWidth 6s linear forwards;
-        }
+                            <div class="relative z-10">
+                                <div class="text-[10px] font-bold uppercase tracking-widest text-emerald-600/70 mb-2">
+                                    Rincian Total Upah
+                                </div>
+                                <div
+                                    class="text-xs font-mono text-slate-500 mb-4 border-b border-dashed border-emerald-200 pb-3">
+                                    Periode: {{ $totalUpahPeriodLabel }}
+                                </div>
 
-        @keyframes slideInRight {
-            from {
-                opacity: 0;
-                transform: translateX(20px);
-            }
+                                <div class="space-y-4">
+                                    <div class="flex justify-between items-end">
+                                        <span class="text-sm text-slate-600 font-medium">Upah Hadir (GJI)</span>
+                                        <span class="text-base font-bold text-slate-800 font-mono tracking-tight">
+                                            Rp {{ number_format($totalUpahGji, 2, ',', '.') }}
+                                        </span>
+                                    </div>
+                                    <div class="flex justify-between items-end">
+                                        <span class="text-sm text-slate-600 font-medium">Upah Inspect (GJI2)</span>
+                                        <span class="text-base font-bold text-slate-800 font-mono tracking-tight">
+                                            Rp {{ number_format($totalUpahGji2, 2, ',', '.') }}
+                                        </span>
+                                    </div>
+                                </div>
 
-            to {
-                opacity: 1;
-                transform: translateX(0);
-            }
-        }
+                                <div class="mt-4 border-t-2 border-dashed border-emerald-200 pt-3">
+                                    <div class="flex justify-between items-end">
+                                        <span class="text-sm font-bold text-emerald-800">TOTAL ESTIMASI</span>
+                                        <span class="text-lg font-extrabold text-emerald-700 font-mono tracking-tight">
+                                            Rp {{ number_format($totalUpahGji + $totalUpahGji2, 2, ',', '.') }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    @endif
+                </div>
 
-        .animate-slide-in-right {
-            animation: slideInRight 0.4s ease-out forwards;
-        }
+                {{-- Footer Modal --}}
+                <div class="bg-gray-50 px-6 py-4 flex justify-between items-center">
+                    <button type="button" wire:click="closeTotalUpahModal"
+                        class="text-sm font-semibold text-slate-500 hover:text-slate-800 transition-colors focus:outline-none">
+                        Tutup
+                    </button>
 
-        @keyframes scaleIn {
-            from {
-                opacity: 0;
-                transform: scale(0.95);
-            }
-
-            to {
-                opacity: 1;
-                transform: scale(1);
-            }
-        }
-
-        .animate-scale-in {
-            animation: scaleIn 0.2s ease-out forwards;
-        }
-
-        /* ===== TABEL SUMMARY: KOMPAK TAPI NYAMAN DIBACA ===== */
-
-        #web-summary-table {
-            table-layout: fixed;
-            font-size: 13px;
-            /* isi sedikit lebih kecil */
-        }
-
-        /* HEADER */
-        #web-summary-table thead th {
-            padding: 7px 6px;
-            line-height: 1.3;
-            white-space: normal;
-            /* boleh 2 baris */
-            font-size: 12px;
-            /* header lebih besar dari isi */
-            letter-spacing: 0.04em;
-        }
-
-        /* BODY */
-        #web-summary-table tbody td {
-            padding: 5px 6px;
-            line-height: 1.3;
-            white-space: normal;
-            word-wrap: break-word;
-        }
-
-        /* Kolom 1 = checkbox */
-        #web-summary-table th:nth-child(1),
-        #web-summary-table td:nth-child(1) {
-            width: 28px;
-        }
-
-        /* Kolom 2 = NO */
-        #web-summary-table th:nth-child(2),
-        #web-summary-table td:nth-child(2) {
-            width: 34px;
-            text-align: center;
-        }
-
-        /* Kolom 3 = PERSONAL NO */
-        #web-summary-table th:nth-child(3),
-        #web-summary-table td:nth-child(3) {
-            width: 75px;
-        }
-
-        /* Kolom 4 = RENTANG TANGGAL */
-        #web-summary-table th:nth-child(4),
-        #web-summary-table td:nth-child(4) {
-            width: 80px;
-        }
-
-        /* Kolom 5 = NAMA */
-        #web-summary-table th:nth-child(5),
-        #web-summary-table td:nth-child(5) {
-            width: 150px;
-        }
-
-        /* Kolom 6–7 = WC PERSONAL & WC KONFIRMASI */
-        #web-summary-table th:nth-child(6),
-        #web-summary-table td:nth-child(6),
-        #web-summary-table th:nth-child(7),
-        #web-summary-table td:nth-child(7) {
-            width: 70px;
-        }
-
-        /* Kolom 8 = DESC WC */
-        #web-summary-table th:nth-child(8),
-        #web-summary-table td:nth-child(8) {
-            width: 200px;
-        }
-
-        /* Kolom 9 = ROLE */
-        #web-summary-table th:nth-child(9),
-        #web-summary-table td:nth-child(9) {
-            width: 70px;
-            text-align: center;
-        }
-
-        /* Kolom 10 = DEVISI */
-        #web-summary-table th:nth-child(10),
-        #web-summary-table td:nth-child(10) {
-            width: 110px;
-        }
-
-        /* ===== BLOK ANGKA (MENIT/DETIK/UPAH/VAR) ===== */
-        #web-summary-table th:nth-child(11),
-        #web-summary-table td:nth-child(11) {
-            /* garis pemisah antara identitas & angka */
-            border-left: 1px solid #e5e7eb;
-        }
-
-        #web-summary-table th:nth-child(n+11),
-        #web-summary-table td:nth-child(n+11) {
-            width: 85px;
-            text-align: center;
-            font-weight: 600;
-            /* LEBIH TEBAL, MUDAH DILIHAT */
-            letter-spacing: 0.01em;
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-                sans-serif;
-        }
-
-        #detail-table {
-            table-layout: fixed;
-            font-size: 12px;
-        }
-
-        #detail-table thead th {
-            padding: 6px 4px;
-            line-height: 1.25;
-            font-size: 11px;
-            text-align: center;
-            white-space: normal;
-            /* boleh 2 baris */
-        }
-
-        #detail-table tbody td {
-            padding: 4px 4px;
-            line-height: 1.25;
-        }
-
-        /* Lebar beberapa kolom penting supaya tidak terlalu melebar */
-        #detail-table th:nth-child(1),
-        #detail-table td:nth-child(1) {
-            width: 28px;
-            /* checkbox */
-        }
-
-        #detail-table th:nth-child(2),
-        #detail-table td:nth-child(2) {
-            width: 32px;
-            /* No */
-            text-align: center;
-        }
-
-        #detail-table th:nth-child(3),
-        #detail-table td:nth-child(3) {
-            width: 80px;
-            /* Personal No */
-        }
-
-        #detail-table th:nth-child(4),
-        #detail-table td:nth-child(4) {
-            width: 70px;
-            /* Tanggal */
-        }
-
-        #detail-table th:nth-child(5),
-        #detail-table td:nth-child(5) {
-            width: 150px;
-            /* Nama */
-        }
-
-        #detail-table th:nth-child(6),
-        #detail-table td:nth-child(6),
-        #detail-table th:nth-child(7),
-        #detail-table td:nth-child(7) {
-            width: 70px;
-            /* WC Personal & WC Konfirmasi */
-        }
-
-        /* DESC WC sedikit lebih lebar tapi tetap singkat */
-        #detail-table th:nth-child(8),
-        #detail-table td:nth-child(8) {
-            width: 175px;
-            /* bikin lebih sempit supaya text jadi 2 baris */
-        }
-
-        #detail-table thead th,
-        #detail-table tbody td {
-            border-right: 1px solid #e5e7eb;
-            /* garis vertikal tipis antar kolom */
-        }
-
-        #detail-table thead th:last-child,
-        #detail-table tbody td:last-child {
-            border-right: none;
-            /* kolom terakhir tanpa garis kanan */
-        }
-
-        /* Devisi – lebar sekitar 175px seperti summary */
-        #detail-table th:nth-child(10),
-        #detail-table td:nth-child(10) {
-            width: 175px;
-            text-align: center;
-        }
-
-        @keyframes fade-in {
-            from {
-                opacity: 0;
-                transform: translateY(-10px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .animate-fade-in {
-            animation: fade-in 0.6s ease-out;
-        }
-
-        @keyframes scale-in {
-            from {
-                opacity: 0;
-                transform: scale(0.95);
-            }
-
-            to {
-                opacity: 1;
-                transform: scale(1);
-            }
-        }
-
-        .animate-scale-in {
-            animation: scale-in 0.2s ease-out;
-        }
-
-        /* Responsive text sizes */
-        @media (max-width: 640px) {
-            h3 {
-                font-size: 1.5rem;
-            }
-        }
-    </style>
+                    @if (is_null($totalUpahGji) || is_null($totalUpahGji2))
+                        <button type="button" @click="submitPin()"
+                            class="rounded-lg bg-slate-900 px-5 py-2 text-sm font-bold text-white hover:bg-slate-800 focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                            :disabled="pin.join('').length < 6 || loading">
+                            Buka Data
+                        </button>
+                    @else
+                        {{-- Tombol Print/Copy Dummy (Opsional) --}}
+                        <div class="flex gap-2">
+                            <span
+                                class="text-xs text-emerald-600 font-bold bg-emerald-100 px-2 py-1 rounded flex items-center gap-1">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M5 13l4 4L19 7"></path>
+                                </svg>
+                                Verified
+                            </span>
+                        </div>
+                    @endif
+                </div>
+            </div>
+        </div>
+    @endif
 </div>
 
 
@@ -1914,20 +1929,34 @@
                 }
 
                 // ===== REFRESH SUMMARY BULAN INI (group per WC+WERKS, multi NIK per paket) =====
-                async function refreshSummarySelected() {
+                // ===== REFRESH SUMMARY (bulan penuh / tanggal terakhir) =====
+                async function refreshSummarySelected(mode = 'month') {
                     if (busy) return;
 
-                    const btn = $('#btn-refresh-summary');
+                    const btn = $('#btn-refresh-dropdown') || $('#btn-refresh-summary');
 
-                    // 1. Ambil semua NIK yang sudah pernah dicentang (cache)
+                    const root = document.getElementById('yppr058-root');
+                    if (!root) {
+                        alert('Elemen root tidak ditemukan.');
+                        return;
+                    }
+
+                    const rangeStart = (root.dataset.rangeStart || '').trim(); // contoh: 20251201
+                    const rangeEnd = (root.dataset.rangeEnd || '').trim(); // contoh: 20251217
+
+                    if (!rangeStart || !rangeEnd) {
+                        alert('Range tanggal tidak tersedia di halaman.');
+                        return;
+                    }
+
+                    // 1. Ambil semua NIK yang sudah pernah dicentang di summary
                     const selectedPernrs = Array.from(selectedPernrsSet);
                     if (!selectedPernrs.length) {
                         alert('Pilih minimal satu NIK di tabel ringkasan.');
                         return;
                     }
 
-                    // 2. Bangun grup per (arbpl, werks)
-                    //    key = "<arbpl>||<werks>"
+                    // 2. Grup per (arbpl, werks)
                     const groupsByKey = {};
                     for (const pernr of selectedPernrs) {
                         const meta = wcMap[pernr] || {};
@@ -1939,67 +1968,46 @@
                             groupsByKey[key] = {
                                 arbpl,
                                 werks,
-                                pernrs: [],
+                                pernrs: []
                             };
                         }
-
                         if (!groupsByKey[key].pernrs.includes(pernr)) {
                             groupsByKey[key].pernrs.push(pernr);
                         }
                     }
 
-                    // 3. Daftar semua NIK (flatten) untuk dipakai di localStorage / toast
-                    const pernrs = Object.values(groupsByKey)
-                        .flatMap(group => group.pernrs);
-
+                    const pernrs = Object.values(groupsByKey).flatMap(g => g.pernrs);
                     if (!pernrs.length) {
                         alert('Pilih minimal satu NIK di tabel ringkasan.');
                         return;
                     }
 
-                    // 4. Hitung rentang tanggal (1..H-1 atau full bulan lalu kalau hari ini tgl 1)
-                    const today = new Date();
-                    let year = today.getFullYear();
-                    let month = today.getMonth() + 1; // 1..12
-                    let startDay = 1;
-                    let endDay;
+                    // 3. Susun list tanggal berdasarkan rangeStart & rangeEnd
+                    const year = parseInt(rangeStart.slice(0, 4), 10);
+                    const month = parseInt(rangeStart.slice(4, 6), 10);
+                    const startDay = parseInt(rangeStart.slice(6, 8), 10);
+                    const endDay = parseInt(rangeEnd.slice(6, 8), 10);
 
-                    const monthFilter = getMonthFilter();
+                    const pad2 = n => n.toString().padStart(2, '0');
+                    const dates = [];
 
-                    if (monthFilter === 'prev') {
-                        // BULAN KEMARIN: full 1..akhir bulan lalu
-                        month -= 1;
-                        if (month === 0) {
-                            month = 12;
-                            year -= 1;
-                        }
-                        endDay = new Date(year, month, 0).getDate();
+                    if (mode === 'last-day') {
+                        // hanya tanggal terakhir
+                        dates.push(rangeEnd);
                     } else {
-                        // BULAN INI: 1..H-1 (kemarin), sama dengan logic awal
-                        const todayDate = today.getDate();
-
-                        if (todayDate === 1) {
-                            // Kalau tgl 1 → fallback ke bulan kemarin full
-                            month -= 1;
-                            if (month === 0) {
-                                month = 12;
-                                year -= 1;
-                            }
-                            endDay = new Date(year, month, 0).getDate();
-                        } else {
-                            endDay = todayDate - 1;
+                        // semua tanggal dari start..end
+                        for (let d = endDay; d >= startDay; d--) {
+                            dates.push(`${year}${pad2(month)}${pad2(d)}`);
                         }
                     }
 
-                    if (endDay < startDay) {
-                        alert('Rentang tanggal kosong. Tidak ada hari yang perlu di-refresh.');
+                    if (!dates.length) {
+                        alert('Tidak ada tanggal yang valid untuk di-refresh.');
                         return;
                     }
 
-                    const pad2 = n => n.toString().padStart(2, '0');
+                    // 4. Build items: setiap group (WC+WERKS) × setiap tanggal
                     const items = [];
-
-                    // 5. Bentuk kombinasi: setiap GROUP (WC+WERKS) × setiap tanggal
                     for (const group of Object.values(groupsByKey)) {
                         const {
                             arbpl,
@@ -2008,14 +2016,10 @@
                         } = group;
                         if (!groupPernrs.length) continue;
 
-                        for (let d = endDay; d >= startDay; d--) {
-                            const ymd = `${year}${pad2(month)}${pad2(d)}`;
-
+                        for (const ymd of dates) {
                             items.push({
-                                // pernr pertama hanya untuk keperluan log di backend
-                                pernr: groupPernrs[0],
-                                // <<< multi NIK dalam 1 paket
-                                pernrs: groupPernrs,
+                                pernr: groupPernrs[0], // dipakai di log backend
+                                pernrs: groupPernrs, // multi NIK satu paket
                                 werks: werks || CURRENT_WERKS || "",
                                 arbpl: arbpl || "",
                                 begda: ymd,
@@ -2029,7 +2033,7 @@
                         return;
                     }
 
-                    // 6. Kirim ke API Flask, tetap satu per item (per WC+tanggal)
+                    // 5. Kirim ke API Flask
                     busy = true;
                     setButtonBusy(btn, true);
 
@@ -2067,14 +2071,14 @@
 
                     hideProgress();
 
-                    // 7. Simpan info ke localStorage (supaya setelah reload, search + toast tetap jalan)
+                    // simpan info untuk prefill + toast setelah reload
                     localStorage.setItem(LS_PREFILL, pernrs.join(' '));
                     localStorage.setItem(LS_SUMMARY, JSON.stringify({
                         ok,
                         fail,
                         total,
                         pernrs,
-                        ts: Date.now()
+                        ts: Date.now(),
                     }));
 
                     setButtonBusy(btn, false);
@@ -2096,14 +2100,35 @@
                         return;
                     }
 
-                    const summaryBtn = e.target && e.target.closest && e.target.closest('#btn-refresh-summary');
+                    const summaryBtn = e.target && e.target.closest && e.target.closest('#btn-refresh-dropdown');
                     if (summaryBtn) {
-                        if (busy || summaryBtn.disabled) {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            return;
+                        e.preventDefault();
+                        e.stopPropagation();
+                        toggleRefreshMenu();
+                        return;
+                    }
+
+                    // klik menu: Refresh bulan ini
+                    const monthBtn = e.target && e.target.closest && e.target.closest('#btn-refresh-month');
+                    if (monthBtn) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        toggleRefreshMenu();
+                        if (!(busy || monthBtn.disabled)) {
+                            refreshSummarySelected('month');
                         }
-                        refreshSummarySelected();
+                        return;
+                    }
+
+                    // klik menu: Refresh tanggal terakhir
+                    const lastBtn = e.target && e.target.closest && e.target.closest('#btn-refresh-lastday');
+                    if (lastBtn) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        toggleRefreshMenu();
+                        if (!(busy || lastBtn.disabled)) {
+                            refreshSummarySelected('last-day');
+                        }
                         return;
                     }
                 }, true);
@@ -2141,6 +2166,23 @@
                 });
             })
             ();
+
+            function toggleRefreshMenu() {
+                const menu = document.getElementById('refresh-menu');
+                if (!menu) return;
+                menu.classList.toggle('hidden');
+            }
+
+            // Tutup dropdown kalau klik di luar
+            document.addEventListener('click', function(e) {
+                const menu = document.getElementById('refresh-menu');
+                const btn = document.getElementById('btn-refresh-dropdown');
+                if (!menu || !btn) return;
+
+                if (!menu.contains(e.target) && !btn.contains(e.target)) {
+                    menu.classList.add('hidden');
+                }
+            });
         </script>
     @endpush
 @endonce

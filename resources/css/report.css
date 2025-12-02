@@ -1,0 +1,286 @@
+@keyframes shine {
+    0% {
+        transform: translateX(-150%) skewX(-20deg);
+    }
+
+    100% {
+        transform: translateX(150%) skewX(-20deg);
+    }
+}
+
+.animate-shine {
+    animation: shine 3s infinite;
+}
+
+@keyframes shrinkWidth {
+    from {
+        width: 100%;
+    }
+
+    to {
+        width: 0%;
+    }
+}
+
+.animate-shrink-width {
+    animation: shrinkWidth 6s linear forwards;
+}
+
+@keyframes slideInRight {
+    from {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.animate-slide-in-right {
+    animation: slideInRight 0.4s ease-out forwards;
+}
+
+@keyframes scaleIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.animate-scale-in {
+    animation: scaleIn 0.2s ease-out forwards;
+}
+
+/* ===== TABEL SUMMARY: KOMPAK TAPI NYAMAN DIBACA ===== */
+
+#web-summary-table {
+    table-layout: fixed;
+    font-size: 13px;
+    /* isi sedikit lebih kecil */
+}
+
+/* HEADER */
+#web-summary-table thead th {
+    padding: 7px 6px;
+    line-height: 1.3;
+    white-space: normal;
+    /* boleh 2 baris */
+    font-size: 12px;
+    /* header lebih besar dari isi */
+    letter-spacing: 0.04em;
+}
+
+/* BODY */
+#web-summary-table tbody td {
+    padding: 5px 6px;
+    line-height: 1.3;
+    white-space: normal;
+    word-wrap: break-word;
+}
+
+/* Kolom 1 = checkbox */
+#web-summary-table th:nth-child(1),
+#web-summary-table td:nth-child(1) {
+    width: 28px;
+}
+
+/* Kolom 2 = NO */
+#web-summary-table th:nth-child(2),
+#web-summary-table td:nth-child(2) {
+    width: 34px;
+    text-align: center;
+}
+
+/* Kolom 3 = PERSONAL NO */
+#web-summary-table th:nth-child(3),
+#web-summary-table td:nth-child(3) {
+    width: 75px;
+}
+
+/* Kolom 4 = RENTANG TANGGAL */
+#web-summary-table th:nth-child(4),
+#web-summary-table td:nth-child(4) {
+    width: 80px;
+}
+
+/* Kolom 5 = NAMA */
+#web-summary-table th:nth-child(5),
+#web-summary-table td:nth-child(5) {
+    width: 150px;
+}
+
+/* Kolom 6–7 = WC PERSONAL & WC KONFIRMASI */
+#web-summary-table th:nth-child(6),
+#web-summary-table td:nth-child(6),
+#web-summary-table th:nth-child(7),
+#web-summary-table td:nth-child(7) {
+    width: 70px;
+}
+
+/* Kolom 8 = DESC WC */
+#web-summary-table th:nth-child(8),
+#web-summary-table td:nth-child(8) {
+    width: 200px;
+}
+
+/* Kolom 9 = ROLE */
+#web-summary-table th:nth-child(9),
+#web-summary-table td:nth-child(9) {
+    width: 70px;
+    text-align: center;
+}
+
+/* Kolom 10 = DEVISI */
+#web-summary-table th:nth-child(10),
+#web-summary-table td:nth-child(10) {
+    width: 110px;
+}
+
+/* ===== BLOK ANGKA (MENIT/DETIK/UPAH/VAR) ===== */
+#web-summary-table th:nth-child(11),
+#web-summary-table td:nth-child(11) {
+    /* garis pemisah antara identitas & angka */
+    border-left: 1px solid #e5e7eb;
+}
+
+#web-summary-table th:nth-child(n + 11),
+#web-summary-table td:nth-child(n + 11) {
+    width: 85px;
+    text-align: center;
+    font-weight: 600;
+    /* LEBIH TEBAL, MUDAH DILIHAT */
+    letter-spacing: 0.01em;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        sans-serif;
+}
+
+#detail-table {
+    table-layout: fixed;
+    font-size: 12px;
+}
+
+#detail-table thead th {
+    padding: 6px 4px;
+    line-height: 1.25;
+    font-size: 11px;
+    text-align: center;
+    white-space: normal;
+    /* boleh 2 baris */
+}
+
+#detail-table tbody td {
+    padding: 4px 4px;
+    line-height: 1.25;
+}
+
+/* Lebar beberapa kolom penting supaya tidak terlalu melebar */
+#detail-table th:nth-child(1),
+#detail-table td:nth-child(1) {
+    width: 28px;
+    /* checkbox */
+}
+
+#detail-table th:nth-child(2),
+#detail-table td:nth-child(2) {
+    width: 32px;
+    /* No */
+    text-align: center;
+}
+
+#detail-table th:nth-child(3),
+#detail-table td:nth-child(3) {
+    width: 80px;
+    /* Personal No */
+}
+
+#detail-table th:nth-child(4),
+#detail-table td:nth-child(4) {
+    width: 70px;
+    /* Tanggal */
+}
+
+#detail-table th:nth-child(5),
+#detail-table td:nth-child(5) {
+    width: 150px;
+    /* Nama */
+}
+
+#detail-table th:nth-child(6),
+#detail-table td:nth-child(6),
+#detail-table th:nth-child(7),
+#detail-table td:nth-child(7) {
+    width: 70px;
+    /* WC Personal & WC Konfirmasi */
+}
+
+/* DESC WC sedikit lebih lebar tapi tetap singkat */
+#detail-table th:nth-child(8),
+#detail-table td:nth-child(8) {
+    width: 175px;
+    /* bikin lebih sempit supaya text jadi 2 baris */
+}
+
+#detail-table thead th,
+#detail-table tbody td {
+    border-right: 1px solid #e5e7eb;
+    /* garis vertikal tipis antar kolom */
+}
+
+#detail-table thead th:last-child,
+#detail-table tbody td:last-child {
+    border-right: none;
+    /* kolom terakhir tanpa garis kanan */
+}
+
+/* Devisi – lebar sekitar 175px seperti summary */
+#detail-table th:nth-child(10),
+#detail-table td:nth-child(10) {
+    width: 175px;
+    text-align: center;
+}
+
+@keyframes fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-fade-in {
+    animation: fade-in 0.6s ease-out;
+}
+
+@keyframes scale-in {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.animate-scale-in {
+    animation: scale-in 0.2s ease-out;
+}
+
+/* Responsive text sizes */
+@media (max-width: 640px) {
+    h3 {
+        font-size: 1.5rem;
+    }
+}
