@@ -349,7 +349,7 @@ class ReportGenerator extends Component
 
         // 4. Siapkan info batch & URL API Python
         $batchId = (string) Str::uuid();
-        $apiUrl  = 'http://127.0.0.1:5011/api/yppr058/save';
+        $apiUrl  = config('services.yppr058_save.url');
 
         // 5. Call API Flask
         try {
