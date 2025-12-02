@@ -13,7 +13,7 @@ class KpiController extends Controller
     {
         // Sesuaikan nama table Anda di sini
         $data = DB::table('wc_person_data')
-            ->select('arbpl', 'pernr', 'devisi',  'short')
+            ->select('arbpl', 'pernr', 'devisi', 'short')
             ->where('role', 'INDUK')
             ->get();
 
