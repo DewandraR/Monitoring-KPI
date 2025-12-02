@@ -1494,15 +1494,6 @@
                                         </span>
                                     </div>
                                 </div>
-
-                                <div class="mt-4 border-t-2 border-dashed border-emerald-200 pt-3">
-                                    <div class="flex justify-between items-end">
-                                        <span class="text-sm font-bold text-emerald-800">TOTAL ESTIMASI</span>
-                                        <span class="text-lg font-extrabold text-emerald-700 font-mono tracking-tight">
-                                            Rp {{ number_format($totalUpahGji + $totalUpahGji2, 2, ',', '.') }}
-                                        </span>
-                                    </div>
-                                </div>
                             </div>
                         </div>
                     @endif
