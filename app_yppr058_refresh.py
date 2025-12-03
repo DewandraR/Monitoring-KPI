@@ -120,7 +120,7 @@ RFC_DESC_WC = "Z_FM_GET_WC_DESC"          # Deskripsi WC
 DB_HOST = os.environ.get("DB_HOST", "127.0.0.1")
 DB_PORT = int(os.environ.get("DB_PORT", "3306"))
 DB_USER = os.environ.get("DB_USER", "root")
-DB_PASS = os.environ.get("DB_PASS", "")
+DB_PASS = os.environ.get("DB_PASS", "root")
 DB_NAME = os.environ.get("DB_NAME", "wc_person")
 
 OUT_TABLE = os.environ.get("DB_TABLE_OUT", "yppr058_data")
@@ -198,7 +198,7 @@ ON DUPLICATE KEY UPDATE
 
 UPDATE_ROLE_WC_SQL = f"UPDATE `{WC_TABLE}` SET `role`=%s WHERE `pernr`=%s"
 UPDATE_DESC_WC_SQL = f"UPDATE `{WC_TABLE}` SET `desc`=%s WHERE `arbpl`=%s AND `werks`=%s"
-UPDATE_DEVISI_SQL  = f"UPDATE `{WC_TABLE}` SET `devisi`=%s WHERE `arbpl`=%s AND `werks`=%s"
+UPDATE_EXTRA_INFO_SQL = f"UPDATE `{WC_TABLE}` SET `devisi`=%s, `kode_laravel`=%s WHERE `arbpl`=%s AND `werks`=%s"
 
 # ---------------- Helpers umum ----------------
 def to_dats(s: str) -> str:
@@ -364,50 +364,61 @@ def normalize_wc_row(r: Dict, arbpl: str, werks: str) -> Dict:
     }
 
 # --- EXCEL DEVISI HELPER (New for API) ---
-def load_devisi_mapping_from_excel(path: Path) -> Dict[Tuple[str, str], str]:
-    mapping: Dict[Tuple[str, str], str] = {}
+def load_devisi_mapping_from_excel(path: Path) -> Dict[Tuple[str, str], Dict[str, str]]:
+    mapping: Dict[Tuple[str, str], Dict[str, str]] = {}
+    
     if load_workbook is None:
-        logger.warning("[DEVISI] openpyxl not installed. Skipping devisi update.")
+        logger.warning("[EXCEL] openpyxl not installed. Skipping excel update.")
         return mapping
 
     if not path.is_file():
-        logger.warning(f"[DEVISI] File not found: {path}")
+        logger.warning(f"[EXCEL] File not found: {path}")
         return mapping
 
     try:
         wb = load_workbook(filename=str(path), data_only=True)
         ws = wb.active
+        
         current_devisi = ""
+        current_kolar = ""  # Variabel untuk menyimpan kode laravel terakhir (jika merged)
 
         # Asumsi: Row 1 Header. Data start row 2.
         # Col B (idx 1) = PLANT
         # Col C (idx 2) = DEVISI
         # Col E (idx 4) = KODE (ARBPL)
+        # Col F (idx 5) = KODE LARAVEL (Baru)
         for row in ws.iter_rows(min_row=2):
             plant_cell = row[1] if len(row) > 1 else None
             devisi_cell = row[2] if len(row) > 2 else None
             kode_cell = row[4] if len(row) > 4 else None
+            kolar_cell = row[5] if len(row) > 5 else None # Kolom F
 
             plant_val = str(plant_cell.value).strip() if (plant_cell and plant_cell.value is not None) else ""
-            devisi_val = str(devisi_cell.value).strip() if (devisi_cell and devisi_cell.value not in (None, "")) else None
-            kode_val   = str(kode_cell.value).strip() if (kode_cell and kode_cell.value is not None) else ""
+            
+            # Logic Devisi (Existing)
+            if devisi_cell and devisi_cell.value not in (None, ""):
+                current_devisi = str(devisi_cell.value).strip()
+            
+            # Logic Kode Laravel (New) - Handle Merged Cell logic
+            if kolar_cell and kolar_cell.value not in (None, ""):
+                current_kolar = str(kolar_cell.value).strip()
 
-            if devisi_val is not None and devisi_val != "":
-                current_devisi = devisi_val
+            kode_val = str(kode_cell.value).strip() if (kode_cell and kode_cell.value is not None) else ""
 
             if not plant_val or not kode_val:
                 continue
 
-            if not current_devisi:
-                continue
-
+            # Simpan ke mapping sebagai Dictionary
             key = (kode_val.upper(), plant_val)
             if key not in mapping:
-                mapping[key] = current_devisi
+                mapping[key] = {
+                    "devisi": current_devisi,
+                    "kode_laravel": current_kolar
+                }
 
-        logger.info(f"[DEVISI] Loaded {len(mapping)} mappings from Excel.")
+        logger.info(f"[EXCEL] Loaded {len(mapping)} mappings (Devisi & Kode Laravel).")
     except Exception as e:
-        logger.error(f"[DEVISI] Error reading Excel: {e}")
+        logger.error(f"[EXCEL] Error reading Excel: {e}")
 
     return mapping
 
@@ -1371,24 +1382,35 @@ def api_sync_wc_person():
             logger.info(f"[WC SYNC] Updated Description: {wc_desc}")
 
         # ------------------------------------------------------------------
-        # 5. UPDATE DEVISI dari Excel DEVISI.xlsx
+        # 5. UPDATE DEVISI & KODE LARAVEL dari Excel DEVISI.xlsx
         # ------------------------------------------------------------------
         devisi_updated = False
+        kolar_updated_val = "" 
+
         try:
             devisi_mapping = load_devisi_mapping_from_excel(DEVISI_FILE)
             key = (arbpl, werks)
+            
             if key in devisi_mapping:
-                devisi_val = devisi_mapping[key]
-                cur.execute(UPDATE_DEVISI_SQL, (devisi_val, arbpl, werks))
+                data_excel = devisi_mapping[key]
+                
+                # Ambil value dari dict
+                devisi_val = data_excel.get("devisi", "")
+                kolar_val = data_excel.get("kode_laravel", "")
+                
+                # Jalankan Update SQL Baru
+                cur.execute(UPDATE_EXTRA_INFO_SQL, (devisi_val, kolar_val, arbpl, werks))
                 db.commit()
+                
                 devisi_updated = True
-                logger.info(f"[WC SYNC] Updated Devisi for {arbpl}: {devisi_val}")
+                kolar_updated_val = kolar_val
+                logger.info(f"[WC SYNC] Updated Excel Info for {arbpl}: Devisi='{devisi_val}', Laravel='{kolar_val}'")
             else:
                 logger.info(
-                    f"[WC SYNC] No devisi mapping found for {arbpl}/{werks} in Excel."
+                    f"[WC SYNC] No Excel mapping found for {arbpl}/{werks}."
                 )
         except Exception as e:
-            logger.warning(f"[WC SYNC] Gagal update devisi: {e}")
+            logger.warning(f"[WC SYNC] Gagal update info Excel: {e}")
 
         cur.close()
 

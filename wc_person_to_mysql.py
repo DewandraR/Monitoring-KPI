@@ -454,6 +454,7 @@ CREATE DATABASE IF NOT EXISTS `{DB_NAME}`
   COLLATE = utf8mb4_unicode_ci;
 """
 
+# UBAH DISINI: Tambahkan kode_laravel
 DDL_TABLE = f"""
 CREATE TABLE IF NOT EXISTS `{TABLE}` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -470,6 +471,7 @@ CREATE TABLE IF NOT EXISTS `{TABLE}` (
   `role`   VARCHAR(20) NULL,
   `desc`   VARCHAR(255) NULL,
   `devisi` VARCHAR(100) NULL,
+  `kode_laravel` VARCHAR(255) NULL, -- TAMBAHAN BARU
   `source_rfc` VARCHAR(64) NOT NULL DEFAULT 'CR_PERSONS_OF_WORKCENTER',
   `inserted_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -482,6 +484,7 @@ CREATE TABLE IF NOT EXISTS `{TABLE}` (
   COLLATE=utf8mb4_unicode_ci;
 """
 
+# UBAH DISINI: Tambahkan kode_laravel agar backup juga menyimpan datanya
 DDL_BACKUP_TABLE = f"""
 CREATE TABLE IF NOT EXISTS `{BACKUP_TABLE}` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -499,6 +502,7 @@ CREATE TABLE IF NOT EXISTS `{BACKUP_TABLE}` (
   `role`   VARCHAR(20) NULL,
   `desc`   VARCHAR(255) NULL,
   `devisi` VARCHAR(100) NULL,
+  `kode_laravel` VARCHAR(255) NULL, -- TAMBAHAN BARU DI BACKUP
   `source_rfc` VARCHAR(64) NOT NULL DEFAULT 'CR_PERSONS_OF_WORKCENTER',
   `inserted_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -511,6 +515,7 @@ CREATE TABLE IF NOT EXISTS `{BACKUP_TABLE}` (
   COLLATE=utf8mb4_unicode_ci;
 """
 
+# TIDAK ADA PERUBAHAN DI SINI
 UPSERT_SQL = f"""
 INSERT INTO `{TABLE}`
 (`otype`,`objid`,`pernr`,`begda`,`endda`,`arbid`,`short`,`stext`,`arbpl`,`werks`,`source_rfc`)
@@ -579,10 +584,17 @@ def ensure_db_and_table():
         )
         logger.info(f"[DB] Kolom 'devisi' ditambahkan ke {TABLE}.")
 
+    cur2.execute(f"SHOW COLUMNS FROM `{TABLE}` LIKE 'kode_laravel'")
+    if not cur2.fetchone():
+        cur2.execute(
+            f"ALTER TABLE `{TABLE}` "
+            "ADD COLUMN `kode_laravel` VARCHAR(255) NULL AFTER `devisi`"
+        )
+        logger.info(f"[DB] Kolom 'kode_laravel' ditambahkan ke {TABLE}.")
+
     cur2.close()
     conn.commit()
     return conn
-
 # ---------- Role checker via Z_RFC_DISPLAY_NIK_CONF ----------
 
 def check_and_update_roles(
@@ -705,113 +717,120 @@ def update_wc_descriptions(
 
 # ---------- DEVISI mapping via Excel ----------
 
-def load_devisi_mapping_from_excel(path: Path) -> Dict[Tuple[str, str], str]:
+def load_devisi_mapping_from_excel(path: Path) -> Dict[Tuple[str, str], Dict[str, str]]:
     """
-    Baca file Excel DEVISI.
-    - Kolom B: PLANT (WERKS)
-    - Kolom C: DEVISI
-    - Kolom E: KODE (ARBPL)
-    Data DEVISI boleh dikosongkan di beberapa baris (merged); nilai terakhir yang
-    tidak kosong akan dipakai untuk baris berikutnya.
-    Return: dict key (ARBPL, WERKS) -> DEVISI
+    Baca Excel:
+    - Kolom B (idx 1): PLANT
+    - Kolom C (idx 2): DEVISI
+    - Kolom E (idx 4): KODE (ARBPL)
+    - Kolom F (idx 5): KODE LARAVEL (Baru)
     """
-    mapping: Dict[Tuple[str, str], str] = {}
+    mapping: Dict[Tuple[str, str], Dict[str, str]] = {}
 
     if load_workbook is None:
-        logger.info("[DEVISI] Modul openpyxl tidak tersedia. Lewati update devisi.")
+        logger.info("[EXCEL] Modul openpyxl tidak tersedia.")
         return mapping
 
     p = Path(path)
     if not p.is_file():
-        logger.info(f"[DEVISI] File mapping devisi tidak ditemukan: {p}")
+        logger.info(f"[EXCEL] File tidak ditemukan: {p}")
         return mapping
-
-    logger.info(f"[DEVISI] Membaca file mapping devisi: {p}")
 
     try:
         wb = load_workbook(filename=str(p), data_only=True)
         ws = wb.active
     except Exception as e:
-        logger.info(f"[DEVISI] Gagal membuka file devisi: {e}")
+        logger.info(f"[EXCEL] Gagal buka file: {e}")
         return mapping
 
     current_devisi = ""
+    current_kolar = ""  # Variabel untuk menyimpan kode laravel terakhir (jika merged)
     row_mapped = 0
 
-    # Asumsi baris 1 adalah header: NO, PLANT, DEVISI, (D kosong), KODE
-    for row in ws.iter_rows(min_row=2):  # mulai dari baris ke-2
-        plant_cell = row[1] if len(row) > 1 else None  # kolom B
-        devisi_cell = row[2] if len(row) > 2 else None  # kolom C
-        kode_cell = row[4] if len(row) > 4 else None  # kolom E
+    # Asumsi baris 1 header, data mulai baris 2
+    for row in ws.iter_rows(min_row=2):
+        # Ambil Cell
+        plant_cell = row[1] if len(row) > 1 else None  # B
+        devisi_cell = row[2] if len(row) > 2 else None  # C
+        kode_cell = row[4] if len(row) > 4 else None  # E
+        kolar_cell = row[5] if len(row) > 5 else None  # F (Kolom ke-6)
 
         plant_val = ""
         kode_val = ""
-        devisi_val = None
-
+        
+        # Ambil Value
         if plant_cell and plant_cell.value is not None:
             plant_val = str(plant_cell.value).strip()
 
         if devisi_cell and devisi_cell.value not in (None, ""):
-            devisi_val = str(devisi_cell.value).strip()
+            current_devisi = str(devisi_cell.value).strip()
+            
+        # LOGIKA BARU: Cek kolom F (Kode Laravel)
+        # Jika ada isinya, update current_kolar.
+        # Jika kosong, dia akan tetap pakai current_kolar dari baris sebelumnya (efek merged cell)
+        if kolar_cell and kolar_cell.value not in (None, ""):
+            current_kolar = str(kolar_cell.value).strip()
 
         if kode_cell and kode_cell.value is not None:
             kode_val = str(kode_cell.value).strip()
 
-        # Update current devisi jika ada nilai baru
-        if devisi_val is not None and devisi_val != "":
-            current_devisi = devisi_val
-
-        # Lewati jika tidak ada plant atau kode
+        # Validasi: Harus ada Plant dan Kode WC
         if not plant_val or not kode_val:
             continue
 
-        if not current_devisi:
-            # belum ada devisi yang diketahui, skip
-            continue
-
+        # Simpan ke mapping. 
+        # Structure sekarang: Key=(ARBPL, WERKS), Value={'devisi': ..., 'kode_laravel': ...}
         key = (kode_val.upper(), plant_val)
         if key not in mapping:
-            mapping[key] = current_devisi
+            mapping[key] = {
+                "devisi": current_devisi,
+                "kode_laravel": current_kolar
+            }
             row_mapped += 1
 
-    logger.info(f"[DEVISI] Total mapping pasangan ARBPL/WERKS dari Excel: {row_mapped}")
+    logger.info(f"[EXCEL] Total mapping loaded: {row_mapped}")
     return mapping
 
 
 def update_devisi_from_excel(
     db,
     pairs: List[Tuple[str, str, str]],
-    mapping: Dict[Tuple[str, str], str],
+    mapping: Dict[Tuple[str, str], Dict[str, str]], # Type hint berubah
 ) -> None:
-    """
-    Update kolom `devisi` di tabel MySQL berdasarkan mapping Excel.
-    Hanya pasangan ARBPL/WERKS yang ada di `pairs` run ini yang akan diupdate.
-    """
+    
     if not mapping:
-        logger.info("[DEVISI] Tidak ada data mapping devisi yang akan dipakai.")
         return
 
     # Set pasangan yang ikut di run sekarang
     run_pairs = {(a.strip().upper(), w.strip()) for (a, w, _d) in pairs}
 
-    # Susun list update (devisi, arbpl, werks)
-    updates: List[Tuple[str, str, str]] = []
-    for (arbpl, werks), devisi in mapping.items():
+    # Susun list update: (devisi, kode_laravel, arbpl, werks)
+    updates: List[Tuple[str, str, str, str]] = []
+    
+    for (arbpl, werks), data in mapping.items():
         key = (arbpl.strip().upper(), werks.strip())
+        
+        # Cek apakah pasangan ini ada di list proses saat ini
         if key in run_pairs:
-            updates.append((devisi, arbpl, werks))
+            # Ambil nilai, default string kosong jika error
+            dev = data.get("devisi", "")
+            kolar = data.get("kode_laravel", "")
+            
+            updates.append((dev, kolar, arbpl, werks))
 
     if not updates:
-        logger.info("[DEVISI] Tidak ada pasangan ARBPL/WERKS dari Excel yang cocok dengan run ini.")
+        logger.info("[EXCEL] Tidak ada data Excel yang cocok dengan run ini.")
         return
 
-    title("UPDATE DEVISI DARI EXCEL")
-
-    logger.info(f"[DEVISI] Total mapping dari file     : {len(mapping)}")
-    logger.info(f"[DEVISI] Mapping relevan dengan run : {len(updates)}")
-
+    title("UPDATE INFO DARI EXCEL (DEVISI & KODE LARAVEL)")
+    
     cur = db.cursor()
-    sql = f"UPDATE `{TABLE}` SET `devisi`=%s WHERE `arbpl`=%s AND `werks`=%s"
+    # QUERY UPDATE DITAMBAH: kode_laravel
+    sql = """
+        UPDATE `{TABLE}` 
+        SET `devisi`=%s, `kode_laravel`=%s 
+        WHERE `arbpl`=%s AND `werks`=%s
+    """.replace("{TABLE}", TABLE) 
 
     total_updated = 0
     batch_size = 200
@@ -822,10 +841,10 @@ def update_devisi_from_excel(
             cur.executemany(sql, chunk)
             total_updated += cur.rowcount
         db.commit()
-        logger.info(f"[DEVISI] Baris yang ter-update: {total_updated}")
+        logger.info(f"[EXCEL] Berhasil update {total_updated} baris.")
     except mysql.connector.Error as e:
         db.rollback()
-        logger.info(f"[DEVISI] ERROR update devisi di DB: {e}")
+        logger.info(f"[EXCEL] ERROR Update DB: {e}")
     finally:
         cur.close()
 
