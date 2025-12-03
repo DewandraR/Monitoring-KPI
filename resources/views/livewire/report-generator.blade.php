@@ -1560,7 +1560,7 @@
                 window.__yppr058Bound = true;
 
                 const API_BASE = 'http://127.0.0.1:5010';
-                const API_REFRESH_URL = `${API_BASE}/api/yppr058/refresh`;
+                const API_REFRESH_URL = `/api/yppr058/refresh`;
                 const CURRENT_WERKS = @json($werks ?? request()->route('werks'));
                 const LS_PREFILL = 'yppr058_prefill_q';
                 const LS_SUMMARY = 'yppr058_refresh_summary';
