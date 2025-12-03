@@ -1249,6 +1249,7 @@
 
                 // ======================================================
                 // HELPER: BANGUN ITEMS UNTUK NIK BARU & RANGE TANGGAL
+                // (logika baru: <6 tarik sampai bulan lalu, ≥6 bulan ini saja)
                 // ======================================================
                 function buildMonthlyItemsForNewPernrs(pernrsNew, arbpl, werks) {
                     const items = [];
@@ -1265,20 +1266,34 @@
 
                     const dates = [];
 
-                    if (day > 1) {
-                        // Contoh: 5 November -> 20251104..20251101
+                    // Hitung info bulan sebelumnya
+                    const prevMonthDate = new Date(year, monthIndex, 0); // day 0 = last day prev month
+                    const prevYear = prevMonthDate.getFullYear();
+                    const prevMonthIndex = prevMonthDate.getMonth();
+                    const lastDayPrev = prevMonthDate.getDate();
+
+                    if (day === 1) {
+                        // Hari pertama: hanya bulan sebelumnya full
+                        // Contoh: 1 Des -> 20251130..20251101
+                        for (let d = lastDayPrev; d >= 1; d--) {
+                            dates.push(formatDats(prevYear, prevMonthIndex, d));
+                        }
+                    } else if (day > 1 && day < 6) {
+                        // Tgl 2..5:
+                        // - ambil kemarin..1 bulan ini
+                        // - lanjut bulan sebelumnya full sampai tgl 1
+                        // Contoh: 5 Des -> 20251204..20251201 + 20251130..20251101
                         for (let d = day - 1; d >= 1; d--) {
                             dates.push(formatDats(year, monthIndex, d));
                         }
-                    } else {
-                        // Tgl 1 -> ambil satu bulan sebelumnya full
-                        // Contoh: 1 Des -> 20251130..20251101
-                        const prevMonthDate = new Date(year, monthIndex, 0); // day 0 = last day prev month
-                        const prevYear = prevMonthDate.getFullYear();
-                        const prevMonthIndex = prevMonthDate.getMonth();
-                        const lastDayPrev = prevMonthDate.getDate();
                         for (let d = lastDayPrev; d >= 1; d--) {
                             dates.push(formatDats(prevYear, prevMonthIndex, d));
+                        }
+                    } else {
+                        // Tgl 6 atau lebih: hanya bulan ini dari kemarin..1
+                        // Contoh: 6 Des -> 20251205..20251201
+                        for (let d = day - 1; d >= 1; d--) {
+                            dates.push(formatDats(year, monthIndex, d));
                         }
                     }
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 # wc_person_to_mysql.py
-
+#
 # - Default: auto READ CRHD semua WC aktif (LVORM!='X')
 # - Filter: --werks-filter (ulang), --like "pattern%" (ulang; %/_ seperti SQL LIKE)
 # - Pasangan spesifik: --pairs "ARBPL:WERKS,...", atau --arbpl ... --werks ...
@@ -13,7 +13,7 @@
 #   - cek role NIK via Z_RFC_DISPLAY_NIK_CONF (PERNR saja) dan update kolom `role`
 #   - ambil deskripsi WC via Z_FM_GET_WC_DESC (IV_ARBPL/IV_WERKS) dan update kolom `desc`
 #   - ambil DEVISI dari Excel (PLANT kolom B, KODE kolom E, DEVISI kolom C) dan update kolom `devisi`
-
+#   - jika dijalankan pada tanggal 6, lakukan backup isi wc_person_data ke tabel backup per bulan
 
 """
 Cara pakai ringkas
@@ -111,9 +111,10 @@ RFC_DESC_NAME = "Z_FM_GET_WC_DESC"        # RFC ketiga untuk ambil deskripsi WC 
 DB_HOST = os.environ.get("DB_HOST", "127.0.0.1")
 DB_PORT = int(os.environ.get("DB_PORT", "3306"))
 DB_USER = os.environ.get("DB_USER", "root")
-DB_PASS = os.environ.get("DB_PASS", "")
+DB_PASS = os.environ.get("DB_PASS", "root")
 DB_NAME = os.environ.get("DB_NAME", "wc_person")
 TABLE = os.environ.get("DB_TABLE", "wc_person_data")
+BACKUP_TABLE = os.environ.get("DB_BACKUP_TABLE", "wc_person_backup")  # tabel backup per bulan
 
 # ---------- Logging ----------
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -481,6 +482,35 @@ CREATE TABLE IF NOT EXISTS `{TABLE}` (
   COLLATE=utf8mb4_unicode_ci;
 """
 
+DDL_BACKUP_TABLE = f"""
+CREATE TABLE IF NOT EXISTS `{BACKUP_TABLE}` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `backup_month` CHAR(7) NOT NULL,  -- format: YYYY-MM (bulan yang dibackup = bulan lalu)
+  `otype`  VARCHAR(4)  NULL,
+  `objid`  VARCHAR(20) NOT NULL,
+  `pernr`  VARCHAR(12) NOT NULL,
+  `begda`  CHAR(8)     NOT NULL,
+  `endda`  CHAR(8)     NOT NULL,
+  `arbid`  VARCHAR(20) NULL,
+  `short`  VARCHAR(80) NULL,
+  `stext`  VARCHAR(255) NULL,
+  `arbpl`  VARCHAR(30) NOT NULL,
+  `werks`  VARCHAR(10) NOT NULL,
+  `role`   VARCHAR(20) NULL,
+  `desc`   VARCHAR(255) NULL,
+  `devisi` VARCHAR(100) NULL,
+  `source_rfc` VARCHAR(64) NOT NULL DEFAULT 'CR_PERSONS_OF_WORKCENTER',
+  `inserted_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_backup_month` (`backup_month`),
+  KEY `idx_pernr_b` (`pernr`),
+  KEY `idx_arbpl_b` (`arbpl`),
+  KEY `idx_werks_b` (`werks`)
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+"""
+
 UPSERT_SQL = f"""
 INSERT INTO `{TABLE}`
 (`otype`,`objid`,`pernr`,`begda`,`endda`,`arbid`,`short`,`stext`,`arbpl`,`werks`,`source_rfc`)
@@ -520,6 +550,7 @@ def ensure_db_and_table():
     conn = get_mysql_conn(DB_NAME)
     cur2 = conn.cursor()
     cur2.execute(DDL_TABLE)
+    cur2.execute(DDL_BACKUP_TABLE)  # pastikan tabel backup juga ada
 
     # Tambah kolom role kalau belum ada (untuk instalasi lama)
     cur2.execute(f"SHOW COLUMNS FROM `{TABLE}` LIKE 'role'")
@@ -798,6 +829,35 @@ def update_devisi_from_excel(
     finally:
         cur.close()
 
+# ---------- Backup bulanan ----------
+
+def _previous_month(today: datetime.date) -> Tuple[int, int]:
+    """
+    Mengembalikan (tahun, bulan) untuk bulan sebelumnya.
+    Contoh: 2025-03-03 -> (2025, 2)
+            2025-01-03 -> (2024, 12)
+    """
+    year = today.year
+    month = today.month
+    if month == 1:
+        return year - 1, 12
+    return year, month - 1
+
+
+def do_monthly_backup_if_needed(db) -> None:
+    """
+    Backup data wc_person_data ke tabel backup HANYA jika hari ini tanggal 6.
+    - Backup disimpan per bulan (kolom backup_month = 'YYYY-MM' bulan LALU)
+    - Setiap tanggal 6, backup untuk bulan itu dihapus lalu di-insert ulang (refresh).
+    """
+    today = datetime.date.today()
+    logger.info(f"[BACKUP] Tanggal hari ini: {today.isoformat()}")
+
+    # Hanya jalan di tanggal 6
+    if today.day != 6:
+        logger.info("[BACKUP] Bukan tanggal 6, backup di-skip.")
+        return
+
 # ---------- Main ----------
 
 def main():
@@ -1075,6 +1135,13 @@ def main():
             update_devisi_from_excel(db, pairs, devisi_mapping)
         except Exception as e:
             logger.info(f"[WARN] Gagal update devisi dari Excel: {e}")
+
+    # Backup bulanan (hanya tanggal 6)
+    if not args.dry_run:
+        try:
+            do_monthly_backup_if_needed(db)
+        except Exception as e:
+            logger.info(f"[WARN] Gagal melakukan backup bulanan: {e}")
 
     db.close()
 
