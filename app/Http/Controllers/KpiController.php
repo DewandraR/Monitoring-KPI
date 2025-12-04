@@ -20,7 +20,7 @@ class KpiController extends Controller
         if ($kodeInput === null) {
             // Kalau tidak dikirim, kembalikan semua role INDUK (behaviour lama)
             $query = DB::table('wc_person_data')
-                ->select('arbpl', 'pernr', 'devisi', 'short')
+                ->select('arbpl', 'pernr', 'devisi', 'stext')
                 ->where('role', 'INDUK');
 
         } else {
@@ -44,7 +44,7 @@ class KpiController extends Controller
 
             // Query dengan filter role INDUK + kode_laravel
             $query = DB::table('wc_person_data')
-                ->select('arbpl', 'pernr', 'devisi', 'short')
+                ->select('arbpl', 'pernr', 'devisi', 'stext')
                 ->where('role', 'INDUK')
                 ->where(function ($q) use ($codes) {
                     foreach ($codes as $code) {
