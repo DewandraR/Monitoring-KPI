@@ -720,11 +720,13 @@ def update_wc_descriptions(
 def load_devisi_mapping_from_excel(path: Path) -> Dict[Tuple[str, str], Dict[str, str]]:
     """
     Baca Excel:
+
     - Kolom B (idx 1): PLANT
     - Kolom C (idx 2): DEVISI
     - Kolom E (idx 4): KODE (ARBPL)
-    - Kolom F (idx 5): KODE LARAVEL (Baru)
+    - Kolom F (idx 5): KODE LARAVEL (bisa merged ke beberapa baris)
     """
+
     mapping: Dict[Tuple[str, str], Dict[str, str]] = {}
 
     if load_workbook is None:
@@ -743,8 +745,20 @@ def load_devisi_mapping_from_excel(path: Path) -> Dict[Tuple[str, str], Dict[str
         logger.info(f"[EXCEL] Gagal buka file: {e}")
         return mapping
 
+    # --- BACA MERGED CELL UNTUK KOLOM F (KODE LARAVEL) ---
+    # mapping: row_index -> nilai kode_laravel hasil merge
+    merged_kolar_by_row: Dict[int, str] = {}
+    for cell_range in ws.merged_cells.ranges:
+        # Kita hanya peduli range yang menyentuh kolom F (kolom ke-6)
+        if cell_range.min_col <= 6 <= cell_range.max_col:
+            # Ambil nilai dari sel paling atas di kolom F pada range tersebut
+            top_cell = ws.cell(row=cell_range.min_row, column=6)
+            if top_cell.value not in (None, ""):
+                val = str(top_cell.value).strip()
+                for r in range(cell_range.min_row, cell_range.max_row + 1):
+                    merged_kolar_by_row[r] = val
+
     current_devisi = ""
-    current_kolar = ""  # Variabel untuk menyimpan kode laravel terakhir (jika merged)
     row_mapped = 0
 
     # Asumsi baris 1 header, data mulai baris 2
@@ -752,44 +766,52 @@ def load_devisi_mapping_from_excel(path: Path) -> Dict[Tuple[str, str], Dict[str
         # Ambil Cell
         plant_cell = row[1] if len(row) > 1 else None  # B
         devisi_cell = row[2] if len(row) > 2 else None  # C
-        kode_cell = row[4] if len(row) > 4 else None  # E
-        kolar_cell = row[5] if len(row) > 5 else None  # F (Kolom ke-6)
+        kode_cell = row[4] if len(row) > 4 else None    # E
+        kolar_cell = row[5] if len(row) > 5 else None   # F
 
         plant_val = ""
         kode_val = ""
-        
-        # Ambil Value
+
+        # PLANT (B)
         if plant_cell and plant_cell.value is not None:
             plant_val = str(plant_cell.value).strip()
 
+        # DEVISI (C) – tetap pakai mekanisme "last non-empty"
         if devisi_cell and devisi_cell.value not in (None, ""):
             current_devisi = str(devisi_cell.value).strip()
-            
-        # LOGIKA BARU: Cek kolom F (Kode Laravel)
-        # Jika ada isinya, update current_kolar.
-        # Jika kosong, dia akan tetap pakai current_kolar dari baris sebelumnya (efek merged cell)
-        if kolar_cell and kolar_cell.value not in (None, ""):
-            current_kolar = str(kolar_cell.value).strip()
 
+        # KODE / ARBPL (E)
         if kode_cell and kode_cell.value is not None:
             kode_val = str(kode_cell.value).strip()
 
-        # Validasi: Harus ada Plant dan Kode WC
+        # KODE LARAVEL (F)
+        kode_laravel_val = ""
+        if kolar_cell:
+            # 1) Kalau di sel F ini ada nilai → pakai langsung
+            if kolar_cell.value not in (None, ""):
+                kode_laravel_val = str(kolar_cell.value).strip()
+            else:
+                # 2) Sel kosong, cek apakah baris ini bagian dari merged cell di kolom F
+                merged_val = merged_kolar_by_row.get(kolar_cell.row)
+                if merged_val is not None:
+                    kode_laravel_val = merged_val
+                # 3) Kalau tidak ada di merged_kolar_by_row → biarkan kosong ("")
+        # Kalau plant atau kode kosong, skip
         if not plant_val or not kode_val:
             continue
 
-        # Simpan ke mapping. 
-        # Structure sekarang: Key=(ARBPL, WERKS), Value={'devisi': ..., 'kode_laravel': ...}
+        # Simpan ke mapping. Key=(ARBPL, WERKS/PLANT)
         key = (kode_val.upper(), plant_val)
         if key not in mapping:
             mapping[key] = {
                 "devisi": current_devisi,
-                "kode_laravel": current_kolar
+                "kode_laravel": kode_laravel_val,
             }
             row_mapped += 1
 
     logger.info(f"[EXCEL] Total mapping loaded: {row_mapped}")
     return mapping
+
 
 
 def update_devisi_from_excel(
@@ -805,6 +827,7 @@ def update_devisi_from_excel(
     run_pairs = {(a.strip().upper(), w.strip()) for (a, w, _d) in pairs}
 
     # Susun list update: (devisi, kode_laravel, arbpl, werks)
+    # Susun list update: (devisi, kode_laravel, arbpl, werks)
     updates: List[Tuple[str, str, str, str]] = []
     
     for (arbpl, werks), data in mapping.items():
@@ -812,10 +835,13 @@ def update_devisi_from_excel(
         
         # Cek apakah pasangan ini ada di list proses saat ini
         if key in run_pairs:
-            # Ambil nilai, default string kosong jika error
+            # Ambil nilai DEVISI apa adanya (boleh kosong)
             dev = data.get("devisi", "")
-            kolar = data.get("kode_laravel", "")
-            
+
+            # Ambil kode_laravel, kalau kosong => None (NULL di MySQL)
+            raw_kolar = (data.get("kode_laravel") or "").strip()
+            kolar = raw_kolar if raw_kolar else None   # <- INI YANG PENTING
+
             updates.append((dev, kolar, arbpl, werks))
 
     if not updates:

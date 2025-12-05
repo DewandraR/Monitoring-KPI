@@ -365,61 +365,95 @@ def normalize_wc_row(r: Dict, arbpl: str, werks: str) -> Dict:
 
 # --- EXCEL DEVISI HELPER (New for API) ---
 def load_devisi_mapping_from_excel(path: Path) -> Dict[Tuple[str, str], Dict[str, str]]:
+    """
+    Baca Excel:
+
+    - Kolom B (idx 1): PLANT
+    - Kolom C (idx 2): DEVISI
+    - Kolom E (idx 4): KODE (ARBPL)
+    - Kolom F (idx 5): KODE LARAVEL (bisa merged ke beberapa baris)
+    """
     mapping: Dict[Tuple[str, str], Dict[str, str]] = {}
-    
+
     if load_workbook is None:
         logger.warning("[EXCEL] openpyxl not installed. Skipping excel update.")
         return mapping
 
-    if not path.is_file():
-        logger.warning(f"[EXCEL] File not found: {path}")
+    p = Path(path)
+    if not p.is_file():
+        logger.warning(f"[EXCEL] File not found: {p}")
         return mapping
 
     try:
-        wb = load_workbook(filename=str(path), data_only=True)
+        wb = load_workbook(filename=str(p), data_only=True)
         ws = wb.active
-        
-        current_devisi = ""
-        current_kolar = ""  # Variabel untuk menyimpan kode laravel terakhir (jika merged)
-
-        # Asumsi: Row 1 Header. Data start row 2.
-        # Col B (idx 1) = PLANT
-        # Col C (idx 2) = DEVISI
-        # Col E (idx 4) = KODE (ARBPL)
-        # Col F (idx 5) = KODE LARAVEL (Baru)
-        for row in ws.iter_rows(min_row=2):
-            plant_cell = row[1] if len(row) > 1 else None
-            devisi_cell = row[2] if len(row) > 2 else None
-            kode_cell = row[4] if len(row) > 4 else None
-            kolar_cell = row[5] if len(row) > 5 else None # Kolom F
-
-            plant_val = str(plant_cell.value).strip() if (plant_cell and plant_cell.value is not None) else ""
-            
-            # Logic Devisi (Existing)
-            if devisi_cell and devisi_cell.value not in (None, ""):
-                current_devisi = str(devisi_cell.value).strip()
-            
-            # Logic Kode Laravel (New) - Handle Merged Cell logic
-            if kolar_cell and kolar_cell.value not in (None, ""):
-                current_kolar = str(kolar_cell.value).strip()
-
-            kode_val = str(kode_cell.value).strip() if (kode_cell and kode_cell.value is not None) else ""
-
-            if not plant_val or not kode_val:
-                continue
-
-            # Simpan ke mapping sebagai Dictionary
-            key = (kode_val.upper(), plant_val)
-            if key not in mapping:
-                mapping[key] = {
-                    "devisi": current_devisi,
-                    "kode_laravel": current_kolar
-                }
-
-        logger.info(f"[EXCEL] Loaded {len(mapping)} mappings (Devisi & Kode Laravel).")
     except Exception as e:
-        logger.error(f"[EXCEL] Error reading Excel: {e}")
+        logger.error(f"[EXCEL] Error opening Excel: {e}")
+        return mapping
 
+    # --- BACA MERGED CELL UNTUK KOLOM F (KODE LARAVEL) ---
+    # mapping: row_index -> nilai kode_laravel hasil merge
+    merged_kolar_by_row: Dict[int, str] = {}
+    for cell_range in ws.merged_cells.ranges:
+        # Hanya kalau range menyentuh kolom F (kolom ke-6)
+        if cell_range.min_col <= 6 <= cell_range.max_col:
+            top_cell = ws.cell(row=cell_range.min_row, column=6)
+            if top_cell.value not in (None, ""):
+                val = str(top_cell.value).strip()
+                for r in range(cell_range.min_row, cell_range.max_row + 1):
+                    merged_kolar_by_row[r] = val
+
+    current_devisi = ""
+    row_mapped = 0
+
+    # Asumsi: Row 1 header, data mulai baris 2
+    for row in ws.iter_rows(min_row=2):
+        plant_cell = row[1] if len(row) > 1 else None  # B
+        devisi_cell = row[2] if len(row) > 2 else None  # C
+        kode_cell   = row[4] if len(row) > 4 else None  # E
+        kolar_cell  = row[5] if len(row) > 5 else None  # F
+
+        plant_val = ""
+        kode_val  = ""
+
+        # PLANT (B)
+        if plant_cell and plant_cell.value is not None:
+            plant_val = str(plant_cell.value).strip()
+
+        # DEVISI (C) – mekanisme "last non-empty"
+        if devisi_cell and devisi_cell.value not in (None, ""):
+            current_devisi = str(devisi_cell.value).strip()
+
+        # KODE / ARBPL (E)
+        if kode_cell and kode_cell.value is not None:
+            kode_val = str(kode_cell.value).strip()
+
+        # KODE LARAVEL (F)
+        kode_laravel_val = ""
+        if kolar_cell:
+            if kolar_cell.value not in (None, ""):
+                # Ada nilai langsung di sel F
+                kode_laravel_val = str(kolar_cell.value).strip()
+            else:
+                # Cek apakah baris ini bagian dari merged cell kolom F
+                merged_val = merged_kolar_by_row.get(kolar_cell.row)
+                if merged_val is not None:
+                    kode_laravel_val = merged_val
+                # Kalau tidak ada merged_val -> biarkan kosong ("") => nanti jadi NULL di DB
+
+        # Kalau plant/kode kosong → skip
+        if not plant_val or not kode_val:
+            continue
+
+        key = (kode_val.upper(), plant_val)
+        if key not in mapping:
+            mapping[key] = {
+                "devisi": current_devisi,
+                "kode_laravel": kode_laravel_val,
+            }
+            row_mapped += 1
+
+    logger.info(f"[EXCEL] Total mapping loaded: {row_mapped}")
     return mapping
 
 # ---------------- Blacklist PERNR (NIK) ----------------
@@ -1393,18 +1427,24 @@ def api_sync_wc_person():
             
             if key in devisi_mapping:
                 data_excel = devisi_mapping[key]
-                
-                # Ambil value dari dict
-                devisi_val = data_excel.get("devisi", "")
-                kolar_val = data_excel.get("kode_laravel", "")
-                
+
+                # Devisi boleh kosong -> simpan sebagai "" saja
+                devisi_val = data_excel.get("devisi") or ""
+
+                # Kode Laravel: kalau kosong di Excel -> None (NULL di DB)
+                raw_kolar = (data_excel.get("kode_laravel") or "").strip()
+                kolar_val = raw_kolar if raw_kolar else None
+
                 # Jalankan Update SQL Baru
                 cur.execute(UPDATE_EXTRA_INFO_SQL, (devisi_val, kolar_val, arbpl, werks))
                 db.commit()
-                
+
                 devisi_updated = True
-                kolar_updated_val = kolar_val
-                logger.info(f"[WC SYNC] Updated Excel Info for {arbpl}: Devisi='{devisi_val}', Laravel='{kolar_val}'")
+                kolar_updated_val = kolar_val or ""
+                logger.info(
+                    f"[WC SYNC] Updated Excel Info for {arbpl}: "
+                    f"Devisi='{devisi_val}', Laravel='{kolar_val}'"
+                )
             else:
                 logger.info(
                     f"[WC SYNC] No Excel mapping found for {arbpl}/{werks}."
