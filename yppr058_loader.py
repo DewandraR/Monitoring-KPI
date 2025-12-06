@@ -108,7 +108,7 @@ RFC_NAME = "Z_FM_YPPR058DX"
 DB_HOST = os.environ.get("DB_HOST", "127.0.0.1")
 DB_PORT = int(os.environ.get("DB_PORT", "3306"))
 DB_USER = os.environ.get("DB_USER", "root")
-DB_PASS = os.environ.get("DB_PASS", "")
+DB_PASS = os.environ.get("DB_PASS", "root")
 DB_NAME = os.environ.get("DB_NAME", "wc_person")
 WC_TABLE = os.environ.get("WC_TABLE", "wc_person_data")        # sumber pasangan + PERNR (+ desc)
 OUT_TABLE = os.environ.get("DB_TABLE_OUT", "yppr058_data")     # target simpan hasil
@@ -800,7 +800,7 @@ def sync_yppr_with_wc_person(conn, dry_run: bool = False) -> None:
                     return
             conn.commit()
             logger.info(
-                f"✅ Hapus selesai (level PERNR). Total {total_deleted_pernr} baris di {OUT_TABLE} "
+                f"Hapus selesai (level PERNR). Total {total_deleted_pernr} baris di {OUT_TABLE} "
                 f"untuk {len(missing_pernrs)} PERNR yang sudah tidak ada di WC Person."
             )
 
@@ -962,10 +962,10 @@ def sync_yppr_with_wc_person(conn, dry_run: bool = False) -> None:
 
             conn.commit()
             logger.info(
-                f"✅ Hapus selesai (level PERNR+ARBPL+WERKS). "
-                f"Total {total_deleted_pairs} baris di {OUT_TABLE} "
-                "yang kombinasi WC-nya sudah tidak ada di wc_person_data."
-            )
+                    f"[OK] Hapus selesai (level PERNR+ARBPL+WERKS). "
+                    f"Total {total_deleted_pairs} baris di {OUT_TABLE} "
+                    "yang kombinasi WC-nya sudah tidak ada di wc_person_data."
+                )
 
     # Rekap plant SESUDAH semua sync
     yp_counts_after = get_plant_nik_counts(conn, OUT_TABLE)
@@ -1448,15 +1448,39 @@ def main():
         )
 
     else:
-        # DEFAULT: tanpa tanggal → dari kemarin turun ke tanggal 1 (per-hari, urutan DESC)
+        # DEFAULT:
+        # - Jika hari ini <= 6  -> dari kemarin turun ke tgl 1 BULAN LALU
+        # - Jika hari ini > 6   -> dari kemarin turun ke tgl 1 BULAN BERJALAN
         today = datetime.date.today()
         yest = today - datetime.timedelta(days=1)
-        first = yest.replace(day=1)
-        logger.info(
-            f"MODE: default loop harian (descending) {yyyymmdd(yest)} -> {yyyymmdd(first)}"
-        )
+
+        if today.day <= 6:
+            # Contoh: hari ini 2025-12-06
+            #   → kemarin 2025-12-05
+            #   → 1 bulan lalu = 2025-11-01
+            first_of_this_month = today.replace(day=1)
+            last_of_prev_month = first_of_this_month - datetime.timedelta(days=1)
+            first = last_of_prev_month.replace(day=1)
+
+            logger.info(
+                "MODE: default loop harian (<=6) "
+                f"{yyyymmdd(yest)} -> {yyyymmdd(first)} "
+                "(kemarin s/d tgl 1 bulan lalu)"
+            )
+        else:
+            # Contoh: hari ini 2025-12-23
+            #   → kemarin 2025-12-22
+            #   → awal bulan ini 2025-12-01
+            first = yest.replace(day=1)
+            logger.info(
+                "MODE: default loop harian (>6) "
+                f"{yyyymmdd(yest)} -> {yyyymmdd(first)} "
+                "(kemarin s/d tgl 1 bulan berjalan)"
+            )
+
         total_all_ins = 0
         total_all_del = 0
+
         d = yest
         while d >= first:
             day = yyyymmdd(d)
@@ -1464,29 +1488,11 @@ def main():
             total_all_ins += ins
             total_all_del += dele
             d -= datetime.timedelta(days=1)
+
         hr("=")
         logger.info(
             f"TOTAL SEMUA HARI (default) : insert/update={total_all_ins}, dihapus={total_all_del}."
         )
-
-    db.close()
-
-    end_ts_all = datetime.datetime.now()
-    duration_all = (end_ts_all - start_ts_all).total_seconds()
-    hr("=")
-    logger.info(
-        "WAKTU-SEMUA : mulai %s detik ke %06.3f  | selesai %s detik ke %06.3f  | durasi %.2fs"
-        % (
-            start_ts_all.strftime("%Y-%m-%d %H:%M:%S"),
-            start_ts_all.timestamp() % 60,
-            end_ts_all.strftime("%Y-%m-%d %H:%M:%S"),
-            end_ts_all.timestamp() % 60,
-            duration_all,
-        )
-    )
-    hr("=")
-    logger.info(f"Log tersimpan di: {LOG_FILE}")
-
 
 if __name__ == "__main__":
     main()

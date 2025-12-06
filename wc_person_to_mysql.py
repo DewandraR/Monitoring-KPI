@@ -545,18 +545,23 @@ def get_mysql_conn(database: Optional[str] = None):
 
 
 def ensure_db_and_table():
+    # 1) Pastikan DATABASE ada
     root = get_mysql_conn(None)
     cur = root.cursor()
     cur.execute(DDL_DB)
-    cur.close()
     root.commit()
+    cur.close()
     root.close()
 
+    # 2) Konek ke DB yang sudah dipastikan ada
     conn = get_mysql_conn(DB_NAME)
     cur2 = conn.cursor()
-    cur2.execute(DDL_TABLE)
-    cur2.execute(DDL_BACKUP_TABLE)  # pastikan tabel backup juga ada
 
+    # 3) Pastikan tabel utama & tabel backup ada (pakai DDL terbaru)
+    cur2.execute(DDL_TABLE)
+    cur2.execute(DDL_BACKUP_TABLE)
+
+    # ------------------------ MIGRASI TABEL UTAMA ------------------------ #
     # Tambah kolom role kalau belum ada (untuk instalasi lama)
     cur2.execute(f"SHOW COLUMNS FROM `{TABLE}` LIKE 'role'")
     if not cur2.fetchone():
@@ -584,6 +589,7 @@ def ensure_db_and_table():
         )
         logger.info(f"[DB] Kolom 'devisi' ditambahkan ke {TABLE}.")
 
+    # Tambah kolom kode_laravel kalau belum ada
     cur2.execute(f"SHOW COLUMNS FROM `{TABLE}` LIKE 'kode_laravel'")
     if not cur2.fetchone():
         cur2.execute(
@@ -592,6 +598,41 @@ def ensure_db_and_table():
         )
         logger.info(f"[DB] Kolom 'kode_laravel' ditambahkan ke {TABLE}.")
 
+    # ------------------------ MIGRASI TABEL BACKUP ----------------------- #
+    # Pastikan kolom-kolom baru juga ada di tabel BACKUP (untuk instalasi lama)
+    cur2.execute(f"SHOW COLUMNS FROM `{BACKUP_TABLE}` LIKE 'role'")
+    if not cur2.fetchone():
+        cur2.execute(
+            f"ALTER TABLE `{BACKUP_TABLE}` "
+            "ADD COLUMN `role` VARCHAR(20) NULL AFTER `werks`"
+        )
+        logger.info(f"[DB] Kolom 'role' ditambahkan ke {BACKUP_TABLE}.")
+
+    cur2.execute(f"SHOW COLUMNS FROM `{BACKUP_TABLE}` LIKE 'desc'")
+    if not cur2.fetchone():
+        cur2.execute(
+            f"ALTER TABLE `{BACKUP_TABLE}` "
+            "ADD COLUMN `desc` VARCHAR(255) NULL AFTER `role`"
+        )
+        logger.info(f"[DB] Kolom 'desc' ditambahkan ke {BACKUP_TABLE}.")
+
+    cur2.execute(f"SHOW COLUMNS FROM `{BACKUP_TABLE}` LIKE 'devisi'")
+    if not cur2.fetchone():
+        cur2.execute(
+            f"ALTER TABLE `{BACKUP_TABLE}` "
+            "ADD COLUMN `devisi` VARCHAR(100) NULL AFTER `desc`"
+        )
+        logger.info(f"[DB] Kolom 'devisi' ditambahkan ke {BACKUP_TABLE}.")
+
+    cur2.execute(f"SHOW COLUMNS FROM `{BACKUP_TABLE}` LIKE 'kode_laravel'")
+    if not cur2.fetchone():
+        cur2.execute(
+            f"ALTER TABLE `{BACKUP_TABLE}` "
+            "ADD COLUMN `kode_laravel` VARCHAR(255) NULL AFTER `devisi`"
+        )
+        logger.info(f"[DB] Kolom 'kode_laravel' ditambahkan ke {BACKUP_TABLE}.")
+
+    # 4) Selesai
     cur2.close()
     conn.commit()
     return conn
@@ -902,6 +943,46 @@ def do_monthly_backup_if_needed(db) -> None:
     if today.day != 6:
         logger.info("[BACKUP] Bukan tanggal 6, backup di-skip.")
         return
+
+    # Hitung bulan sebelumnya
+    year, month = _previous_month(today)
+    backup_month_str = f"{year:04d}-{month:02d}"
+    logger.info(f"[BACKUP] Proses backup untuk bulan: {backup_month_str}")
+
+    cur = db.cursor()
+    try:
+        # 1) Hapus backup lama untuk bulan tsb
+        delete_sql = f"DELETE FROM `{BACKUP_TABLE}` WHERE `backup_month` = %s"
+        cur.execute(delete_sql, (backup_month_str,))
+        logger.info(f"[BACKUP] Hapus backup lama: {cur.rowcount} baris.")
+
+        # 2) Insert dari tabel utama ke tabel backup
+        insert_sql = f"""
+            INSERT INTO `{BACKUP_TABLE}` (
+                backup_month,
+                otype, objid, pernr, begda, endda,
+                arbid, short, stext, arbpl, werks,
+                role, `desc`, devisi, kode_laravel,
+                source_rfc, inserted_at
+            )
+            SELECT
+                %s AS backup_month,
+                otype, objid, pernr, begda, endda,
+                arbid, short, stext, arbpl, werks,
+                role, `desc`, devisi, kode_laravel,
+                source_rfc, inserted_at
+            FROM `{TABLE}`
+        """
+        cur.execute(insert_sql, (backup_month_str,))
+        logger.info(f"[BACKUP] Baris yang dibackup: {cur.rowcount}")
+
+        db.commit()
+        logger.info("[BACKUP] Backup bulanan selesai dan di-commit.")
+    except mysql.connector.Error as e:
+        db.rollback()
+        logger.info(f"[BACKUP] ERROR backup bulanan: {e}")
+    finally:
+        cur.close()
 
 # ---------- Main ----------
 

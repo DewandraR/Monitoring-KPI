@@ -1278,7 +1278,7 @@
                         for (let d = lastDayPrev; d >= 1; d--) {
                             dates.push(formatDats(prevYear, prevMonthIndex, d));
                         }
-                    } else if (day > 1 && day < 6) {
+                    } else if (day > 1 && day < 7) {
                         // Tgl 2..5:
                         // - ambil kemarin..1 bulan ini
                         // - lanjut bulan sebelumnya full sampai tgl 1
