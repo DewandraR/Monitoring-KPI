@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 
 # yppr058_loader.py — T_ARBPL & T_PERNR + chunking + pair-lock + log unik
+#
 # Default tanpa tanggal: loop harian DESC dari kemarin → tanggal 1 bulan itu (satu per satu hari).
+#
 # Log disimpan di: <project>/storage/logs/python wc_person_mysql/
 
 """
@@ -12,52 +14,46 @@ Cara pakai ringkas (update):
 
    python yppr058_loader.py --yesterday
 
-
 1) Mode default (tanpa argumen) → per-hari DESC dari kemarin ke tgl 1 bulan itu
    Contoh (misal hari ini 2025-11-12):
    - akan memproses: 2025-11-11, 2025-11-10, ..., 2025-11-01 (satu per satu)
 
    python yppr058_loader.py
 
-
 2) Batasi plant & pola ARBPL saat baca dari DB (multi-argumen boleh diulang)
 
    python yppr058_loader.py --werks-filter 1000 --werks-filter 3000 --like "WC%"
 
-
 3) Pairs spesifik (tanpa tanggal; tanggal default = kemarin)
 
    python yppr058_loader.py --pairs "WC034:1000,WC035:3000"
-
 
 4) Override tanggal range (format campur DD.MM.YYYY / YYYY-MM-DD / YYYYMMDD)
    - Range akan di-split per-hari (09→10→11). Jika ingin urutan lain, pakai --dates.
 
    python yppr058_loader.py --begda 2025-11-09 --endda 2025-11-11
 
-
 5) Tarik hanya beberapa tanggal tertentu (urutan mengikuti input)
 
    python yppr058_loader.py --dates 2025-11-11,2025-11-10,2025-11-09
-
 
 6) Lihat rencana tanpa ubah DB + tampilkan daftar pasangan
 
    python yppr058_loader.py --dry-run --show-pairs
 
-
 7) Skip delete lama (hanya insert/update)
 
    python yppr058_loader.py --no-delete
 
-
 CATATAN PRIORITAS MODE TANGGAL:
+
 - Jika pakai --yesterday → selalu hanya hari kemarin (abaikan dates/begda/endda).
 - Jika tidak pakai --yesterday tapi pakai --dates → ikuti daftar --dates.
 - Jika tidak pakai --yesterday/--dates tapi pakai --begda/--endda → pakai range itu.
 - Jika tidak ada semua → mode default (kemarin turun ke tanggal 1 bulan berjalan).
 
 CATATAN SINKRON PERNR (BARU):
+
 - Setiap run, sebelum tarik data baru, script akan:
   1) Bandingkan DISTINCT PERNR di wc_person_data vs yppr058_data
   2) Hapus semua baris di yppr058_data untuk PERNR yang sudah tidak ada di wc_person_data
@@ -82,7 +78,6 @@ from pathlib import Path
 
 # --- kompat pyrfc lama (refer 'long' Python2)
 import builtins as _bt
-
 if not hasattr(_bt, "long"):
     _bt.long = int
 
@@ -103,6 +98,7 @@ DEFAULT_SAP = {
 SAP_USERNAME = os.environ.get("SAP_USER", "auto_email")
 SAP_PASSWORD = os.environ.get("SAP_PASS", "11223344")
 RFC_NAME = "Z_FM_YPPR058DX"
+LOG_MUTA_RFC_NAME = "Z_FM_YPP_LOG_MUTA"  # RFC cek log mutasi per PERNR
 
 # ---------- MySQL ----------
 DB_HOST = os.environ.get("DB_HOST", "127.0.0.1")
@@ -121,7 +117,6 @@ DEFAULT_LOG_DIR = PROJECT_ROOT / "storage" / "logs" / "python wc_person_mysql"
 
 # Bisa override via ENV: YPPR058_LOG_DIR
 LOG_DIR = Path(os.environ.get("YPPR058_LOG_DIR", str(DEFAULT_LOG_DIR)))
-
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 _start_ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -143,34 +138,27 @@ logger.addHandler(fh)
 # ---------- Util ----------
 WIDTH = 80
 
-
 def hr(ch="="):
     logger.info(ch * WIDTH)
 
-
 def subhr():
     logger.info("-" * WIDTH)
-
 
 def title(s):
     hr("=")
     logger.info(s)
     hr("=")
 
-
 def yyyymmdd(d: datetime.date) -> str:
     return d.strftime("%Y%m%d")
-
 
 def yesterday_dats() -> str:
     dt = datetime.date.today() - datetime.timedelta(days=1)
     return yyyymmdd(dt)
 
-
 def first_day_this_month() -> str:
     dt = datetime.date.today().replace(day=1)
     return yyyymmdd(dt)
-
 
 def to_dats(s: str) -> str:
     s = (s or "").strip()
@@ -189,7 +177,6 @@ def to_dats(s: str) -> str:
         return s
     raise ValueError(f"Format tanggal tidak dikenali: {s}")
 
-
 def parse_dates_list(s: str) -> List[str]:
     """Parse '--dates' jadi list YYYYMMDD, mempertahankan urutan input."""
     if not s.strip():
@@ -202,14 +189,12 @@ def parse_dates_list(s: str) -> List[str]:
         out.append(to_dats(tok))
     return out
 
-
 def daterange_inclusive(d1: datetime.date, d2: datetime.date):
     """Yield date per hari dari d1..d2 (inklusif)."""
     cur = d1
     while cur <= d2:
         yield cur
         cur += datetime.timedelta(days=1)
-
 
 def dedupe_pairs(pairs: List[Tuple[str, str]]) -> List[Tuple[str, str]]:
     seen = set()
@@ -222,21 +207,17 @@ def dedupe_pairs(pairs: List[Tuple[str, str]]) -> List[Tuple[str, str]]:
         out.append((a.strip(), w.strip()))
     return out
 
-
 def like_to_regex(pattern: str):
     esc = re.escape(pattern).replace(r"\%", ".*").replace(r"\_", ".")
     return re.compile(f"^{esc}$", re.IGNORECASE)
 
-
 # ---------- Helper PERNR standar (BARU) ----------
-
 def norm_pernr(p: Any) -> str:
     """Normalisasi PERNR ke string 8 digit kalau numerik."""
     if p is None:
         return ""
     s = str(p).strip()
     return s.zfill(8) if s.isdigit() else s
-
 
 # ---------- MySQL helpers ----------
 DDL_DB = f"""
@@ -280,7 +261,6 @@ CREATE TABLE IF NOT EXISTS `{OUT_TABLE}` (
   COLLATE=utf8mb4_unicode_ci;
 """
 
-
 UPSERT_SQL = f"""
 INSERT INTO `{OUT_TABLE}`
 (`pernr`,`begda`,`total_jam`,`mint2`,`mintu`,`mintu2`,`mintu3`,
@@ -308,7 +288,6 @@ ON DUPLICATE KEY UPDATE
   `inserted_at`=CURRENT_TIMESTAMP
 """
 
-
 DELETE_SQL = f"""
 DELETE FROM `{OUT_TABLE}`
 WHERE `arbpl`=%s AND `werks`=%s AND `begda` BETWEEN %s AND %s
@@ -319,7 +298,6 @@ SELECT COUNT(*) FROM `{OUT_TABLE}`
 WHERE `arbpl`=%s AND `werks`=%s AND `begda` BETWEEN %s AND %s
 """
 
-
 def get_mysql_conn(database: Optional[str] = None):
     return mysql.connector.connect(
         host=DB_HOST,
@@ -329,7 +307,6 @@ def get_mysql_conn(database: Optional[str] = None):
         database=database,
         autocommit=False,
     )
-
 
 def ensure_db_and_table():
     root = get_mysql_conn(None)
@@ -352,7 +329,6 @@ def ensure_db_and_table():
     ensure_devisi_column_exists(conn)
     return conn
 
-
 def ensure_shift_column_exists(conn):
     check_sql = """
         SELECT COUNT(*) FROM information_schema.COLUMNS
@@ -374,7 +350,6 @@ def ensure_shift_column_exists(conn):
         raise
     finally:
         cur.close()
-
 
 def ensure_desc_column_exists(conn):
     """
@@ -402,7 +377,6 @@ def ensure_desc_column_exists(conn):
     finally:
         cur.close()
 
-
 def ensure_role_column_exists(conn):
     """
     Tambahkan kolom `role` ke tabel hasil jika belum ada.
@@ -428,7 +402,6 @@ def ensure_role_column_exists(conn):
         raise
     finally:
         cur.close()
-
 
 def ensure_devisi_column_exists(conn):
     """
@@ -456,7 +429,6 @@ def ensure_devisi_column_exists(conn):
     finally:
         cur.close()
 
-
 def fetch_pairs_from_db(conn) -> List[Tuple[str, str]]:
     sql = (
         f"SELECT DISTINCT arbpl, werks FROM `{WC_TABLE}` "
@@ -467,7 +439,6 @@ def fetch_pairs_from_db(conn) -> List[Tuple[str, str]]:
     rows = [(a or "", w or "") for (a, w) in cur.fetchall()]
     cur.close()
     return dedupe_pairs(rows)
-
 
 def get_role_map_for_pair(
     conn,
@@ -504,7 +475,6 @@ def get_role_map_for_pair(
         cur.close()
     return mapping
 
-
 def fetch_pernrs_for_pair(conn, arbpl: str, werks: str, at_yyyymmdd: str) -> List[str]:
     """
     Ambil semua PERNR aktif di wc_person_data untuk ARBPL/WERKS pada tanggal 'at_yyyymmdd'.
@@ -527,12 +497,10 @@ def fetch_pernrs_for_pair(conn, arbpl: str, werks: str, at_yyyymmdd: str) -> Lis
     cur.close()
     return sorted(set(out))
 
-
 def get_wc_meta(conn, arbpl: str, werks: str) -> Tuple[Optional[str], Optional[str]]:
     """
     Ambil deskripsi WC (`desc`) dan `devisi` dari tabel wc_person_data
     berdasarkan pasangan ARBPL/WERKS.
-
     Jika tidak ditemukan atau kolom belum ada, return (None, None).
     """
     sql = (
@@ -557,7 +525,6 @@ def get_wc_meta(conn, arbpl: str, werks: str) -> Tuple[Optional[str], Optional[s
     finally:
         cur.close()
 
-
 # ---------- Pair lock (hindari tabrakan dua proses di pair yang sama) ----------
 def acquire_pair_lock(cur, arbpl: str, werks: str, timeout: int = 120) -> bool:
     cur.execute(
@@ -567,7 +534,6 @@ def acquire_pair_lock(cur, arbpl: str, werks: str, timeout: int = 120) -> bool:
     row = cur.fetchone()
     return bool(row and row[0] == 1)
 
-
 def release_pair_lock(cur, arbpl: str, werks: str):
     try:
         cur.execute(
@@ -576,7 +542,6 @@ def release_pair_lock(cur, arbpl: str, werks: str):
         cur.fetchone()
     except Exception:
         pass
-
 
 # ---------- RFC helpers ----------
 def call_rfc(
@@ -588,7 +553,7 @@ def call_rfc(
     pernrs: List[str],
 ) -> Dict[str, Any]:
     """
-    Panggil RFC dengan TABLES: T_ARBPL (1 row) dan T_PERNR (list).
+    Panggil RFC utama Z_FM_YPPR058DX dengan TABLES: T_ARBPL (1 row) dan T_PERNR (list).
     """
     return conn.call(
         RFC_NAME,
@@ -600,6 +565,23 @@ def call_rfc(
         T_PERNR=[{"PERNR": p} for p in pernrs],
     )
 
+def call_log_muta(
+    conn: Connection,
+    begda: str,
+    endda: str,
+    pernr: str,
+) -> Dict[str, Any]:
+    """
+    Panggil RFC Z_FM_YPP_LOG_MUTA untuk satu PERNR dan satu range tanggal.
+    IV_BEGDA / IV_ENDDA diisi dengan format YYYYMMDD (sama seperti BEGDA/ENDDA di YPPR058).
+    IV_PERNR diisi PERNR 8 digit (string).
+    """
+    return conn.call(
+        LOG_MUTA_RFC_NAME,
+        IV_BEGDA=begda,
+        IV_ENDDA=endda,
+        IV_PERNR=pernr,
+    )
 
 def norm_val(x):
     if x is None:
@@ -610,7 +592,6 @@ def norm_val(x):
         return Decimal(str(x)) if isinstance(x, (int, float)) else x
     except Exception:
         return x
-
 
 def normalize_tdata(
     row: Dict[str, Any],
@@ -653,9 +634,7 @@ def normalize_tdata(
         "devisi": devisi_value,
     }
 
-
 # ---------- Rekap Plant & Sinkronisasi PERNR (BARU) ----------
-
 def get_plant_nik_counts(conn, table_name: str) -> Dict[str, int]:
     """
     Ambil jumlah DISTINCT PERNR per plant (WERKS) dari sebuah tabel.
@@ -678,7 +657,6 @@ def get_plant_nik_counts(conn, table_name: str) -> Dict[str, int]:
     finally:
         cur.close()
     return counts
-
 
 def sync_yppr_with_wc_person(conn, dry_run: bool = False) -> None:
     """
@@ -873,7 +851,6 @@ def sync_yppr_with_wc_person(conn, dry_run: bool = False) -> None:
             "OK: Tidak ada kombinasi (PERNR,ARBPL,WERKS) di yppr058_data "
             "yang tidak ada di wc_person_data."
         )
-        # Rekap akhir dan selesai
     else:
         logger.info(
             f"WARNING: ditemukan {len(combos_missing)} kombinasi (PERNR,ARBPL,WERKS) "
@@ -962,10 +939,10 @@ def sync_yppr_with_wc_person(conn, dry_run: bool = False) -> None:
 
             conn.commit()
             logger.info(
-                    f"[OK] Hapus selesai (level PERNR+ARBPL+WERKS). "
-                    f"Total {total_deleted_pairs} baris di {OUT_TABLE} "
-                    "yang kombinasi WC-nya sudah tidak ada di wc_person_data."
-                )
+                f"[OK] Hapus selesai (level PERNR+ARBPL+WERKS). "
+                f"Total {total_deleted_pairs} baris di {OUT_TABLE} "
+                "yang kombinasi WC-nya sudah tidak ada di wc_person_data."
+            )
 
     # Rekap plant SESUDAH semua sync
     yp_counts_after = get_plant_nik_counts(conn, OUT_TABLE)
@@ -982,6 +959,87 @@ def sync_yppr_with_wc_person(conn, dry_run: bool = False) -> None:
     hr("=")
     cur.close()
 
+# ---------- LOG_MUTA helper pembagi PERNR ----------
+def split_pernr_by_log_muta(
+    rfc: Connection,
+    begda: str,
+    endda: str,
+    pernrs: List[str],
+    verbose: bool = False,
+    sample_log: int = 8,
+) -> Tuple[List[str], List[str]]:
+    """
+    Bagi daftar PERNR menjadi:
+      - pernr_normal  : EV_SUBRC != 0 atau error → boleh ditarik grup
+      - pernr_special : EV_SUBRC == 0           → Wajib ditarik satu per satu
+
+    Log dibuat cukup jelas untuk debugging, tapi tidak terlalu bising.
+    """
+    pernr_normal: List[str] = []
+    pernr_special: List[str] = []
+
+    sample_special: List[str] = []
+    sample_normal: List[str] = []
+
+    for p in pernrs:
+        try:
+            resp = call_log_muta(rfc, begda, endda, p)
+        except (ABAPApplicationError, ABAPRuntimeError, CommunicationError) as e:
+            # Kalau RFC error, anggap PERNR ini bukan kasus spesial.
+            if verbose:
+                logger.info(
+                    f"  [LOG_MUTA][{p}] ERROR RFC Z_FM_YPP_LOG_MUTA: {e} → dianggap EV_SUBRC != 0"
+                )
+            pernr_normal.append(p)
+            if len(sample_normal) < sample_log:
+                sample_normal.append(p)
+            continue
+
+        ev_subrc_raw = resp.get("EV_SUBRC")
+        ev_msg = resp.get("EV_MSG") or ""
+
+        try:
+            ev_subrc = int(ev_subrc_raw)
+        except (TypeError, ValueError):
+            ev_subrc = -1
+
+        if verbose:
+            logger.info(
+                f"  [LOG_MUTA][{p}] EV_SUBRC={ev_subrc} | EV_MSG={ev_msg}"
+            )
+
+        if ev_subrc == 0:
+            pernr_special.append(p)
+            if len(sample_special) < sample_log:
+                sample_special.append(p)
+        else:
+            pernr_normal.append(p)
+            if len(sample_normal) < sample_log:
+                sample_normal.append(p)
+
+    # Ringkasan global untuk pair & hari ini
+    logger.info(
+        f"  [LOG_MUTA] Total PERNR={len(pernrs)} | "
+        f"EV_SUBRC=0 (tarik per-orang)={len(pernr_special)} | "
+        f"lainnya={len(pernr_normal)}"
+    )
+
+    if pernr_special:
+        sample = ", ".join(sample_special)
+        suffix = " ..." if len(pernr_special) > len(sample_special) else ""
+        logger.info(
+            f"  [LOG_MUTA] Contoh PERNR EV_SUBRC=0: {sample}{suffix}"
+        )
+
+    if verbose and pernr_normal:
+        sample = ", ".join(sample_normal)
+        suffix = " ..." if len(pernr_normal) > len(sample_normal) else ""
+        logger.info(
+            f"  [LOG_MUTA] Contoh PERNR EV_SUBRC!=0: {sample}{suffix}"
+        )
+
+    return pernr_normal, pernr_special
+
 # ---------- Core per-hari ----------
 def process_one_day(
     rfc: Connection,
@@ -993,6 +1051,11 @@ def process_one_day(
 ) -> Tuple[int, int]:
     """
     Proses satu hari (begda==endda). Return (total_inserted, total_deleted).
+
+    MODIFIKASI:
+      - Sebelum call Z_FM_YPPR058DX, cek tiap PERNR ke Z_FM_YPP_LOG_MUTA.
+      - PERNR dengan EV_SUBRC=0 → ditarik sendiri-sendiri (1 PERNR per call).
+      - PERNR dengan EV_SUBRC!=0 → boleh ditarik dengan model lama (chunk).
     """
     day_start = datetime.datetime.now()
     hr("=")
@@ -1022,16 +1085,6 @@ def process_one_day(
             f"{len(pernr_all)} PERNR aktif"
         )
 
-        if args.verbose_steps:
-            sample = ", ".join(pernr_all[: args.sample_log]) if pernr_all else "-"
-            logger.info(
-                f"  BUILD T_PERNR : {len(pernr_all)} orang (contoh: {sample})"
-            )
-            logger.info(f"  BUILD T_ARBPL : 1 item ({arbpl})")
-
-        fetched_total = 0
-        rows_accum: List[Dict[str, Any]] = []
-
         # Jika tidak ada PERNR aktif → lewati
         if not pernr_all:
             if args.verbose_steps:
@@ -1041,56 +1094,153 @@ def process_one_day(
             )
             continue
 
-        # Panggil RFC per-chunk PERNR
-        chunk_size = max(1, args.pernr_chunk)
-        chunks = [
-            pernr_all[i: i + chunk_size]
-            for i in range(0, len(pernr_all), chunk_size)
-        ]
+        if args.verbose_steps:
+            sample = ", ".join(pernr_all[: args.sample_log])
+            logger.info(
+                f"  BUILD T_PERNR : {len(pernr_all)} orang (contoh: {sample})"
+            )
+            logger.info(f"  BUILD T_ARBPL : 1 item ({arbpl})")
 
-        for idx, chunk in enumerate(chunks, start=1):
+        # --- BARU: bagi PERNR berdasarkan Z_FM_YPP_LOG_MUTA ---
+        pernr_normal, pernr_special = split_pernr_by_log_muta(
+            rfc,
+            begda,
+            endda,
+            pernr_all,
+            verbose=args.verbose_steps,
+            sample_log=args.sample_log,
+        )
+
+        fetched_total = 0
+        rows_accum: List[Dict[str, Any]] = []
+
+        # -------------------------------
+        # 1) Tarik data untuk PERNR NORMAL (EV_SUBRC != 0) secara grup/chunk
+        # -------------------------------
+        if pernr_normal:
+            chunk_size = max(1, args.pernr_chunk)
+            chunks = [
+                pernr_normal[i: i + chunk_size]
+                for i in range(0, len(pernr_normal), chunk_size)
+            ]
+
+            for idx, chunk in enumerate(chunks, start=1):
+                if args.verbose_steps:
+                    logger.info(
+                        f"  CALL RFC     : chunk-normal {idx}/{len(chunks)} "
+                        f"(size {len(chunk)}) ..."
+                    )
+                try:
+                    resp = call_rfc(rfc, arbpl, werks, begda, endda, chunk)
+                except (
+                    ABAPApplicationError,
+                    ABAPRuntimeError,
+                    CommunicationError,
+                ) as e:
+                    msg = str(e)
+                    if "RFC_CLOSED" in msg and "Data Kosong" in msg:
+                        if args.verbose_steps:
+                            logger.info(
+                                "  [SAP] Data kosong untuk chunk-normal ini, lanjut."
+                            )
+                        continue
+                    logger.info(f"  [ERROR] RFC (chunk-normal): {e}")
+                    continue
+
+                # RETURN SAP
+                returns = resp.get("RETURN") or []
+                for r in returns:
+                    typ = (r.get("TYPE") or "").upper()
+                    msg = r.get("MESSAGE") or ""
+                    if typ in ("E", "A"):
+                        logger.info(f"  [SAP-{typ}] {msg}")
+                    elif args.verbose_steps and msg:
+                        logger.info(f"  [SAP-{typ}] {msg}")
+
+                t_data = resp.get("T_DATA") or []
+                fetched_total += len(t_data)
+                if t_data:
+                    rows_accum.extend(
+                        [
+                            normalize_tdata(
+                                r,
+                                arbpl,
+                                werks,
+                                desc_for_pair,
+                                devisi_for_pair,
+                                role_map_for_pair,
+                            )
+                            for r in t_data
+                        ]
+                    )
+        else:
             if args.verbose_steps:
                 logger.info(
-                    f"  CALL RFC     : chunk {idx}/{len(chunks)} (size {len(chunk)}) ..."
+                    "  RFC NORMAL   : tidak ada (semua PERNR EV_SUBRC=0)."
                 )
-            try:
-                resp = call_rfc(rfc, arbpl, werks, begda, endda, chunk)
-            except (ABAPApplicationError, ABAPRuntimeError, CommunicationError) as e:
-                msg = str(e)
-                if "RFC_CLOSED" in msg and "Data Kosong" in msg:
-                    if args.verbose_steps:
-                        logger.info(
-                            "  [SAP] Data kosong untuk chunk ini, lanjut."
-                        )
+
+        # -------------------------------
+        # 2) Tarik data untuk PERNR SPESIAL (EV_SUBRC == 0) satu per satu
+        # -------------------------------
+        if pernr_special:
+            if args.verbose_steps:
+                logger.info(
+                    f"  RFC SPESIAL  : {len(pernr_special)} PERNR "
+                    f"akan ditarik satu per satu (EV_SUBRC=0)."
+                )
+
+            for p in pernr_special:
+                if args.verbose_steps:
+                    logger.info(
+                        f"  CALL RFC     : single PERNR {p} "
+                        f"(EV_SUBRC=0 di Z_FM_YPP_LOG_MUTA) ..."
+                    )
+                try:
+                    resp = call_rfc(rfc, arbpl, werks, begda, endda, [p])
+                except (
+                    ABAPApplicationError,
+                    ABAPRuntimeError,
+                    CommunicationError,
+                ) as e:
+                    msg = str(e)
+                    if "RFC_CLOSED" in msg and "Data Kosong" in msg:
+                        if args.verbose_steps:
+                            logger.info(
+                                f"  [SAP] Data kosong untuk PERNR {p}, lanjut."
+                            )
+                        continue
+                    logger.info(f"  [ERROR] RFC (single-PERNR {p}): {e}")
                     continue
-                logger.info(f"  [ERROR] RFC  : {e}")
-                continue
 
-            # RETURN SAP
-            returns = resp.get("RETURN") or []
-            for r in returns:
-                typ = (r.get("TYPE") or "").upper()
-                msg = r.get("MESSAGE") or ""
-                if typ in ("E", "A"):
-                    logger.info(f"  [SAP-{typ}] {msg}")
-                elif args.verbose_steps and msg:
-                    logger.info(f"  [SAP-{typ}] {msg}")
+                returns = resp.get("RETURN") or []
+                for r in returns:
+                    typ = (r.get("TYPE") or "").upper()
+                    msg = r.get("MESSAGE") or ""
+                    if typ in ("E", "A"):
+                        logger.info(f"  [SAP-{typ}] (PERNR {p}) {msg}")
+                    elif args.verbose_steps and msg:
+                        logger.info(f"  [SAP-{typ}] (PERNR {p}) {msg}")
 
-            t_data = resp.get("T_DATA") or []
-            fetched_total += len(t_data)
-            if t_data:
-                rows_accum.extend(
-                    [
-                        normalize_tdata(
-                            r,
-                            arbpl,
-                            werks,
-                            desc_for_pair,
-                            devisi_for_pair,
-                            role_map_for_pair,
-                        )
-                        for r in t_data
-                    ]
+                t_data = resp.get("T_DATA") or []
+                fetched_total += len(t_data)
+                if t_data:
+                    rows_accum.extend(
+                        [
+                            normalize_tdata(
+                                r,
+                                arbpl,
+                                werks,
+                                desc_for_pair,
+                                devisi_for_pair,
+                                role_map_for_pair,
+                            )
+                            for r in t_data
+                        ]
+                    )
+        else:
+            if args.verbose_steps:
+                logger.info(
+                    "  RFC SPESIAL  : tidak ada PERNR EV_SUBRC=0 untuk pair ini."
                 )
 
         # Hitung bakal dihapus
@@ -1102,7 +1252,9 @@ def process_one_day(
             cur, arbpl, werks, timeout=args.lock_timeout
         )
         if not locked:
-            logger.info("  [LOCK] Gagal acquire lock pair; lewati pasangan ini.")
+            logger.info(
+                "  [LOCK] Gagal acquire lock pair; lewati pasangan ini."
+            )
             summary.append(
                 (arbpl, werks, 0, fetched_total, 0, time.perf_counter() - t0)
             )
@@ -1212,7 +1364,6 @@ def process_one_day(
     logger.info("")  # spasi antar-hari
 
     return total_rows, total_deleted
-
 
 # ---------- Main ----------
 def main():

@@ -115,6 +115,7 @@ RFC_NAME = "Z_FM_YPPR058DX"               # Detail Transaksi
 RFC_MAIN_WC = "CR_PERSONS_OF_WORKCENTER"  # Master WC
 RFC_ROLE_WC = "Z_RFC_DISPLAY_NIK_CONF"    # Role Induk
 RFC_DESC_WC = "Z_FM_GET_WC_DESC"          # Deskripsi WC
+RFC_LOG_MUTA = "Z_FM_YPP_LOG_MUTA"       # Log Mutasi (untuk YPPR058)
 
 # ---------------- MySQL ----------------
 DB_HOST = os.environ.get("DB_HOST", "127.0.0.1")
@@ -706,6 +707,43 @@ def call_rfc_yppr(conn: Connection, arbpl: str, werks: str, begda: str, endda: s
         T_ARBPL=[{"ARBPL": arbpl}], T_PERNR=[{"PERNR": p} for p in pernrs],
     )
 
+
+def call_rfc_log_muta(conn: Connection, pernr: str, begda: str, endda: str) -> Tuple[Optional[int], Optional[str]]:
+    """
+    Panggil Z_FM_YPP_LOG_MUTA untuk 1 PERNR & range tanggal.
+    Return: (EV_SUBRC, EV_MSG). Jika error -> (None, pesan_error).
+
+    Aturan pakai di /api/yppr058/refresh:
+    - EV_SUBRC == 0  -> PERNR diproses SOLO (tanpa induk).
+    - EV_SUBRC != 0  -> PERNR ikut grup (boleh ajak induk).
+    """
+    try:
+        resp = conn.call(
+            RFC_LOG_MUTA,
+            IV_BEGDA=begda,
+            IV_ENDDA=endda,
+            IV_PERNR=pernr,
+        )
+        subrc_raw = resp.get("EV_SUBRC")
+        msg = (resp.get("EV_MSG") or "").strip()
+
+        try:
+            subrc = int(subrc_raw)
+        except Exception:
+            subrc = None
+
+        logger.info(
+            f"[LOG_MUTA] PERNR={pernr} {begda}..{endda} "
+            f"EV_SUBRC={subrc} MSG='{msg}'"
+        )
+        return subrc, msg
+
+    except (ABAPApplicationError, ABAPRuntimeError, CommunicationError) as e:
+        logger.error(
+            f"[LOG_MUTA] RFC error for {pernr}@{begda}..{endda}: {e}"
+        )
+        return None, str(e)
+
 def resolve_pairs(cur, pernr: str, dats: str) -> Tuple[str, List[Tuple[str, str]]]:
     cur.execute(
         f"SELECT DISTINCT arbpl, werks FROM `{WC_TABLE}` "
@@ -751,7 +789,14 @@ def api_refresh_detail():
 
     items = kombinasi (pernr, begda, endda, arbpl, werks) yang akan diproses.
     Satu item = satu kombinasi NIK-tanggal.
+
+    MODIFIKASI:
+    - Sebelum tarik YPPR058, setiap PERNR di 'base_pernrs' dicek ke Z_FM_YPP_LOG_MUTA:
+        EV_SUBRC == 0  -> dimasukkan ke solo_pernrs (ditarik sendiri, tanpa induk).
+        EV_SUBRC != 0  -> dimasukkan ke group_pernrs (boleh mengajak induk).
+    - Grup yang sama (WC/Plant sama) tetap di 1 paket, hanya yang EV_SUBRC=0 dipisah.
     """
+
     # --- Baca JSON ---
     try:
         payload = request.get_json(force=True) or {}
@@ -824,6 +869,7 @@ def api_refresh_detail():
                                 "reason": "blacklisted",
                             }
                         )
+                        update_progress(job_id, idx, pernr=pernr_single)
                         continue
 
                     base_pernrs.append(pernr_single)
@@ -837,6 +883,7 @@ def api_refresh_detail():
                         "error": "Missing pernr/pernrs",
                     }
                 )
+                update_progress(job_id, idx)
                 continue
 
             # Untuk log/progress pakai NIK pertama
@@ -865,10 +912,37 @@ def api_refresh_detail():
                     )
                     continue
 
-                # --- Cek apakah dalam paket ini perlu tarik INDUK
-                #     (kalau minimal ada 1 NIK yang belum punya WC konfirmasi)
-                needs_induk_any = False
+                # ------------------------------------------------------
+                # 2b) CEK LOG MUTASI (Z_FM_YPP_LOG_MUTA) PER NIK
+                # ------------------------------------------------------
+                solo_pernrs: List[str] = []
+                group_pernrs: List[str] = []
+                log_muta_info: Dict[str, Dict[str, Any]] = {}
+
                 for p in base_pernrs:
+                    subrc, msg = call_rfc_log_muta(rfc, p, begda, endda)
+                    log_muta_info[p] = {"subrc": subrc, "msg": msg}
+
+                    # Aturan:
+                    #   EV_SUBRC == 0  -> diproses sendiri (solo, tanpa induk).
+                    #   lainnya         -> tetap ikut grup (boleh ajak induk).
+                    if subrc == 0:
+                        solo_pernrs.append(p)
+                    else:
+                        group_pernrs.append(p)
+
+                logger.info(
+                    f"[LOG_MUTA] paket={base_pernrs} begda..endda={begda}..{endda} "
+                    f"solo={solo_pernrs} group={group_pernrs}"
+                )
+
+                # ------------------------------------------------------
+                # 3) Cek apakah di kelompok group_pernrs perlu tarik INDUK
+                #     (kalau minimal ada 1 NIK yang belum punya WC konfirmasi)
+                #    NIK yang solo TIDAK akan mengajak induk.
+                # ------------------------------------------------------
+                needs_induk_any = False
+                for p in group_pernrs:
                     try:
                         if not pernr_has_confirm(cur, p, begda):
                             needs_induk_any = True
@@ -888,7 +962,8 @@ def api_refresh_detail():
 
                 logger.info(
                     f"[REQ] pernrs={base_pernrs} begda..endda={begda}..{endda} "
-                    f"strategy={strategy} pairs={pairs} needs_induk_any={needs_induk_any}"
+                    f"strategy={strategy} pairs={pairs} "
+                    f"needs_induk_any(group)={needs_induk_any}"
                 )
 
                 if not pairs:
@@ -909,11 +984,16 @@ def api_refresh_detail():
                 total_deleted = 0
                 total_inserted = 0
 
-                # Loop per pair WC/Plant
+                # ------------------------------------------------------
+                # 4) Loop per pair WC/Plant
+                #    - pertama proses group_pernrs (jika ada)
+                #    - lalu proses masing-masing solo_pernrs (jika ada)
+                # ------------------------------------------------------
                 for (arbpl, werks) in pairs:
                     if not acquire_pair_lock(cur, arbpl, werks, timeout=120):
                         logger.warning(
-                            f"[LOCK] Timeout lock yppr058:{arbpl}:{werks} untuk {base_pernrs}@{begda}"
+                            f"[LOCK] Timeout lock yppr058:{arbpl}:{werks} "
+                            f"untuk {base_pernrs}@{begda}"
                         )
                         item_pairs_report.append(
                             {
@@ -925,210 +1005,411 @@ def api_refresh_detail():
                         )
                         continue
 
-                    deleted = 0
-                    inserted = 0
-                    yppr058_deleted = 0  # <<< BAR
-                    sap_rows = 0
-                    skipped_empty = False
+                    deleted_pair = 0
+                    inserted_pair = 0
 
                     try:
-                        # --- Susun daftar PERNR untuk RFC (multi NIK) ---
-                        pernrs_for_rfc: List[str] = list(base_pernrs)
+                        # --- Ambil metadata WC dari wc_person_data (sekali per pair) ---
+                        desc_val, devisi_val, role_map = get_wc_meta_for_pair(
+                            db, arbpl, werks, begda
+                        )
 
-                        if needs_induk_any:
-                            try:
-                                induks = find_induk_for_pair(cur, arbpl, werks, begda)
-                            except Exception as e:
-                                logger.error(
-                                    f"[DB] gagal cari induk untuk {base_pernrs}@{arbpl}/{werks} {begda}: {e}"
-                                )
-                                induks = []
+                        # ======================================================
+                        # 4a) PROSES GRUP (group_pernrs) -> bisa ajak induk
+                        # ======================================================
+                        if group_pernrs:
+                            pernrs_for_rfc: List[str] = list(group_pernrs)
 
-                            if induks:
-                                seen = set(pernrs_for_rfc)
-                                extra: List[str] = []
-                                for ip in induks:
-                                    ip = str(ip or "").strip()
-                                    if ip.isdigit():
-                                        ip = ip.zfill(8)
-                                    if ip in seen:
-                                        continue
-                                    if is_blacklisted(ip):
+                            # Jika butuh induk: tambahkan NIK induk
+                            if needs_induk_any:
+                                try:
+                                    induks = find_induk_for_pair(cur, arbpl, werks, begda)
+                                except Exception as e:
+                                    logger.error(
+                                        f"[DB] gagal cari induk untuk {group_pernrs}@"
+                                        f"{arbpl}/{werks} {begda}: {e}"
+                                    )
+                                    induks = []
+
+                                if induks:
+                                    seen = set(pernrs_for_rfc)
+                                    extra: List[str] = []
+                                    for ip in induks:
+                                        ip = str(ip or "").strip()
+                                        if ip.isdigit():
+                                            ip = ip.zfill(8)
+
+                                        # Induk yang juga ada di solo_pernrs TIDAK diikutkan
+                                        # (sesuai requirement: kalau EV_SUBRC=0 -> abaikan induk).
+                                        if ip in solo_pernrs:
+                                            logger.info(
+                                                f"[ROLE] Skip induk {ip} karena termasuk solo_pernrs "
+                                                f"untuk paket {base_pernrs}@{arbpl}/{werks}"
+                                            )
+                                            continue
+
+                                        if ip in seen:
+                                            continue
+                                        if is_blacklisted(ip):
+                                            logger.info(
+                                                f"[REFRESH] Skip induk {ip} karena BLACKLIST "
+                                                f"untuk {group_pernrs}@{arbpl}/{werks}"
+                                            )
+                                            continue
+
+                                        seen.add(ip)
+                                        extra.append(ip)
+
+                                    if extra:
+                                        pernrs_for_rfc.extend(extra)
                                         logger.info(
-                                            f"[REFRESH] Skip induk {ip} karena BLACKLIST "
-                                            f"untuk {arbpl}/{werks}"
+                                            f"[ROLE] group_pernrs={group_pernrs} perlu induk, "
+                                            f"tambah induk={extra} untuk {arbpl}/{werks}"
                                         )
-                                        continue
-                                    seen.add(ip)
-                                    extra.append(ip)
 
-                                if extra:
-                                    pernrs_for_rfc.extend(extra)
+                            # Filter blacklist lagi (jaga-jaga)
+                            if BLACKLIST_PERNRS:
+                                before_bl = len(pernrs_for_rfc)
+                                pernrs_for_rfc = [
+                                    p for p in pernrs_for_rfc if not is_blacklisted(p)
+                                ]
+                                removed_bl = before_bl - len(pernrs_for_rfc)
+                                if removed_bl:
                                     logger.info(
-                                        f"[ROLE] pernrs={base_pernrs} tanpa WC Confirmasi, "
-                                        f"tambah induk={extra} untuk {arbpl}/{werks}"
+                                        f"[REFRESH] {removed_bl} PERNR (group+induk) di-skip karena BLACKLIST "
+                                        f"untuk {group_pernrs}@{arbpl}/{werks}"
                                     )
 
-                        # Filter lagi blacklist (jaga-jaga)
-                        if BLACKLIST_PERNRS:
-                            before_bl = len(pernrs_for_rfc)
-                            pernrs_for_rfc = [
-                                p for p in pernrs_for_rfc if not is_blacklisted(p)
-                            ]
-                            removed_bl = before_bl - len(pernrs_for_rfc)
-                            if removed_bl:
+                            if pernrs_for_rfc:
+                                # --- CALL RFC (YPPR058DX) untuk grup ---
+                                try:
+                                    logger.info(
+                                        f"[SAP CALL GROUP] {arbpl}/{werks} {begda}..{endda} "
+                                        f"T_PERNR={pernrs_for_rfc}"
+                                    )
+                                    resp = call_rfc_yppr(
+                                        rfc, arbpl, werks, begda, endda, pernrs_for_rfc
+                                    )
+                                except (ABAPApplicationError, ABAPRuntimeError, CommunicationError) as e:
+                                    logger.error(f"[SAP] {e}")
+                                    item_pairs_report.append(
+                                        {
+                                            "arbpl": arbpl,
+                                            "werks": werks,
+                                            "mode": "group",
+                                            "ok": False,
+                                            "error": f"SAP: {e}",
+                                            "pernrs": pernrs_for_rfc,
+                                        }
+                                    )
+                                    # lanjut ke solo_pernrs
+                                else:
+                                    # Log RETURN RFC
+                                    for r in (resp.get("RETURN") or []):
+                                        typ = (r.get("TYPE") or "").upper()
+                                        msg = r.get("MESSAGE") or ""
+                                        (logger.warning if typ in ("E", "A") else logger.info)(
+                                            f"[SAP-{typ}] {msg}"
+                                        )
+
+                                    t_data = resp.get("T_DATA") or []
+                                    sap_rows = len(t_data)
+
+                                    logger.info(
+                                        f"[SAP GROUP] rows={sap_rows} "
+                                        f"for {group_pernrs}@{arbpl}/{werks} {begda}"
+                                    )
+
+                                    # --- Jika SAP 0 row dan ALLOW_EMPTY_DELETE=False -> tidak hapus apa-apa ---
+                                    skipped_empty = False
+                                    if sap_rows == 0 and not ALLOW_EMPTY_DELETE:
+                                        skipped_empty = True
+                                        item_pairs_report.append(
+                                            {
+                                                "arbpl": arbpl,
+                                                "werks": werks,
+                                                "mode": "group",
+                                                "ok": True,
+                                                "sap_rows": 0,
+                                                "deleted": 0,
+                                                "inserted": 0,
+                                                "no_change": True,
+                                                "skipped_empty": True,
+                                                "rows": 0,
+                                                "del": 0,
+                                                "ins": 0,
+                                                "skipped": True,
+                                                "pernrs": pernrs_for_rfc,
+                                            }
+                                        )
+                                    else:
+                                        # Normal: hapus & insert
+                                        try:
+                                            deleted = delete_old_rows(
+                                                cur, arbpl, werks, begda, endda, pernrs_for_rfc
+                                            )
+                                            db.commit()
+                                            deleted_pair += deleted
+                                            logger.info(
+                                                f"[DB GROUP] deleted={deleted} "
+                                                f"for {pernrs_for_rfc} @ {arbpl}/{werks} {begda}..{endda}"
+                                            )
+                                        except mysql.connector.Error as e:
+                                            db.rollback()
+                                            logger.error(f"[DB DELETE GROUP] {e}")
+                                            item_pairs_report.append(
+                                                {
+                                                    "arbpl": arbpl,
+                                                    "werks": werks,
+                                                    "mode": "group",
+                                                    "ok": False,
+                                                    "error": f"DB delete: {e}",
+                                                    "pernrs": pernrs_for_rfc,
+                                                }
+                                            )
+                                            # lompat ke solo_pernrs, tapi data lama grp tidak aman
+                                        else:
+                                            # Insert baru
+                                            try:
+                                                rows: List[Dict[str, Any]] = []
+                                                for r in t_data:
+                                                    pernr_row = str(r.get("PERNR") or "").strip()
+                                                    if pernr_row.isdigit():
+                                                        pernr_row = pernr_row.zfill(8)
+                                                    role_val = role_map.get(pernr_row)
+                                                    rows.append(
+                                                        normalize_tdata(
+                                                            r,
+                                                            arbpl,
+                                                            werks,
+                                                            desc_val,
+                                                            role_val,
+                                                            devisi_val,
+                                                        )
+                                                    )
+
+                                                if rows:
+                                                    BATCH = 500
+                                                    for i_b in range(0, len(rows), BATCH):
+                                                        cur.executemany(
+                                                            UPSERT_SQL_YPPR, rows[i_b : i_b + BATCH]
+                                                        )
+                                                    db.commit()
+                                                    inserted = len(rows)
+                                                    inserted_pair += inserted
+                                                    logger.info(
+                                                        f"[DB GROUP] inserted={inserted} "
+                                                        f"for {group_pernrs}@{arbpl}/{werks} {begda}"
+                                                    )
+                                            except mysql.connector.Error as e:
+                                                db.rollback()
+                                                logger.error(f"[DB INSERT GROUP] {e}")
+                                                item_pairs_report.append(
+                                                    {
+                                                        "arbpl": arbpl,
+                                                        "werks": werks,
+                                                        "mode": "group",
+                                                        "ok": False,
+                                                        "error": f"DB insert: {e}",
+                                                        "deleted": deleted,
+                                                        "sap_rows": sap_rows,
+                                                        "pernrs": pernrs_for_rfc,
+                                                    }
+                                                )
+                                            else:
+                                                item_pairs_report.append(
+                                                    {
+                                                        "arbpl": arbpl,
+                                                        "werks": werks,
+                                                        "mode": "group",
+                                                        "ok": True,
+                                                        "deleted": deleted,
+                                                        "inserted": inserted,
+                                                        "sap_rows": sap_rows,
+                                                        "skipped_empty": skipped_empty,
+                                                        "del": deleted,
+                                                        "ins": inserted,
+                                                        "rows": sap_rows,
+                                                        "skipped": skipped_empty,
+                                                        "pernrs": pernrs_for_rfc,
+                                                    }
+                                                )
+
+                        # ======================================================
+                        # 4b) PROSES SOLO (EV_SUBRC == 0) -> TANPA INDUK
+                        # ======================================================
+                        for solo_pernr in solo_pernrs:
+                            # Solo: tidak pernah menambah induk, hanya 1 NIK ini saja
+                            pernrs_for_rfc = [solo_pernr]
+
+                            # filter blacklist (mestinya sudah, tapi jaga-jaga)
+                            if BLACKLIST_PERNRS and is_blacklisted(solo_pernr):
                                 logger.info(
-                                    f"[REFRESH] {removed_bl} PERNR (induk/multi) di-skip karena BLACKLIST "
-                                    f"untuk {base_pernrs}@{arbpl}/{werks}"
+                                    f"[REFRESH SOLO] Skip {solo_pernr} karena BLACKLIST "
+                                    f"untuk {arbpl}/{werks}"
+                                )
+                                continue
+
+                            try:
+                                logger.info(
+                                    f"[SAP CALL SOLO] {arbpl}/{werks} {begda}..{endda} "
+                                    f"T_PERNR={[solo_pernr]}"
+                                )
+                                resp = call_rfc_yppr(
+                                    rfc, arbpl, werks, begda, endda, pernrs_for_rfc
+                                )
+                            except (ABAPApplicationError, ABAPRuntimeError, CommunicationError) as e:
+                                logger.error(f"[SAP SOLO] {e}")
+                                item_pairs_report.append(
+                                    {
+                                        "arbpl": arbpl,
+                                        "werks": werks,
+                                        "mode": "solo",
+                                        "ok": False,
+                                        "error": f"SAP: {e}",
+                                        "pernrs": pernrs_for_rfc,
+                                    }
+                                )
+                                continue
+
+                            # Log RETURN
+                            for r in (resp.get("RETURN") or []):
+                                typ = (r.get("TYPE") or "").upper()
+                                msg = r.get("MESSAGE") or ""
+                                (logger.warning if typ in ("E", "A") else logger.info)(
+                                    f"[SAP-{typ}] {msg}"
                                 )
 
-                        # --- Ambil metadata WC dari wc_person_data ---
-                        desc_val, devisi_val, role_map = get_wc_meta_for_pair(db, arbpl, werks, begda)
+                            t_data = resp.get("T_DATA") or []
+                            sap_rows = len(t_data)
 
-                        # --- CALL RFC (YPPR058DX) sekali untuk semua NIK paket ini ---
-                        try:
                             logger.info(
-                                f"[SAP CALL] {arbpl}/{werks} {begda}..{endda} "
-                                f"T_PERNR={pernrs_for_rfc}"
-                            )
-                            resp = call_rfc_yppr(rfc, arbpl, werks, begda, endda, pernrs_for_rfc)
-                        except (ABAPApplicationError, ABAPRuntimeError, CommunicationError) as e:
-                            logger.error(f"[SAP] {e}")
-                            item_pairs_report.append(
-                                {
-                                    "arbpl": arbpl,
-                                    "werks": werks,
-                                    "ok": False,
-                                    "error": f"SAP: {e}",
-                                }
-                            )
-                            continue
-
-                        # --- Log RETURN message dari RFC ---
-                        for r in (resp.get("RETURN") or []):
-                            typ = (r.get("TYPE") or "").upper()
-                            msg = r.get("MESSAGE") or ""
-                            (logger.warning if typ in ("E", "A") else logger.info)(
-                                f"[SAP-{typ}] {msg}"
+                                f"[SAP SOLO] rows={sap_rows} "
+                                f"for {solo_pernr}@{arbpl}/{werks} {begda}"
                             )
 
-                        # --- Olah T_DATA ---
-                        t_data = resp.get("T_DATA") or []
-                        sap_rows = len(t_data)
-
-                        rows: List[Dict[str, Any]] = []
-                        for r in t_data:
-                            pernr_row = str(r.get("PERNR") or "").strip()
-                            if pernr_row.isdigit():
-                                pernr_row = pernr_row.zfill(8)
-                            role_val = role_map.get(pernr_row)
-                            rows.append(
-                                normalize_tdata(
-                                    r,
-                                    arbpl,
-                                    werks,
-                                    desc_val,
-                                    role_val,
-                                    devisi_val,
+                            skipped_empty = False
+                            if sap_rows == 0 and not ALLOW_EMPTY_DELETE:
+                                skipped_empty = True
+                                item_pairs_report.append(
+                                    {
+                                        "arbpl": arbpl,
+                                        "werks": werks,
+                                        "mode": "solo",
+                                        "ok": True,
+                                        "sap_rows": 0,
+                                        "deleted": 0,
+                                        "inserted": 0,
+                                        "no_change": True,
+                                        "skipped_empty": True,
+                                        "rows": 0,
+                                        "del": 0,
+                                        "ins": 0,
+                                        "skipped": True,
+                                        "pernrs": pernrs_for_rfc,
+                                    }
                                 )
-                            )
+                                continue
 
-                        logger.info(
-                            f"[SAP] rows={sap_rows} for {pernr}@{arbpl}/{werks} {begda}"
-                        )
-
-                        # --- Jika SAP 0 row dan ALLOW_EMPTY_DELETE=False -> tidak hapus apa-apa ---
-                        if sap_rows == 0 and not ALLOW_EMPTY_DELETE:
-                            skipped_empty = True
-                            item_pairs_report.append(
-                                {
-                                    "arbpl": arbpl,
-                                    "werks": werks,
-                                    "ok": True,
-                                    "sap_rows": 0,
-                                    "deleted": 0,
-                                    "inserted": 0,
-                                    "no_change": True,
-                                    "skipped_empty": True,
-                                    # alias untuk struktur baru
-                                    "rows": 0,
-                                    "del": 0,
-                                    "ins": 0,
-                                    "skipped": True,
-                                }
-                            )
-                            continue
-
-                        # --- Hapus data lama untuk PERNR yang ikut di-refresh ---
-                        try:
-                            deleted = delete_old_rows(
-                                cur, arbpl, werks, begda, endda, pernrs_for_rfc
-                            )
-                            db.commit()
-                            logger.info(
-                                f"[DB] deleted={deleted} for {pernrs_for_rfc} @ "
-                                f"{arbpl}/{werks} {begda}..{endda}"
-                            )
-                        except mysql.connector.Error as e:
-                            db.rollback()
-                            logger.error(f"[DB DELETE] {e}")
-                            item_pairs_report.append(
-                                {
-                                    "arbpl": arbpl,
-                                    "werks": werks,
-                                    "ok": False,
-                                    "error": f"DB delete: {e}",
-                                }
-                            )
-                            continue
-
-                        # --- Insert / upsert data baru ---
-                        try:
-                            if rows:
-                                BATCH = 500
-                                for i in range(0, len(rows), BATCH):
-                                    cur.executemany(UPSERT_SQL_YPPR, rows[i : i + BATCH])
+                            # Hapus data lama hanya untuk solo_pernr ini
+                            try:
+                                deleted = delete_old_rows(
+                                    cur, arbpl, werks, begda, endda, pernrs_for_rfc
+                                )
                                 db.commit()
-                                inserted = len(rows)
+                                deleted_pair += deleted
                                 logger.info(
-                                    f"[DB] inserted={inserted} for {pernr}@{arbpl}/{werks} {begda}"
+                                    f"[DB SOLO] deleted={deleted} "
+                                    f"for {pernrs_for_rfc} @ {arbpl}/{werks} {begda}..{endda}"
                                 )
-                        except mysql.connector.Error as e:
-                            db.rollback()
-                            logger.error(f"[DB INSERT] {e}")
+                            except mysql.connector.Error as e:
+                                db.rollback()
+                                logger.error(f"[DB DELETE SOLO] {e}")
+                                item_pairs_report.append(
+                                    {
+                                        "arbpl": arbpl,
+                                        "werks": werks,
+                                        "mode": "solo",
+                                        "ok": False,
+                                        "error": f"DB delete: {e}",
+                                        "pernrs": pernrs_for_rfc,
+                                    }
+                                )
+                                continue
+
+                            # Insert baru
+                            try:
+                                rows: List[Dict[str, Any]] = []
+                                for r in t_data:
+                                    pernr_row = str(r.get("PERNR") or "").strip()
+                                    if pernr_row.isdigit():
+                                        pernr_row = pernr_row.zfill(8)
+                                    role_val = role_map.get(pernr_row)
+                                    rows.append(
+                                        normalize_tdata(
+                                            r,
+                                            arbpl,
+                                            werks,
+                                            desc_val,
+                                            role_val,
+                                            devisi_val,
+                                        )
+                                    )
+
+                                inserted = 0
+                                if rows:
+                                    BATCH = 500
+                                    for i_b in range(0, len(rows), BATCH):
+                                        cur.executemany(
+                                            UPSERT_SQL_YPPR, rows[i_b : i_b + BATCH]
+                                        )
+                                    db.commit()
+                                    inserted = len(rows)
+                                    inserted_pair += inserted
+                                    logger.info(
+                                        f"[DB SOLO] inserted={inserted} "
+                                        f"for {solo_pernr}@{arbpl}/{werks} {begda}"
+                                    )
+                            except mysql.connector.Error as e:
+                                db.rollback()
+                                logger.error(f"[DB INSERT SOLO] {e}")
+                                item_pairs_report.append(
+                                    {
+                                        "arbpl": arbpl,
+                                        "werks": werks,
+                                        "mode": "solo",
+                                        "ok": False,
+                                        "error": f"DB insert: {e}",
+                                        "deleted": deleted,
+                                        "sap_rows": sap_rows,
+                                        "pernrs": pernrs_for_rfc,
+                                    }
+                                )
+                                continue
+
                             item_pairs_report.append(
                                 {
                                     "arbpl": arbpl,
                                     "werks": werks,
-                                    "ok": False,
-                                    "error": f"DB insert: {e}",
+                                    "mode": "solo",
+                                    "ok": True,
                                     "deleted": deleted,
+                                    "inserted": inserted,
                                     "sap_rows": sap_rows,
+                                    "skipped_empty": skipped_empty,
+                                    "del": deleted,
+                                    "ins": inserted,
+                                    "rows": sap_rows,
+                                    "skipped": skipped_empty,
+                                    "pernrs": pernrs_for_rfc,
                                 }
                             )
-                            continue
-
-                        item_pairs_report.append(
-                            {
-                                "arbpl": arbpl,
-                                "werks": werks,
-                                "ok": True,
-                                "deleted": deleted,
-                                "inserted": inserted,
-                                "sap_rows": sap_rows,
-                                "skipped_empty": skipped_empty,
-                                # alias supaya kompatibel dengan struktur baru
-                                "del": deleted,
-                                "ins": inserted,
-                                "rows": sap_rows,
-                                "skipped": skipped_empty,
-                            }
-                        )
-                        total_deleted += deleted
-                        total_inserted += inserted
 
                     finally:
                         release_pair_lock(cur, arbpl, werks)
+
+                    total_deleted += deleted_pair
+                    total_inserted += inserted_pair
 
                 # --- Summary per item (JSON response) ---
                 results.append(
