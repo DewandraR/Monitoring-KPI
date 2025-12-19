@@ -18,6 +18,8 @@ Sistem **Monitoring KPI** berbasis **Laravel (Blade)** + **pipeline sinkronisasi
 - [Alur Data](#alur-data)
 - [Panduan Script 1: `wc_person_to_mysql.py`](#panduan-script-1-wc_person_to_mysqlpy)
 - [Panduan Script 2: `yppr058_loader.py`](#panduan-script-2-yppr058_loaderpy)
+- [Panduan API 3: YPPR058 Refresh & WC Sync (app_yppr058_refresh.py)](#panduan-api-3-yppr058-refresh--wc-sync-app_yppr058_refreshpy)
+- [Panduan API 4: YPPR058 Save ke SAP (app_yppr058_save.py)](#panduan-api-4-yppr058-save-ke-sap-app_yppr058_savepy)
 - [Penjadwalan (Cron)](#penjadwalan-cron)
 - [Logging](#logging)
 - [Troubleshooting](#troubleshooting)
@@ -25,7 +27,6 @@ Sistem **Monitoring KPI** berbasis **Laravel (Blade)** + **pipeline sinkronisasi
 - [Lisensi](#lisensi)
 
 ---
-
 ## Gambaran Umum
 
 Project ini biasanya dijalankan dalam 2 tahap utama:
@@ -44,6 +45,8 @@ Aplikasi web Laravel memanfaatkan tabel-tabel tersebut untuk kebutuhan monitorin
 **Python ETL/Loader**
 - `wc_person_to_mysql.py` → isi `wc_person_data` (+ backup bulanan)
 - `yppr058_loader.py` → isi `yppr058_data` (berbasis `wc_person_data`)  
+- `app_yppr058_refresh.py` (Flask, port **5010**) -> API refresh `yppr058_data` (detail) **dan** sync `wc_person_data` (master)
+- `app_yppr058_save.py`    (Flask, port **5011**) -> API SAVE koreksi ke SAP via RFC `Z_RFC_SAVE_YPPR058`
 ↓  
 **MySQL** (utf8mb4)  
 ↓  
@@ -90,6 +93,14 @@ Aplikasi web Laravel memanfaatkan tabel-tabel tersebut untuk kebutuhan monitorin
 
 ---
 
+### 3) Flask API Refresh Detail & Sync Master (app_yppr058_refresh.py)
+- Endpoint untuk **refresh detail `yppr058_data`** per NIK-tanggal (bisa multi-NIK per request), dengan mekanisme **progress polling**.
+- Endpoint untuk **sync master `wc_person_data`** per WC/Plant, lengkap dengan **deteksi NIK baru/hilang**, update **role INDUK**, update **deskripsi WC**, dan update **DEVISI/Kode Laravel** dari Excel.
+
+### 4) Flask API Save ke SAP (app_yppr058_save.py)
+- Endpoint untuk **SAVE koreksi** `mint2/mintu/mintu2/mintu3` ke SAP via RFC `Z_RFC_SAVE_YPPR058`.
+- Ada **whitelist user SAP** yang diizinkan (hardcoded di file) supaya tidak semua user bisa melakukan SAVE.
+
 ## Prasyarat
 
 ### Backend Web (Laravel)
@@ -135,7 +146,7 @@ pip install -r requirements.txt
 ```
 Jika repository belum punya `requirements.txt`, minimal:
 ```bash
-pip install python-dotenv mysql-connector-python openpyxl pyrfc
+pip install flask flask-cors python-dotenv mysql-connector-python openpyxl pyrfc
 ```
 
 > **Catatan penting:** `pyrfc` tidak selalu bisa di-install tanpa dependency SAP NWRFC SDK. Ikuti panduan instalasi `pyrfc` sesuai OS Anda.
@@ -230,6 +241,19 @@ python yppr058_loader.py
 ```
 
 ---
+
+### Variabel tambahan `app_yppr058_refresh.py`
+- `YPPR058_LOG_DIR` : folder log API refresh (default: `./storage/logs/python_wc_person_mysql`). File log: `api_refresh.log`.
+- `ALLOW_EMPTY_DELETE` : `true/false` (default: `false`). Jika `false` dan RFC YPPR058 mengembalikan **0 row**, maka API **tidak menghapus** data lama (fail-safe).
+- `DB_TABLE_OUT` : nama tabel detail (default: `yppr058_data`).
+- `WC_TABLE` : nama tabel master (default: `wc_person_data`).
+- `WC_DEVISI_FILE` : path file Excel `DEVISI.xlsx` (default: `./DEVISI.xlsx`) untuk update `devisi` dan `kode_laravel` saat sync master.
+- `WC_BLACKLIST_PERNR` : daftar PERNR dipisah koma, contoh: `10000011,10000015`.
+- `WC_BLACKLIST_FILE` : path file blacklist TXT/CSV (kolom `PERNR`) yang akan digabung dengan blacklist hardcoded.
+
+### Variabel tambahan `app_yppr058_save.py`
+- Mengikuti variabel koneksi SAP umum (`SAP_ASHOST`, `SAP_SYSNR`, `SAP_CLIENT`, `SAP_LANG`).
+- RFC name (`Z_RFC_SAVE_YPPR058`) dan whitelist user (`ALLOWED_SAP_USERS`) saat ini **hardcoded** di file (ubah di source jika perlu).
 
 ## Panduan Script 1: `wc_person_to_mysql.py`
 
@@ -404,6 +428,164 @@ python yppr058_loader.py --no-delete
 
 ---
 
+
+## Panduan API 3: YPPR058 Refresh & WC Sync (app_yppr058_refresh.py)
+
+**Tujuan:**
+- Refresh **detail transaksi** (`yppr058_data`) untuk kombinasi NIK & tanggal tertentu (bisa multi-NIK dalam satu item).
+- Sync **master WC person** (`wc_person_data`) per **Work Center + Plant**, lengkap dengan:
+  - update role **INDUK**
+  - update **deskripsi WC**
+  - update **DEVISI** + **kode_laravel** dari Excel `DEVISI.xlsx`
+  - deteksi **NIK baru** dan **NIK hilang** + (opsional) penghapusan detail untuk NIK yang hilang.
+
+**Port:** `5010`  
+**CORS:** enabled untuk seluruh `/api/*`.
+
+### Endpoint: `GET /health`
+
+Response:
+```json
+{"ok": true, "service": "yppr058_refresh", "time": "2025-12-19T00:00:00"}
+```
+
+### Endpoint: `GET /api/yppr058/progress?job_id=...`
+
+Dipakai frontend untuk polling progres refresh detail.
+
+Contoh response:
+```json
+{
+  "ok": true,
+  "progress": {
+    "job_id": "job-1700000000000",
+    "total_items": 10,
+    "done_items": 3,
+    "status": "running",
+    "percent_items": 30.0,
+    "last_item": {
+      "pernr": "00123456",
+      "begda": "20251108",
+      "arbpl": "WC033",
+      "werks": "2000",
+      "time": "2025-12-19T00:00:00"
+    }
+  }
+}
+```
+
+> Catatan: progress disimpan **in-memory** (`PROGRESS_MAP`). Kalau proses dijalankan multi-worker / restart service, data progress akan hilang.
+
+### Endpoint: `POST /api/yppr058/refresh`
+
+Refresh detail `yppr058_data`.
+
+**Body JSON:**
+```json
+{
+  "items": [
+    {"pernr":"10005817","werks":"","arbpl":"","begda":"20251108","endda":"20251108"},
+    {"pernrs":["10005817","10001234"],"werks":"2000","arbpl":"WC033","begda":"20251108","endda":"20251108"}
+  ],
+  "job_id": "opsional"
+}
+```
+
+**Ringkasan logika penting:**
+- `pernrs` (list) didukung, fallback ke `pernr` tunggal.
+- PERNR yang masuk blacklist akan **di-skip**.
+- Untuk tiap PERNR dilakukan cek RFC **log mutasi**: `Z_FM_YPP_LOG_MUTA`:
+  - `EV_SUBRC == 0` → **solo** (ditarik sendiri, **tanpa induk**).
+  - `EV_SUBRC != 0` → **group** (boleh mengajak induk bila diperlukan).
+- Untuk group, API mengecek apakah perlu mengajak **INDUK** berdasarkan data confirm di DB:
+  - Jika ada minimal 1 PERNR group yang **belum punya** `arbpl2` (confirm), maka induk akan dicari (`role=INDUK`) dan ditambahkan ke pemanggilan RFC (kecuali induk tersebut termasuk `solo_pernrs`).
+- Data dihapus terlebih dahulu hanya untuk PERNR + range tanggal yang diproses, lalu dilakukan **upsert** hasil RFC `Z_FM_YPPR058DX`.
+- Fail-safe: jika RFC mengembalikan **0 row** dan `ALLOW_EMPTY_DELETE=false`, maka DB **tidak diubah** untuk item tersebut.
+
+**Contoh curl:**
+```bash
+curl -X POST http://127.0.0.1:5010/api/yppr058/refresh \
+  -H "Content-Type: application/json" \
+  -d '{"items":[{"pernr":"10005817","begda":"20251108","endda":"20251108"}]}'
+```
+
+### Endpoint: `POST /api/wc_person/sync`
+
+Sync master `wc_person_data` untuk 1 WC/Plant.
+
+**Body JSON:**
+```json
+{"arbpl":"WC033","werks":"2000"}
+```
+
+**Output penting di response:**
+- `pernrs` + `pernrs_count` : daftar NIK aktif (setelah blacklist)
+- `pernrs_new` + `pernrs_new_count` : NIK yang **baru** dibanding data lama
+- `pernrs_removed` + `pernrs_removed_count` : NIK yang **hilang**
+- `yppr058_deleted` : jumlah baris detail yang dihapus untuk NIK yang hilang (jika ada)
+
+**Catatan Excel DEVISI:**
+- Kolom yang dibaca:
+  - **B**: Plant
+  - **C**: Devisi (pakai "last non-empty")
+  - **E**: Kode / ARBPL
+  - **F**: Kode Laravel (mendukung merged cell)
+
+---
+
+## Panduan API 4: YPPR058 Save ke SAP (app_yppr058_save.py)
+
+**Tujuan:** Mengirim koreksi nilai KPI (`mint2/mintu/mintu2/mintu3`) kembali ke SAP via RFC `Z_RFC_SAVE_YPPR058`.
+
+**Port:** `5011`
+
+### Endpoint: `GET /health`
+
+Response:
+```json
+{"ok": true, "service": "yppr058_save", "time": "2025-12-19T00:00:00"}
+```
+
+### Endpoint: `POST /api/yppr058/save`
+
+**Body JSON:**
+```json
+{
+  "sap_user": "auto_email",
+  "sap_pass": "********",
+  "items": [
+    {
+      "pernr": "10000030",
+      "cname": "Rachman Tjahjono",
+      "arbpl": "WC110",
+      "start_date": "20251101",
+      "end_date": "20251125",
+      "mint2": 7357,
+      "mintu": 7357,
+      "mintu2": 441420,
+      "mintu3": 441420
+    }
+  ]
+}
+```
+
+**Otorisasi (penting):**
+- Service hanya mengizinkan `sap_user` tertentu untuk melakukan SAVE (whitelist `ALLOWED_SAP_USERS` di source).
+- Jika user tidak termasuk whitelist → HTTP **403**.
+
+**Perilaku response:**
+- Mengembalikan `summary` (total/success/failed) dan detail `results` per item.
+- Status code: `200` bila **minimal 1 item sukses**, `500` bila semua gagal.
+
+**Contoh curl:**
+```bash
+curl -X POST http://127.0.0.1:5011/api/yppr058/save \
+  -H "Content-Type: application/json" \
+  -d '{"sap_user":"auto_email","sap_pass":"xxx","items":[{"pernr":"10000030","cname":"A","arbpl":"WC110","start_date":"20251101","end_date":"20251125","mint2":1,"mintu":1,"mintu2":1,"mintu3":1}]}'
+```
+
+> Catatan keamanan: jangan expose port 5011 ke publik. Idealnya lewat internal network / reverse proxy + TLS, dan audit log request.
+
 ## Penjadwalan (Cron)
 
 Berikut contoh **konsep** penjadwalan harian (sesuaikan jam dan server Anda):
@@ -444,6 +626,13 @@ Misal jam 00:30 setiap hari:
 
 ---
 
+### Log untuk API Refresh (port 5010)
+- File log default: `storage/logs/python_wc_person_mysql/api_refresh.log` (bisa diubah via `YPPR058_LOG_DIR`).
+- Akses log untuk `GET /api/yppr058/progress` difilter supaya tidak memenuhi log.
+
+### Log untuk API Save (port 5011)
+- Logging default ke **stdout/stderr** (cocok dijalankan via systemd / supervisor / docker).
+
 ## Troubleshooting
 
 ### 1) `pyrfc` gagal install / error library
@@ -468,6 +657,17 @@ Misal jam 00:30 setiap hari:
 ### 5) Proses “nyangkut” karena lock
 - `yppr058_loader.py` memakai `GET_LOCK()` per pair `(ARBPL, WERKS)`.
 - Jika ada proses lain yang masih berjalan, proses berikutnya menunggu hingga `--lock-timeout` (default 120 detik), lalu skip pair tersebut.
+
+### API refresh: progress tidak ketemu / hilang
+- `job_id` disimpan di memory proses. Kalau service restart atau jalan multi-worker (mis. gunicorn > 1 worker), progress bisa hilang/terpisah.
+- Solusi: jalankan 1 worker untuk service ini, atau pindahkan penyimpanan progress ke Redis/DB.
+
+### API refresh: sering "Lock timeout"
+- Artinya ada request lain yang sedang memproses pasangan `arbpl/werks` yang sama (mekanisme `GET_LOCK`).
+- Solusi cepat: tunggu request lain selesai, atau kurangi concurrency untuk WC/Plant yang sama.
+
+### API save: selalu 403 Unauthorized
+- Pastikan `sap_user` termasuk whitelist `ALLOWED_SAP_USERS` di `app_yppr058_save.py`.
 
 ---
 
