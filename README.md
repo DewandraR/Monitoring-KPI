@@ -146,25 +146,6 @@ pip install python-dotenv mysql-connector-python openpyxl pyrfc
 
 Kedua script Python memanggil `load_dotenv()` → Anda bisa menaruh konfigurasi di file `.env` pada root project.
 
-### Variabel SAP
-```env
-SAP_ASHOST=192.168.254.154
-SAP_SYSNR=01
-SAP_CLIENT=300
-SAP_LANG=EN
-SAP_USER=auto_email
-SAP_PASS=11223344
-```
-
-### Variabel MySQL
-```env
-DB_HOST=127.0.0.1
-DB_PORT=3306
-DB_USER=root
-DB_PASS=root
-DB_NAME=wc_person
-```
-
 ### Variabel tambahan `wc_person_to_mysql.py`
 ```env
 DB_TABLE=wc_person_data
