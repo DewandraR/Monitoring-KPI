@@ -87,7 +87,7 @@
                     Kembali ke Halaman Sebelumnya
                 </button>
 
-                <a href="{{ route('scan') }}"
+                <a href="{{ route('dashboard') }}"
                     class="inline-flex items-center justify-center w-full sm:w-auto px-6 py-3 rounded-xl
                            bg-slate-100 text-slate-700 font-semibold text-lg border border-slate-300
                            hover:bg-slate-200 active:scale-[0.98] transition-all duration-300 gap-2">
