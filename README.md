@@ -1,59 +1,683 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Monitoring-KPI
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Sistem **Monitoring KPI** berbasis **Laravel (Blade)** + **pipeline sinkronisasi data SAP → MySQL** menggunakan Python. Repository ini berfokus pada **pengambilan master data Work Center ↔ Person (NIK/PERNR)** dan **pengambilan data KPI (YPPR058)** dari SAP melalui RFC, lalu menyimpannya ke MySQL untuk dipakai aplikasi web/reporting.
 
-## About Laravel
+> Catatan: RFC yang dipanggil di project ini mencakup RFC standar (mis. `RFC_READ_TABLE`) dan RFC custom Z\_*. Pastikan RFC tersebut tersedia di landscape SAP Anda.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+---
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Daftar Isi
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+- [Gambaran Umum](#gambaran-umum)
+- [Arsitektur Singkat](#arsitektur-singkat)
+- [Fitur Utama](#fitur-utama)
+- [Prasyarat](#prasyarat)
+- [Instalasi](#instalasi)
+- [Konfigurasi Environment](#konfigurasi-environment)
+- [Struktur Database](#struktur-database)
+- [Alur Data](#alur-data)
+- [Panduan Script 1: `wc_person_to_mysql.py`](#panduan-script-1-wc_person_to_mysqlpy)
+- [Panduan Script 2: `yppr058_loader.py`](#panduan-script-2-yppr058_loaderpy)
+- [Panduan API 3: YPPR058 Refresh & WC Sync (app_yppr058_refresh.py)](#panduan-api-3-yppr058-refresh--wc-sync-app_yppr058_refreshpy)
+- [Panduan API 4: YPPR058 Save ke SAP (app_yppr058_save.py)](#panduan-api-4-yppr058-save-ke-sap-app_yppr058_savepy)
+- [Penjadwalan (Cron)](#penjadwalan-cron)
+- [Logging](#logging)
+- [Troubleshooting](#troubleshooting)
+- [Kontribusi](#kontribusi)
+- [Lisensi](#lisensi)
 
-## Learning Laravel
+---
+## Gambaran Umum
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+Project ini biasanya dijalankan dalam 2 tahap utama:
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+1. **Sinkron master data Work Center → Person (PERNR)** ke tabel MySQL (`wc_person_data`), termasuk enrichment (role, deskripsi WC, devisi, kode_laravel), blacklist, dan backup bulanan.
+2. **Tarik data KPI YPPR058** dari SAP per tanggal/per pasangan Work Center–Plant, berdasarkan daftar PERNR aktif di `wc_person_data`, lalu simpan ke tabel MySQL (`yppr058_data`).
 
-## Laravel Sponsors
+Aplikasi web Laravel memanfaatkan tabel-tabel tersebut untuk kebutuhan monitoring/reporting KPI.
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+---
 
-### Premium Partners
+## Arsitektur Singkat
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+**SAP** (RFC)  
+↓  
+**Python ETL/Loader**
+- `wc_person_to_mysql.py` → isi `wc_person_data` (+ backup bulanan)
+- `yppr058_loader.py` → isi `yppr058_data` (berbasis `wc_person_data`)  
+- `app_yppr058_refresh.py` (Flask, port **5010**) -> API refresh `yppr058_data` (detail) **dan** sync `wc_person_data` (master)
+- `app_yppr058_save.py`    (Flask, port **5011**) -> API SAVE koreksi ke SAP via RFC `Z_RFC_SAVE_YPPR058`
+↓  
+**MySQL** (utf8mb4)  
+↓  
+**Laravel Web App** (Blade) / report UI
 
-## Contributing
+---
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+## Fitur Utama
 
-## Code of Conduct
+### 1) Master Work Center ↔ Person (`wc_person_to_mysql.py`)
+- Auto-scan **CRHD** untuk semua Work Center aktif (LVORM != 'X') via `RFC_READ_TABLE`, atau bisa dipersempit dengan filter plant / LIKE ARBPL.
+- Tarik person list dari RFC `CR_PERSONS_OF_WORKCENTER` per pasangan (ARBPL, WERKS).
+- **Blacklist PERNR**:
+  - Hardcoded
+  - Tambahan dari ENV
+  - Tambahan dari file TXT/CSV
+  - Opsi **purge** global untuk menghapus semua baris PERNR blacklist dari tabel.
+- **Selective refresh**: delete data lama per pasangan (ARBPL, WERKS), lalu insert/upsert data baru.
+- **Enrichment**:
+  - `role` via RFC `Z_RFC_DISPLAY_NIK_CONF` (set `INDUK` bila aktif).
+  - `desc` (deskripsi Work Center) via RFC `Z_FM_GET_WC_DESC`.
+  - `devisi` & `kode_laravel` dari Excel `DEVISI.xlsx` (support merged cell kolom F untuk `kode_laravel`).
+- **Backup bulanan** otomatis: **hanya jalan setiap tanggal 6**, menyalin isi `wc_person_data` ke tabel backup per bulan.
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+### 2) Loader KPI YPPR058 (`yppr058_loader.py`)
+- Ambil daftar pasangan (ARBPL, WERKS) dari `wc_person_data` (atau override manual / filter).
+- Tarik KPI dari RFC `Z_FM_YPPR058DX` dengan model **T_ARBPL & T_PERNR**.
+- Mode tanggal fleksibel:
+  - `--yesterday` (1 hari kemarin)
+  - `--dates` (daftar tanggal spesifik)
+  - `--begda/--endda` (range, otomatis split per hari)
+  - default: loop harian **descending** dari kemarin sampai tanggal 1 (bulan berjalan / bulan lalu, tergantung tanggal hari ini).
+- **Sinkronisasi PERNR otomatis** (sebelum tarik data):
+  - Hapus PERNR di `yppr058_data` yang tidak ada di `wc_person_data`.
+  - Hapus kombinasi (PERNR, ARBPL, WERKS) di `yppr058_data` yang sudah tidak ada di `wc_person_data`.
+- **Anti tabrakan proses**: pair-lock per (ARBPL, WERKS) pakai MySQL `GET_LOCK()` saat fase delete + upsert.
+- **Log mutasi special-case**:
+  - Panggil RFC `Z_FM_YPP_LOG_MUTA` per PERNR.
+  - Jika `EV_SUBRC == 0` → PERNR dianggap “spesial” dan **ditarik 1-per-1**.
+  - Selain itu → ditarik normal pakai chunk (`--pernr-chunk`).
+- Enrichment output dari DB WC:
+  - `desc` + `devisi` diambil dari `wc_person_data`
+  - `role` per PERNR diambil dari `wc_person_data` pada tanggal terkait.
 
-## Security Vulnerabilities
+---
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+### 3) Flask API Refresh Detail & Sync Master (app_yppr058_refresh.py)
+- Endpoint untuk **refresh detail `yppr058_data`** per NIK-tanggal (bisa multi-NIK per request), dengan mekanisme **progress polling**.
+- Endpoint untuk **sync master `wc_person_data`** per WC/Plant, lengkap dengan **deteksi NIK baru/hilang**, update **role INDUK**, update **deskripsi WC**, dan update **DEVISI/Kode Laravel** dari Excel.
 
-## License
+### 4) Flask API Save ke SAP (app_yppr058_save.py)
+- Endpoint untuk **SAVE koreksi** `mint2/mintu/mintu2/mintu3` ke SAP via RFC `Z_RFC_SAVE_YPPR058`.
+- Ada **whitelist user SAP** yang diizinkan (hardcoded di file) supaya tidak semua user bisa melakukan SAVE.
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+## Prasyarat
+
+### Backend Web (Laravel)
+- PHP (sesuaikan dengan requirement project Laravel Anda)
+- Composer
+- MySQL/MariaDB
+
+### Python Loader
+- Python 3.9+ (disarankan 3.10+)
+- Library:
+  - `python-dotenv`
+  - `mysql-connector-python`
+  - `pyrfc` *(butuh SAP NetWeaver RFC SDK / NWRFC SDK terinstall di host)*
+  - `openpyxl` *(opsional, hanya untuk baca `DEVISI.xlsx`)*
+
+---
+
+## Instalasi
+
+### 1) Clone repository
+```bash
+git clone https://github.com/DewandraR/Monitoring-KPI.git
+cd Monitoring-KPI
+```
+
+### 2) Setup Laravel (umum)
+```bash
+composer install
+cp .env.example .env
+php artisan key:generate
+php artisan serve
+```
+
+> Pastikan konfigurasi DB di `.env` Laravel mengarah ke database yang sama yang dipakai script Python (atau setidaknya satu server MySQL yang sama).
+
+### 3) Setup Python (direkomendasikan pakai venv)
+```bash
+python -m venv .venv
+# Windows: .venv\Scripts\activate
+# Linux/Mac: source .venv/bin/activate
+
+pip install -r requirements.txt
+```
+Jika repository belum punya `requirements.txt`, minimal:
+```bash
+pip install flask flask-cors python-dotenv mysql-connector-python openpyxl pyrfc
+```
+
+> **Catatan penting:** `pyrfc` tidak selalu bisa di-install tanpa dependency SAP NWRFC SDK. Ikuti panduan instalasi `pyrfc` sesuai OS Anda.
+
+---
+
+## Konfigurasi Environment
+
+Kedua script Python memanggil `load_dotenv()` → Anda bisa menaruh konfigurasi di file `.env` pada root project.
+
+### Variabel tambahan `wc_person_to_mysql.py`
+```env
+DB_TABLE=wc_person_data
+DB_BACKUP_TABLE=wc_person_backup
+
+# lokasi log (opsional)
+WC_LOG_DIR=storage/logs/python_wc_person_mysql
+
+# tambahan blacklist (comma-separated)
+WC_BLACKLIST_PERNR=10001234,10005678
+
+# lokasi Excel mapping devisi
+WC_DEVISI_FILE=DEVISI.xlsx
+```
+
+### Variabel tambahan `yppr058_loader.py`
+```env
+WC_TABLE=wc_person_data
+DB_TABLE_OUT=yppr058_data
+
+# lokasi log (opsional)
+YPPR058_LOG_DIR=storage/logs/python wc_person_mysql
+```
+
+> Tips: Bila Anda deploy di server, simpan `.env` sebagai secret (jangan commit kredensial SAP/DB ke repo).
+
+---
+
+## Struktur Database
+
+Project ini akan membuat database & tabel otomatis (jika belum ada) menggunakan DDL di script.
+
+### Database
+- **Default database**: `wc_person`
+- Charset/Collation: `utf8mb4` / `utf8mb4_unicode_ci`
+
+### Tabel `wc_person_data`
+Dibuat & dimigrasi otomatis oleh `wc_person_to_mysql.py`.
+
+Field penting:
+- Identitas: `objid`, `pernr`, `begda`, `endda`
+- Konteks: `arbpl` (Work Center), `werks` (Plant)
+- Enrichment:
+  - `role` (mis. `INDUK`)
+  - `desc` (deskripsi WC)
+  - `devisi`
+  - `kode_laravel`
+- Unique key: `(objid, pernr, begda, arbpl, werks)`
+
+### Tabel backup `wc_person_backup`
+Dibuat otomatis oleh `wc_person_to_mysql.py`.
+- Menyimpan snapshot per bulan (`backup_month` = `YYYY-MM`, bulan yang dibackup = bulan sebelumnya).
+- Diproses **hanya setiap tanggal 6** (refresh: delete bulan itu lalu insert ulang).
+
+### Tabel `yppr058_data`
+Dibuat & dimigrasi otomatis oleh `yppr058_loader.py`.
+
+Field penting (ringkas):
+- `pernr`, `begda`
+- KPI numeric: `total_jam`, `mint2`, `mintu`, `mintu2`, `mintu3`, `gji`, `gji2`, `varnt`, `varnt1`
+- WC info: `arbpl`, `arbpl2`, `werks`, `shift`
+- Enrichment: `desc`, `role`, `devisi`
+- Unique key: `(pernr, begda, arbpl, werks)`
+
+---
+
+## Alur Data
+
+### Urutan proses yang disarankan
+1) Refresh master WC-person:
+```bash
+python wc_person_to_mysql.py
+```
+
+2) Tarik KPI YPPR058:
+```bash
+python yppr058_loader.py --yesterday
+```
+atau mode default (loop harian descending):
+```bash
+python yppr058_loader.py
+```
+
+---
+
+### Variabel tambahan `app_yppr058_refresh.py`
+- `YPPR058_LOG_DIR` : folder log API refresh (default: `./storage/logs/python_wc_person_mysql`). File log: `api_refresh.log`.
+- `ALLOW_EMPTY_DELETE` : `true/false` (default: `false`). Jika `false` dan RFC YPPR058 mengembalikan **0 row**, maka API **tidak menghapus** data lama (fail-safe).
+- `DB_TABLE_OUT` : nama tabel detail (default: `yppr058_data`).
+- `WC_TABLE` : nama tabel master (default: `wc_person_data`).
+- `WC_DEVISI_FILE` : path file Excel `DEVISI.xlsx` (default: `./DEVISI.xlsx`) untuk update `devisi` dan `kode_laravel` saat sync master.
+- `WC_BLACKLIST_PERNR` : daftar PERNR dipisah koma, contoh: `10000011,10000015`.
+- `WC_BLACKLIST_FILE` : path file blacklist TXT/CSV (kolom `PERNR`) yang akan digabung dengan blacklist hardcoded.
+
+### Variabel tambahan `app_yppr058_save.py`
+- Mengikuti variabel koneksi SAP umum (`SAP_ASHOST`, `SAP_SYSNR`, `SAP_CLIENT`, `SAP_LANG`).
+- RFC name (`Z_RFC_SAVE_YPPR058`) dan whitelist user (`ALLOWED_SAP_USERS`) saat ini **hardcoded** di file (ubah di source jika perlu).
+
+## Panduan Script 1: `wc_person_to_mysql.py`
+
+### Fungsi utama
+Memuat hasil RFC `CR_PERSONS_OF_WORKCENTER` ke MySQL, dengan opsi auto-scan pasangan WC aktif dari tabel SAP `CRHD` (via `RFC_READ_TABLE`).
+
+### Cara kerja ringkas
+1. Tentukan pasangan (ARBPL, WERKS) yang akan diproses:
+   - dari argumen `--pairs`, `--arbpl/--werks`, atau `--pairs-file`
+   - jika kosong → auto-read CRHD dan filter (opsional) `--werks-filter` / `--like`
+2. Untuk tiap pasangan:
+   - ambil data dari RFC
+   - normalize field, pad PERNR jadi 8 digit bila numerik
+   - filter blacklist
+   - delete data lama (kecuali `--no-delete` / `--dry-run`)
+   - upsert batch ke MySQL
+3. Setelah semua pasangan:
+   - update `role` via `Z_RFC_DISPLAY_NIK_CONF` (skip jika `--dry-run`)
+   - update `desc` via `Z_FM_GET_WC_DESC`
+   - update `devisi` + `kode_laravel` dari Excel
+   - backup bulanan (hanya tanggal 6)
+
+### Command examples
+**1) Mode default (auto READ CRHD semua WC aktif)**
+```bash
+python wc_person_to_mysql.py
+```
+
+**2) Filter plant dan LIKE ARBPL saat auto READ**
+```bash
+python wc_person_to_mysql.py --werks-filter 1000 --werks-filter 2000 --like "WC%"
+```
+
+**3) Pasangan spesifik**
+```bash
+python wc_person_to_mysql.py --pairs "WC034:1000,WC035:2000"
+```
+
+**4) Kombinasi ARBPL/WERKS via argumen terpisah**
+```bash
+python wc_person_to_mysql.py --arbpl WC034 --arbpl WC035 --werks 1000 --werks 2000
+```
+
+**5) Lihat rencana saja (tanpa ubah DB)**
+```bash
+python wc_person_to_mysql.py --dry-run --show-pairs --verbose-steps
+```
+
+**6) Tambah blacklist dari file & purge**
+```bash
+python wc_person_to_mysql.py --blacklist-file my_blacklist.csv --purge-blacklist
+```
+
+### Daftar argumen CLI (ringkas)
+- Input pasangan:
+  - `--arbpl` (repeatable)
+  - `--werks` (repeatable)
+  - `--pairs "ARBPL:WERKS,..."`
+  - `--pairs-file <csv>` (header minimal: `ARBPL,WERKS`)
+- Auto READ filter:
+  - `--werks-filter <WERKS>` (repeatable)
+  - `--like "WC%"` (repeatable, `%/_` seperti SQL LIKE)
+- Tanggal:
+  - `--date-all` (default `31.12.9999` → dikonversi jadi `99991231`)
+- Blacklist:
+  - `--blacklist-file <txt/csv>` (CSV butuh kolom `PERNR`)
+  - `--purge-blacklist`
+- Mode/log/performa:
+  - `--show-pairs`
+  - `--verbose-steps`
+  - `--no-delete`
+  - `--dry-run`
+  - `--batch <n>` (default 500)
+
+---
+
+## Panduan Script 2: `yppr058_loader.py`
+
+### Fungsi utama
+Memuat hasil RFC `Z_FM_YPPR058DX` ke MySQL (`yppr058_data`) dengan input pasangan WC & daftar PERNR yang diambil dari `wc_person_data`.
+
+### Cara kerja ringkas
+**A. Persiapan (sekali per run)**
+1. Connect SAP dan MySQL.
+2. Buat/alter tabel output jika perlu.
+3. Jalankan **sinkronisasi awal** `yppr058_data` vs `wc_person_data`:
+   - Level 1: hapus PERNR di YPPR yang tidak ada di WC person
+   - Level 2: hapus kombinasi (PERNR,ARBPL,WERKS) di YPPR yang tidak ada di WC person
+   - Jika `--dry-run` atau `--no-delete` → hanya log, tidak hapus.
+
+**B. Proses per hari (begda=endda per hari)**
+Untuk tiap pasangan (ARBPL,WERKS):
+1. Ambil `desc` dan `devisi` untuk pair dari `wc_person_data`.
+2. Ambil semua PERNR aktif pada tanggal itu (begda/endda dari WC person).
+3. Ambil role map PERNR→role (jika tersedia).
+4. Jalankan RFC `Z_FM_YPP_LOG_MUTA` per PERNR:
+   - EV_SUBRC=0 → masuk list “special” → ditarik satu-per-satu
+   - lainnya → masuk list “normal” → ditarik chunk (`--pernr-chunk`)
+5. **Lock pair** (MySQL `GET_LOCK`) sebelum delete+upsert agar aman untuk parallel run.
+6. Delete selektif untuk rentang hari itu (kecuali `--no-delete` / `--dry-run`).
+7. Upsert batch hasil RFC.
+
+### Mode tanggal (prioritas)
+1. `--yesterday` → hanya 1 hari kemarin (abaikan `--dates`/range)
+2. `--dates` → daftar tanggal spesifik (urutan sesuai input)
+3. `--begda/--endda` → range (di-split per hari urutan naik)
+4. Tanpa semua → default loop harian **descending** dari kemarin sampai tanggal 1:
+   - Jika hari ini **<= 6** → turun sampai tanggal 1 **bulan lalu**
+   - Jika hari ini **> 6** → turun sampai tanggal 1 **bulan berjalan**
+
+### Command examples
+**0) Tarik hanya data HARI KEMARIN**
+```bash
+python yppr058_loader.py --yesterday
+```
+
+**1) Mode default (kemarin turun ke tgl 1)**
+```bash
+python yppr058_loader.py
+```
+
+**2) Filter pasangan saat baca dari DB**
+```bash
+python yppr058_loader.py --werks-filter 1000 --werks-filter 3000 --like "WC%"
+```
+
+**3) Pasangan spesifik**
+```bash
+python yppr058_loader.py --pairs "WC034:1000,WC035:3000"
+```
+
+**4) Range tanggal (akan split per hari)**
+```bash
+python yppr058_loader.py --begda 2025-11-09 --endda 2025-11-11
+```
+
+**5) Tanggal spesifik (urutan dipertahankan)**
+```bash
+python yppr058_loader.py --dates 2025-11-11,2025-11-10,2025-11-09
+```
+
+**6) Dry-run**
+```bash
+python yppr058_loader.py --dry-run --show-pairs
+```
+
+**7) Skip delete lama (hanya upsert)**
+```bash
+python yppr058_loader.py --no-delete
+```
+
+### Daftar argumen CLI (ringkas)
+- Pair selection:
+  - `--pairs "ARBPL:WERKS,..."`
+  - `--arbpl` (repeatable)
+  - `--werks` (repeatable)
+  - `--werks-filter` (repeatable)
+  - `--like "WC%"` (repeatable)
+- Tanggal:
+  - `--yesterday`
+  - `--dates "<d1>,<d2>,..."`
+  - `--begda`, `--endda`
+- Mode/performa:
+  - `--show-pairs`
+  - `--verbose-steps`
+  - `--no-delete`
+  - `--dry-run`
+  - `--batch` (default 500)
+  - `--pernr-chunk` (default 100)
+  - `--sample-log` (default 8)
+  - `--lock-timeout` (default 120 detik)
+
+---
+
+
+## Panduan API 3: YPPR058 Refresh & WC Sync (app_yppr058_refresh.py)
+
+**Tujuan:**
+- Refresh **detail transaksi** (`yppr058_data`) untuk kombinasi NIK & tanggal tertentu (bisa multi-NIK dalam satu item).
+- Sync **master WC person** (`wc_person_data`) per **Work Center + Plant**, lengkap dengan:
+  - update role **INDUK**
+  - update **deskripsi WC**
+  - update **DEVISI** + **kode_laravel** dari Excel `DEVISI.xlsx`
+  - deteksi **NIK baru** dan **NIK hilang** + (opsional) penghapusan detail untuk NIK yang hilang.
+
+**Port:** `5010`  
+**CORS:** enabled untuk seluruh `/api/*`.
+
+### Endpoint: `GET /health`
+
+Response:
+```json
+{"ok": true, "service": "yppr058_refresh", "time": "2025-12-19T00:00:00"}
+```
+
+### Endpoint: `GET /api/yppr058/progress?job_id=...`
+
+Dipakai frontend untuk polling progres refresh detail.
+
+Contoh response:
+```json
+{
+  "ok": true,
+  "progress": {
+    "job_id": "job-1700000000000",
+    "total_items": 10,
+    "done_items": 3,
+    "status": "running",
+    "percent_items": 30.0,
+    "last_item": {
+      "pernr": "00123456",
+      "begda": "20251108",
+      "arbpl": "WC033",
+      "werks": "2000",
+      "time": "2025-12-19T00:00:00"
+    }
+  }
+}
+```
+
+> Catatan: progress disimpan **in-memory** (`PROGRESS_MAP`). Kalau proses dijalankan multi-worker / restart service, data progress akan hilang.
+
+### Endpoint: `POST /api/yppr058/refresh`
+
+Refresh detail `yppr058_data`.
+
+**Body JSON:**
+```json
+{
+  "items": [
+    {"pernr":"10005817","werks":"","arbpl":"","begda":"20251108","endda":"20251108"},
+    {"pernrs":["10005817","10001234"],"werks":"2000","arbpl":"WC033","begda":"20251108","endda":"20251108"}
+  ],
+  "job_id": "opsional"
+}
+```
+
+**Ringkasan logika penting:**
+- `pernrs` (list) didukung, fallback ke `pernr` tunggal.
+- PERNR yang masuk blacklist akan **di-skip**.
+- Untuk tiap PERNR dilakukan cek RFC **log mutasi**: `Z_FM_YPP_LOG_MUTA`:
+  - `EV_SUBRC == 0` → **solo** (ditarik sendiri, **tanpa induk**).
+  - `EV_SUBRC != 0` → **group** (boleh mengajak induk bila diperlukan).
+- Untuk group, API mengecek apakah perlu mengajak **INDUK** berdasarkan data confirm di DB:
+  - Jika ada minimal 1 PERNR group yang **belum punya** `arbpl2` (confirm), maka induk akan dicari (`role=INDUK`) dan ditambahkan ke pemanggilan RFC (kecuali induk tersebut termasuk `solo_pernrs`).
+- Data dihapus terlebih dahulu hanya untuk PERNR + range tanggal yang diproses, lalu dilakukan **upsert** hasil RFC `Z_FM_YPPR058DX`.
+- Fail-safe: jika RFC mengembalikan **0 row** dan `ALLOW_EMPTY_DELETE=false`, maka DB **tidak diubah** untuk item tersebut.
+
+**Contoh curl:**
+```bash
+curl -X POST http://127.0.0.1:5010/api/yppr058/refresh \
+  -H "Content-Type: application/json" \
+  -d '{"items":[{"pernr":"10005817","begda":"20251108","endda":"20251108"}]}'
+```
+
+### Endpoint: `POST /api/wc_person/sync`
+
+Sync master `wc_person_data` untuk 1 WC/Plant.
+
+**Body JSON:**
+```json
+{"arbpl":"WC033","werks":"2000"}
+```
+
+**Output penting di response:**
+- `pernrs` + `pernrs_count` : daftar NIK aktif (setelah blacklist)
+- `pernrs_new` + `pernrs_new_count` : NIK yang **baru** dibanding data lama
+- `pernrs_removed` + `pernrs_removed_count` : NIK yang **hilang**
+- `yppr058_deleted` : jumlah baris detail yang dihapus untuk NIK yang hilang (jika ada)
+
+**Catatan Excel DEVISI:**
+- Kolom yang dibaca:
+  - **B**: Plant
+  - **C**: Devisi (pakai "last non-empty")
+  - **E**: Kode / ARBPL
+  - **F**: Kode Laravel (mendukung merged cell)
+
+---
+
+## Panduan API 4: YPPR058 Save ke SAP (app_yppr058_save.py)
+
+**Tujuan:** Mengirim koreksi nilai KPI (`mint2/mintu/mintu2/mintu3`) kembali ke SAP via RFC `Z_RFC_SAVE_YPPR058`.
+
+**Port:** `5011`
+
+### Endpoint: `GET /health`
+
+Response:
+```json
+{"ok": true, "service": "yppr058_save", "time": "2025-12-19T00:00:00"}
+```
+
+### Endpoint: `POST /api/yppr058/save`
+
+**Body JSON:**
+```json
+{
+  "sap_user": "auto_email",
+  "sap_pass": "********",
+  "items": [
+    {
+      "pernr": "10000030",
+      "cname": "Rachman Tjahjono",
+      "arbpl": "WC110",
+      "start_date": "20251101",
+      "end_date": "20251125",
+      "mint2": 7357,
+      "mintu": 7357,
+      "mintu2": 441420,
+      "mintu3": 441420
+    }
+  ]
+}
+```
+
+**Otorisasi (penting):**
+- Service hanya mengizinkan `sap_user` tertentu untuk melakukan SAVE (whitelist `ALLOWED_SAP_USERS` di source).
+- Jika user tidak termasuk whitelist → HTTP **403**.
+
+**Perilaku response:**
+- Mengembalikan `summary` (total/success/failed) dan detail `results` per item.
+- Status code: `200` bila **minimal 1 item sukses**, `500` bila semua gagal.
+
+**Contoh curl:**
+```bash
+curl -X POST http://127.0.0.1:5011/api/yppr058/save \
+  -H "Content-Type: application/json" \
+  -d '{"sap_user":"auto_email","sap_pass":"xxx","items":[{"pernr":"10000030","cname":"A","arbpl":"WC110","start_date":"20251101","end_date":"20251125","mint2":1,"mintu":1,"mintu2":1,"mintu3":1}]}'
+```
+
+> Catatan keamanan: jangan expose port 5011 ke publik. Idealnya lewat internal network / reverse proxy + TLS, dan audit log request.
+
+## Penjadwalan (Cron)
+
+Berikut contoh **konsep** penjadwalan harian (sesuaikan jam dan server Anda):
+
+### 1) Refresh master wc_person (harian)
+Misal jam 00:10 setiap hari:
+```cron
+10 0 * * * cd /path/to/Monitoring-KPI && /usr/bin/python3 wc_person_to_mysql.py >> storage/logs/cron_wc_person.log 2>&1
+```
+
+### 2) Tarik YPPR058 (harian)
+Misal jam 00:30 setiap hari:
+```cron
+30 0 * * * cd /path/to/Monitoring-KPI && /usr/bin/python3 yppr058_loader.py --yesterday >> storage/logs/cron_yppr058.log 2>&1
+```
+
+### 3) Backup bulanan WC person
+**Tidak perlu cron khusus**: `wc_person_to_mysql.py` otomatis melakukan backup **hanya tanggal 6** saat dijalankan.
+
+---
+
+## Logging
+
+### `wc_person_to_mysql.py`
+- Console log
+- Rotating daily log:
+  - `storage/logs/python_wc_person_mysql/wc_person_to_mysql.log`
+- Log unik per-run:
+  - `storage/logs/python_wc_person_mysql/wc_person_to_mysql_<pid>_<timestamp>.log`
+- Override lokasi log:
+  - ENV `WC_LOG_DIR`
+
+### `yppr058_loader.py`
+- Log unik per-run:
+  - default: `storage/logs/python wc_person_mysql/yppr058_loader_<pid>_<timestamp>.log`
+- Override lokasi log:
+  - ENV `YPPR058_LOG_DIR`
+
+---
+
+### Log untuk API Refresh (port 5010)
+- File log default: `storage/logs/python_wc_person_mysql/api_refresh.log` (bisa diubah via `YPPR058_LOG_DIR`).
+- Akses log untuk `GET /api/yppr058/progress` difilter supaya tidak memenuhi log.
+
+### Log untuk API Save (port 5011)
+- Logging default ke **stdout/stderr** (cocok dijalankan via systemd / supervisor / docker).
+
+## Troubleshooting
+
+### 1) `pyrfc` gagal install / error library
+- Pastikan SAP NWRFC SDK sudah terpasang dan environment (PATH/LD_LIBRARY_PATH) sudah benar.
+- Cek dokumentasi `pyrfc` sesuai OS Anda.
+
+### 2) Gagal konek SAP (`CommunicationError` / `LogonError`)
+- Pastikan `SAP_ASHOST`, `SAP_SYSNR`, `SAP_CLIENT`, `SAP_USER`, `SAP_PASS` benar.
+- Pastikan jaringan ke SAP (VPN/route/firewall) terbuka.
+
+### 3) Excel devisi tidak terbaca
+- Install `openpyxl`:
+  ```bash
+  pip install openpyxl
+  ```
+- Pastikan file `DEVISI.xlsx` ada di path yang benar, atau set `WC_DEVISI_FILE`.
+
+### 4) Data tidak ter-update
+- Jalankan dengan `--verbose-steps` untuk detail step RFC dan DB.
+- Cek log unik per-run (paling mudah untuk investigasi).
+
+### 5) Proses “nyangkut” karena lock
+- `yppr058_loader.py` memakai `GET_LOCK()` per pair `(ARBPL, WERKS)`.
+- Jika ada proses lain yang masih berjalan, proses berikutnya menunggu hingga `--lock-timeout` (default 120 detik), lalu skip pair tersebut.
+
+### API refresh: progress tidak ketemu / hilang
+- `job_id` disimpan di memory proses. Kalau service restart atau jalan multi-worker (mis. gunicorn > 1 worker), progress bisa hilang/terpisah.
+- Solusi: jalankan 1 worker untuk service ini, atau pindahkan penyimpanan progress ke Redis/DB.
+
+### API refresh: sering "Lock timeout"
+- Artinya ada request lain yang sedang memproses pasangan `arbpl/werks` yang sama (mekanisme `GET_LOCK`).
+- Solusi cepat: tunggu request lain selesai, atau kurangi concurrency untuk WC/Plant yang sama.
+
+### API save: selalu 403 Unauthorized
+- Pastikan `sap_user` termasuk whitelist `ALLOWED_SAP_USERS` di `app_yppr058_save.py`.
+
+---
+
+## Kontribusi
+Kontribusi sangat dipersilakan:
+1. Fork repo
+2. Buat branch fitur (`feature/...`)
+3. Pull Request dengan deskripsi jelas dan langkah test
+
+---
+
+## Lisensi
+Repo ini mengikuti lisensi yang digunakan oleh dependency utamanya (Laravel), dan/atau lisensi yang Anda tetapkan di repository. Jika belum ada file `LICENSE`, Anda bisa menambahkan sesuai kebutuhan.
