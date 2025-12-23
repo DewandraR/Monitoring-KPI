@@ -608,37 +608,40 @@ class ReportGenerator extends Component
 
         if ($pernrTokens->isNotEmpty() || $arbplTokens->isNotEmpty() || $namePhrases->isNotEmpty()) {
             $baseQuery->where(function ($q) use ($pernrTokens, $arbplTokens, $namePhrases) {
-                // NIK
-                if ($pernrTokens->isNotEmpty()) {
-                    $q->where(function ($qq) use ($pernrTokens) {
-                        foreach ($pernrTokens as $t) {
-                            $qq->orWhere('pernr', 'LIKE', "%{$t}%");
-                        }
+
+                // 1) Token numerik (NIK) -> OR
+                foreach ($pernrTokens as $t) {
+                    $t = trim((string) $t);
+                    if ($t === '') continue;
+
+                    $q->orWhere('pernr', 'LIKE', "%{$t}%");
+                }
+
+                // 2) Token non-numerik (WC/desc/nama/dev) -> OR per token (dan OR antar kolom)
+                foreach ($arbplTokens as $t) {
+                    $t = trim((string) $t);
+                    if ($t === '') continue;
+
+                    $lower = mb_strtolower($t);
+
+                    $q->orWhere(function ($qq) use ($t, $lower) {
+                        $qq->where('arbpl', 'LIKE', "%{$t}%")
+                        ->orWhere('arbpl2', 'LIKE', "%{$t}%")   // <<< TAMBAH: WC Konfirmasi
+                        ->orWhere('desc',  'LIKE', "%{$t}%")
+                        ->orWhereRaw('LOWER(cname)  LIKE ?', ["%{$lower}%"])
+                        ->orWhereRaw('LOWER(devisi) LIKE ?', ["%{$lower}%"]);
                     });
                 }
 
-                // WC / DESC / NAMA / DEVISI
-                if ($arbplTokens->isNotEmpty()) {
-                    $q->where(function ($qq) use ($arbplTokens) {
-                        foreach ($arbplTokens as $t) {
-                            $lower = mb_strtolower($t);
+                // 3) Frasa dalam tanda kutip -> OR (cname/desc/devisi)
+                foreach ($namePhrases as $p) {
+                    $p = trim((string) $p);
+                    if ($p === '') continue;
 
-                            $qq->orWhere('arbpl', 'LIKE', "%{$t}%")
-                                ->orWhere('desc',  'LIKE', "%{$t}%")
-                                ->orWhereRaw('LOWER(cname)  LIKE ?', ["%{$lower}%"])
-                                ->orWhereRaw('LOWER(devisi) LIKE ?', ["%{$lower}%"]);
-                        }
-                    });
-                }
-
-                // Frasa spesifik dalam tanda kutip
-                if ($namePhrases->isNotEmpty()) {
-                    $q->where(function ($qq) use ($namePhrases) {
-                        foreach ($namePhrases as $p) {
-                            $qq->orWhereRaw('LOWER(cname)   LIKE ?', ["%{$p}%"])
-                                ->orWhereRaw('LOWER(`desc`)   LIKE ?', ["%{$p}%"])
-                                ->orWhereRaw('LOWER(devisi)   LIKE ?', ["%{$p}%"]);
-                        }
+                    $q->orWhere(function ($qq) use ($p) {
+                        $qq->whereRaw('LOWER(cname) LIKE ?', ["%{$p}%"])
+                        ->orWhereRaw('LOWER(`desc`) LIKE ?', ["%{$p}%"])
+                        ->orWhereRaw('LOWER(devisi) LIKE ?', ["%{$p}%"]);
                     });
                 }
             });
