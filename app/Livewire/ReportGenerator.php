@@ -626,7 +626,6 @@ class ReportGenerator extends Component
 
                     $q->orWhere(function ($qq) use ($t, $lower) {
                         $qq->where('arbpl', 'LIKE', "%{$t}%")
-                        ->orWhere('arbpl2', 'LIKE', "%{$t}%")   // <<< TAMBAH: WC Konfirmasi
                         ->orWhere('desc',  'LIKE', "%{$t}%")
                         ->orWhereRaw('LOWER(cname)  LIKE ?', ["%{$lower}%"])
                         ->orWhereRaw('LOWER(devisi) LIKE ?', ["%{$lower}%"]);
