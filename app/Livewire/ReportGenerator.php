@@ -678,6 +678,8 @@ class ReportGenerator extends Component
         $reportData = $baseQuery
             ->selectRaw(implode(', ', $selects))
             ->groupBy('pernr')
+            ->orderByRaw("COALESCE(arbpl,'ZZZZ') ASC")          // WC Personal dulu (kosong taruh belakang)
+            ->orderByRaw("CAST(pernr AS UNSIGNED) ASC")         // lalu NIK (numeric)
             ->get();
 
         // simpan daftar pernr yang muncul di halaman ini (untuk toggleSelectAll & JS)
