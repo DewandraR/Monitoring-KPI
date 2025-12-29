@@ -35,6 +35,7 @@ class UsersExtraSeeder extends Seeder
                     'MA CASTING - BRAVO',
                     'MA MACHINING - BRAVO',
                     'MA ASSEMBLY - BRAVO',
+                    'MA FINISHING',
                 ],
                 'scope_arbpl' => null,
             ],
