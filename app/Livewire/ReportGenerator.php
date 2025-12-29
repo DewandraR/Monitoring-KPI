@@ -198,12 +198,32 @@ class ReportGenerator extends Component
             return;
         }
 
-        $rows = ReportData::query()
+        $scopeAll   = (bool) request()->attributes->get('data_scope_all', false);
+        $scopeDev   = (array) request()->attributes->get('data_scope_devisi', []);
+        $scopeArbpl = (array) request()->attributes->get('data_scope_arbpl', []);
+
+        $q = ReportData::query()
             ->whereRaw('UPPER(TRIM(werks)) = ?', [$this->werks])
             ->where('pernr', $clickedPernr)
-            ->whereBetween('begda', [$start->format('Ymd'), $end->format('Ymd')])
-            ->orderBy('begda', 'asc')
-            ->get();
+            ->whereBetween('begda', [$start->format('Ymd'), $end->format('Ymd')]);
+
+        if (!$scopeAll) {
+            if (empty($scopeDev) && empty($scopeArbpl)) {
+                $q->whereRaw('1=0');
+            } else {
+                $q->where(function ($qq) use ($scopeDev, $scopeArbpl) {
+                    if (!empty($scopeDev)) {
+                        $qq->orWhereIn('devisi', $scopeDev);
+                    }
+                    if (!empty($scopeArbpl)) {
+                        $qq->orWhereIn('arbpl', $scopeArbpl)
+                        ->orWhereIn('arbpl2', $scopeArbpl);
+                    }
+                });
+            }
+        }
+
+        $rows = $q->orderBy('begda', 'asc')->get();
 
         $byDate = $rows->keyBy('begda');
         $name   = optional($rows->first())->cname;
@@ -569,6 +589,31 @@ class ReportGenerator extends Component
         $baseQuery = ReportData::query()
             ->whereRaw('UPPER(TRIM(werks)) = ?', [$this->werks])
             ->whereBetween('begda', [$start->format('Ymd'), $end->format('Ymd')]);
+        // =====================
+        // FILTER SCOPE USER (DEVISI / ARBPL) - TANPA DB
+        // =====================
+        $scopeAll   = (bool) request()->attributes->get('data_scope_all', false);
+        $scopeDev   = (array) request()->attributes->get('data_scope_devisi', []);
+        $scopeArbpl = (array) request()->attributes->get('data_scope_arbpl', []);
+
+        if (!$scopeAll) {
+            if (empty($scopeDev) && empty($scopeArbpl)) {
+                // user tidak punya akses apa-apa
+                $baseQuery->whereRaw('1=0');
+            } else {
+                $baseQuery->where(function ($q) use ($scopeDev, $scopeArbpl) {
+                    if (!empty($scopeDev)) {
+                        $q->orWhereIn('devisi', $scopeDev);
+                    }
+                    if (!empty($scopeArbpl)) {
+                        // cocokkan WC personal dan WC konfirmasi
+                        $q->orWhereIn('arbpl', $scopeArbpl)
+                        ->orWhereIn('arbpl2', $scopeArbpl);
+                    }
+                });
+            }
+        }
+
 
         // Filter role INDUK
         if ($this->onlyInduk) {

@@ -25,14 +25,25 @@
             @csrf
 
             <div class="relative">
-                {{-- Catatan: Menggunakan 'peer' dan 'floating-input' untuk styling floating label --}}
-                <x-text-input id="email"
+                <x-text-input
+                    id="login"
                     class="floating-input peer block w-full p-4 border-gray-300 focus:border-emerald-600 focus:ring-emerald-600 rounded-xl shadow-inner bg-gray-50"
-                    type="email" name="email" :value="old('email')" required autofocus autocomplete="username"
-                    placeholder=" " />
-                <x-input-label for="email" :value="__('Alamat Email')"
-                    class="floating-label absolute text-gray-500 duration-300 transform -translate-y-4 scale-75 top-4 left-4 z-10 origin-[0] peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-4" />
-                <x-input-error :messages="$errors->get('email')" class="mt-2" />
+                    type="text"
+                    name="login"
+                    :value="old('login')"
+                    required
+                    autofocus
+                    autocomplete="username"
+                    placeholder=" "
+                />
+
+                <x-input-label
+                    for="login"
+                    :value="__('Email atau Username')"
+                    class="floating-label absolute text-gray-500 duration-300 transform -translate-y-4 scale-75 top-4 left-4 z-10 origin-[0] peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-4"
+                />
+
+                <x-input-error :messages="$errors->get('login')" class="mt-2" />
             </div>
 
             <div class="relative">
