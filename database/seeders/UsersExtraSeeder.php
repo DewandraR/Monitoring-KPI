@@ -38,6 +38,18 @@ class UsersExtraSeeder extends Seeder
                 ],
                 'scope_arbpl' => null,
             ],
+            [
+                'name' => 'Nilan',
+                'email' => 'Nilan@gmail.com',
+                'password' => $pass,
+                'scope_all' => false,
+                'scope_devisi' => [
+                    "MATERIAL PREPARATION - ALPHA",
+                    "MACHINING - ALPHA",
+                    "ASSEMBLY - ALPHA",
+                ],
+                'scope_arbpl' => null,
+            ],
         ];
 
         foreach ($rows as $data) {

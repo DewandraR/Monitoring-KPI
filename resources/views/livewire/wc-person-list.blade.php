@@ -308,7 +308,7 @@
     {{-- ======================================================================== --}}
     {{-- BAGIAN 1: HEADER MEWAH & TOMBOL EXPORT --}}
     {{-- ======================================================================== --}}
-    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6 relative z-10">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6 relative z-[200]">
         {{-- JUDUL HALAMAN --}}
         <div>
             <h3

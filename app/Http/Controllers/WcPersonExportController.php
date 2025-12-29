@@ -40,11 +40,22 @@ class WcPersonExportController extends Controller
         // === Unik per NIK ===
         return WcPersonData::query()
             ->whereIn('pernr', $pernrs)
-            ->orderByRaw('CAST(werks AS UNSIGNED), werks')
-            ->orderBy('pernr')
+
+            // 1) PLANT dulu
+            ->orderByRaw("CAST(NULLIF(TRIM(`werks`), '') AS UNSIGNED) ASC")
+            ->orderByRaw("TRIM(`werks`) ASC")
+
+            // 2) lalu Work Center (kosong taruh paling belakang)
+            ->orderByRaw("COALESCE(NULLIF(TRIM(`arbpl`), ''), 'ZZZZ') ASC")
+            ->orderByRaw("TRIM(`arbpl`) ASC")
+
+            // 3) baru NIK
+            ->orderByRaw("CAST(NULLIF(TRIM(`pernr`), '') AS UNSIGNED) ASC")
+            ->orderByRaw("TRIM(`pernr`) ASC")
+
             ->get()
-            ->unique('pernr')   // buang duplikat pernr dari DB
-            ->values();         // reset index collection
+            ->unique('pernr')   // tetap buang duplikat NIK, ambil baris pertama sesuai prioritas sorting di atas
+            ->values();
     }
 
     /**

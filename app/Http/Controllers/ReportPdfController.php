@@ -96,7 +96,8 @@ class ReportPdfController extends Controller
         return $query
             ->selectRaw(implode(', ', $selects))
             ->groupBy('pernr')
-            ->orderBy('pernr')
+            ->orderByRaw("COALESCE(NULLIF(TRIM(MAX(`arbpl`)), ''), 'ZZZZ') ASC") // WC Personal dulu (kosong belakangan)
+            ->orderByRaw("CAST(`pernr` AS UNSIGNED) ASC")                       // lalu NIK
             ->get();
     }
 
@@ -149,8 +150,9 @@ class ReportPdfController extends Controller
                     });
                 }
             })
-            ->orderBy('pernr')
-            ->orderBy('begda')
+            ->orderByRaw("COALESCE(NULLIF(TRIM(`arbpl`), ''), 'ZZZZ') ASC")
+            ->orderByRaw("CAST(`pernr` AS UNSIGNED) ASC")
+            ->orderBy('begda', 'asc')
             ->get();
     }
 
@@ -249,8 +251,9 @@ class ReportPdfController extends Controller
             ->whereRaw('UPPER(TRIM(werks)) = ?', [$werks])
             ->whereIn('pernr', $pernrs)
             ->whereBetween('begda', [$start, $end])
-            ->orderBy('pernr')
-            ->orderBy('begda')
+            ->orderByRaw("COALESCE(NULLIF(TRIM(`arbpl`), ''), 'ZZZZ') ASC") // WC dulu
+            ->orderByRaw("CAST(`pernr` AS UNSIGNED) ASC")                  // lalu NIK
+            ->orderBy('begda', 'asc')                                      // lalu tanggal
             ->get();
 
         if ($rows->isEmpty()) {
@@ -297,8 +300,9 @@ class ReportPdfController extends Controller
             ->whereRaw('UPPER(TRIM(werks)) = ?', [$werks])
             ->whereIn('pernr', $pernrs)
             ->whereBetween('begda', [$start, $end])
-            ->orderBy('pernr')
-            ->orderBy('begda')
+            ->orderByRaw("COALESCE(NULLIF(TRIM(`arbpl`), ''), 'ZZZZ') ASC")
+            ->orderByRaw("CAST(`pernr` AS UNSIGNED) ASC")
+            ->orderBy('begda', 'asc')
             ->get();
 
         if ($rows->isEmpty()) {
