@@ -923,16 +923,38 @@
                                 {{ number_format($data->total_jam, 1) }}
                             </td>
 
+                            @php
+                                $mint2Val = (int) $data->mint2;
+                                $mintuVal = (int) $data->mintu;
+                                $hasMismatch = $mint2Val !== $mintuVal;
+                            @endphp
+
                             {{-- MENIT CONF (mint2) --}}
-                            <td class="px-6 py-4 text-center text-gray-900 font-semibold tracking-tight">
-                                {{ number_format((int) $data->mint2, 0, ',', '.') }}
+                            <td class="px-6 py-4 text-center font-semibold tracking-tight relative {{ $hasMismatch ? 'bg-gradient-to-r from-amber-50 to-orange-50' : '' }}">
+                                @if($hasMismatch)
+                                    <div class="absolute inset-0 bg-amber-100/30 animate-pulse"></div>
+                                @endif
+                                <span class="relative z-10 {{ $hasMismatch ? 'text-amber-800 font-bold' : 'text-gray-900' }}">
+                                    {{ number_format($mint2Val, 0, ',', '.') }}
+                                </span>
                             </td>
 
                             {{-- MENIT INSPECT (mintu) --}}
-                            <td class="px-6 py-4 text-center text-gray-900 font-semibold tracking-tight">
-                                {{ number_format((int) $data->mintu, 0, ',', '.') }}
+                            <td class="px-6 py-4 text-center font-semibold tracking-tight relative {{ $hasMismatch ? 'bg-gradient-to-r from-orange-50 to-red-50' : '' }}">
+                                @if($hasMismatch)
+                                    <div class="absolute inset-0 bg-red-100/30 animate-pulse"></div>
+                                @endif
+                                <span class="relative z-10 {{ $hasMismatch ? 'text-red-800 font-bold' : 'text-gray-900' }}">
+                                    {{ number_format($mintuVal, 0, ',', '.') }}
+                                </span>
+                                @if($hasMismatch)
+                                    <div class="absolute -top-1 -right-1">
+                                        <svg class="h-4 w-4 text-red-500 animate-bounce" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                                        </svg>
+                                    </div>
+                                @endif
                             </td>
-
                             {{-- DETIK INSPECT (mintu2) --}}
                             <td class="px-6 py-4 text-center text-gray-900 font-semibold tracking-tight">
                                 {{ number_format((int) $data->mintu2, 0, ',', '.') }}
@@ -1113,6 +1135,12 @@
                                         <tr wire:key="detail-row-{{ $selectedPernr }}-{{ $data['begda'] ?? $loop->iteration }}"
                                             class="group/detail hover:bg-emerald-50/50 transition-colors">
 
+                                            @php
+                                                $mint2Val = (int) ($data['mint2'] ?? 0);
+                                                $mintuVal = (int) ($data['mintu'] ?? 0);
+                                                $hasMismatch = $mint2Val !== $mintuVal;
+                                            @endphp
+
                                             {{-- Checkbox Detail STICKY LEFT - Body --}}
                                             <td
                                                 class="sticky left-0 z-10 px-6 py-3 whitespace-nowrap text-sm bg-white group-hover/detail:bg-emerald-50/50">
@@ -1160,66 +1188,88 @@
                                                 @php
                                                     $val = $data[$column] ?? null;
 
-                                                    // KHUSUS varnt1: hitung dari varnt & gji
-                                                    if ($column === 'varnt1') {
-                                                        $gji = isset($data['gji']) ? (float) $data['gji'] : 0;
-                                                        $varnt = isset($data['varnt']) ? (float) $data['varnt'] : 0;
-
-                                                        $val = $gji != 0 ? ($varnt / $gji) * 100 : 0;
-                                                    }
-
                                                     $isMoney = in_array($column, ['gji', 'gji2', 'varnt']);
-                                                    $isNum = in_array($column, ['mint2', 'mintu', 'mintu2', 'mintu3']);
-                                                    $isDate = $column === 'begda';
+                                                    $isNum   = in_array($column, ['mint2', 'mintu', 'mintu2', 'mintu3']);
+                                                    $isDate  = $column === 'begda';
 
-                                                    $isDesc = $column === 'desc'; // DESC WC
-                                                    $isDevisi = $column === 'devisi'; // DEVISI
-                                                    $isLeftName = $column === 'cname'; // Nama
+                                                    $isDesc      = $column === 'desc';
+                                                    $isDevisi    = $column === 'devisi';
+                                                    $isLeftName  = $column === 'cname';
 
-                                                    $isLeft = $isLeftName || $isDesc;
-                                                    $isMultiline = $isDesc || $isDevisi; // DESC & DEVISI boleh 2 baris
+                                                    $isLeft      = $isLeftName || $isDesc;
+                                                    $isMultiline = $isDesc || $isDevisi;
+
+                                                    // khusus highlight mismatch
+                                                    $isMint2 = $column === 'mint2';
+                                                    $isMintu = $column === 'mintu';
+                                                    $mismatchMint2Class = ($hasMismatch && $isMint2) ? 'bg-gradient-to-r from-amber-50 to-orange-50' : '';
+                                                    $mismatchMintuClass = ($hasMismatch && $isMintu) ? 'bg-gradient-to-r from-orange-50 to-red-50' : '';
                                                 @endphp
 
                                                 <td @class([
-                                                    'px-4 py-2 text-[11px]',
-                                                    'whitespace-nowrap' => !$isMultiline, // selain DESC/DEVISI: 1 baris
-                                                    'whitespace-normal break-words leading-snug' => $isMultiline, // DESC & DEVISI: boleh bungkus
+                                                    'px-4 py-2 text-[11px] relative', // <-- tambahin relative buat overlay pulse & icon
+                                                    'whitespace-nowrap' => !$isMultiline,
+                                                    'whitespace-normal break-words leading-snug' => $isMultiline,
                                                     'text-left' => $isLeft,
                                                     'text-center' => !$isLeft,
                                                     'font-mono' => $isMoney || $isNum || $column === 'total_jam',
                                                     'text-emerald-700 font-medium' => $isMoney,
-                                                ])>
-                                                    @if ($val === '' || is_null($val))
-                                                        -
-                                                    @elseif ($column === 'devisi' && is_string($val) && str_contains($val, '-'))
-                                                        @php
-                                                            [$before, $after] = array_pad(explode('-', $val, 2), 2, '');
-                                                        @endphp
 
-                                                        <div class="flex flex-col leading-tight">
-                                                            <span>{{ trim($before) }}</span>
-                                                            @if (trim($after) !== '')
-                                                                <span>- {{ trim($after) }}</span>
-                                                            @endif
-                                                        </div>
-                                                    @elseif ($column === 'total_jam')
-                                                        {{ number_format($val, 1) }}
-                                                    @elseif ($isMoney)
-                                                        {{ number_format($val, 2) }}
-                                                    @elseif ($isNum)
-                                                        {{ (int) $val }}
-                                                    @elseif ($isDate)
-                                                        @php
-                                                            $dt = Carbon::createFromFormat('Ymd', $val);
-                                                        @endphp
-                                                        <div
-                                                            class="flex flex-col items-center leading-tight font-mono text-[12px]">
-                                                            <span>{{ $dt->format('Y') }}</span>
-                                                            <span>{{ $dt->format('m-d') }}</span>
-                                                        </div>
-                                                    @else
-                                                        {{ $val }}
+                                                    // highlight mismatch
+                                                    $mismatchMint2Class,
+                                                    $mismatchMintuClass,
+                                                ])>
+
+                                                    {{-- overlay pulse kalau mismatch di kolom mint2/mintu --}}
+                                                    @if ($hasMismatch && ($isMint2 || $isMintu))
+                                                        <div class="absolute inset-0 {{ $isMint2 ? 'bg-amber-100/30' : 'bg-red-100/30' }} animate-pulse"></div>
                                                     @endif
+
+                                                    {{-- value --}}
+                                                    <span class="relative z-10
+                                                        {{ ($hasMismatch && $isMint2) ? 'text-amber-800 font-bold' : '' }}
+                                                        {{ ($hasMismatch && $isMintu) ? 'text-red-800 font-bold' : '' }}
+                                                    ">
+                                                        @if ($val === '' || is_null($val))
+                                                            -
+                                                        @elseif ($column === 'devisi' && is_string($val) && str_contains($val, '-'))
+                                                            @php
+                                                                [$before, $after] = array_pad(explode('-', $val, 2), 2, '');
+                                                            @endphp
+                                                            <div class="flex flex-col leading-tight">
+                                                                <span>{{ trim($before) }}</span>
+                                                                @if (trim($after) !== '')
+                                                                    <span>- {{ trim($after) }}</span>
+                                                                @endif
+                                                            </div>
+                                                        @elseif ($column === 'total_jam')
+                                                            {{ number_format($val, 1) }}
+                                                        @elseif ($isMoney)
+                                                            {{ number_format($val, 2) }}
+                                                        @elseif ($isNum)
+                                                            {{ (int) $val }}
+                                                        @elseif ($isDate)
+                                                            @php $dt = Carbon::createFromFormat('Ymd', $val); @endphp
+                                                            <div class="flex flex-col items-center leading-tight font-mono text-[12px]">
+                                                                <span>{{ $dt->format('Y') }}</span>
+                                                                <span>{{ $dt->format('m-d') }}</span>
+                                                            </div>
+                                                        @else
+                                                            {{ $val }}
+                                                        @endif
+                                                    </span>
+
+                                                    {{-- ikon warning kecil hanya untuk Menit Inspect (mintu) kalau mismatch --}}
+                                                    @if ($hasMismatch && $isMintu)
+                                                        <div class="absolute -top-1 -right-1 z-20">
+                                                            <svg class="h-4 w-4 text-red-500 animate-bounce" fill="currentColor" viewBox="0 0 20 20">
+                                                                <path fill-rule="evenodd"
+                                                                    d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                                                                    clip-rule="evenodd" />
+                                                            </svg>
+                                                        </div>
+                                                    @endif
+
                                                 </td>
                                             @endforeach
                                         </tr>
