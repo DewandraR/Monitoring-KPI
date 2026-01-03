@@ -159,6 +159,53 @@
         .col-upah {
             width: 7%;
         }
+
+    /* ✅ kolom inspect dibesarkan sedikit */
+    .col-menit-inspect {
+        width: 6.5%;
+    }
+    .col-detik-inspect {
+        width: 6.5%;
+    }
+
+    /* ✅ garis pemisah biar tidak terlihat nempel */
+    .sep-left {
+        border-left: 1px solid rgba(255,255,255,0.55); /* untuk header */
+    }
+    table.data-table tbody td.sep-left {
+        border-left: 1px solid #e5e7eb; /* untuk body */
+    }
+
+    /* (opsional) kecilkan padding header khusus kolom menit */
+    th.col-menit,
+    th.col-menit-inspect,
+    th.col-detik-inspect {
+        padding-left: 2px;
+        padding-right: 2px;
+    }
+
+        table.data-table tbody td {
+        padding: 6px 4px;
+        border-bottom: 1px solid #e5e7eb;
+        vertical-align: middle;
+        word-wrap: break-word;
+    }
+
+    /* ✅ Tambahkan ini: angka jangan wrap */
+    .nowrap {
+        white-space: nowrap;
+    }
+
+    /* ✅ Lebarkan khusus kolom upah (buat class baru) */
+    .col-upah-wide {
+        width: 9%;
+    }
+
+    /* (opsional tapi bagus) kurangi sedikit kolom lain biar total tetap muat */
+    .col-nama { width: 16%; }   /* sebelumnya 18% */
+    .col-desc { width: 16%; }   /* sebelumnya 18% */
+    .col-dev  { width: 9%; }    /* sebelumnya 10% */
+    .col-menit { width: 5.5%; } /* sebelumnya 6% */
     </style>
 </head>
 
@@ -200,11 +247,11 @@
 
                 <th class="col-menit">Menit Hadir</th>
                 <th class="col-menit">Menit Conf</th>
-                <th class="col-menit">Menit Inspect</th>
-                <th class="col-menit">Detik Inspect</th>
+                <th class="col-menit-inspect">Menit Inspect</th>
+                <th class="col-detik-inspect sep-left">Detik Inspect</th>
                 <th class="col-menit">Detik Konf</th>
-                <th class="col-upah">Upah Hadir</th>
-                <th class="col-upah">Upah Inspect</th>
+                <th class="col-upah-wide">Upah Hadir</th>
+                <th class="col-upah-wide">Upah Inspect</th>
                 <th class="col-upah">Var Upah</th>
                 <th class="col-upah">% Var</th>
             </tr>
