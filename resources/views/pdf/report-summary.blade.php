@@ -11,201 +11,141 @@
     <meta charset="UTF-8">
     <title>Report Data - yppr058_data</title>
     <style>
-        /** GLOBAL SETTINGS */
+        /** KONFIGURASI HALAMAN */
         @page {
             margin: 1cm 1cm;
+            size: landscape; /* Disarankan Landscape agar kolom muat dengan lega */
         }
 
         body {
             font-family: 'Helvetica', 'Arial', sans-serif;
-            font-size: 7pt;
-            color: #333333;
-            line-height: 1.3;
+            font-size: 7pt; /* Ukuran font disesuaikan agar muat */
+            color: #1f2937;
+            line-height: 1.2;
         }
 
-        /** HEADER SECTION **/
+        /** HEADER UTAMA DOKUMEN */
         .header-container {
             width: 100%;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
             border-bottom: 2px solid #059669;
-            padding-bottom: 10px;
+            padding-bottom: 8px;
         }
 
         .header-table {
             width: 100%;
+            border: none;
         }
 
         .header-title {
-            font-size: 16pt;
-            font-weight: bold;
+            font-size: 14pt;
+            font-weight: 800;
             color: #064e3b;
             text-transform: uppercase;
-            letter-spacing: 1px;
+            letter-spacing: 0.5px;
+            margin: 0;
         }
 
         .header-subtitle {
-            font-size: 9pt;
+            font-size: 8pt;
             color: #059669;
-            margin-top: 4px;
+            margin-top: 2px;
+            font-weight: 600;
         }
 
         .header-meta {
             text-align: right;
-            font-size: 8pt;
+            font-size: 7pt;
             color: #6b7280;
+            vertical-align: bottom;
         }
 
-        /** TABLE DESIGN **/
+        /** DESAIN TABEL DATA */
         table.data-table {
             width: 100%;
             border-collapse: collapse;
-            table-layout: fixed;
+            table-layout: auto; /* Auto allow column to fit content, but we control via width classes */
         }
 
-        /* Header Tabel */
+        /* Styling Header Tabel */
         table.data-table thead th {
             background-color: #065f46;
             color: #ffffff;
             text-align: center;
             font-weight: bold;
-            font-size: 6.5pt;
+            font-size: 8pt;
             text-transform: uppercase;
-            padding: 8px 4px;
-            border-bottom: 2px solid #064e3b;
-            letter-spacing: 0.5px;
+            padding: 6px 2px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
             vertical-align: middle;
+            line-height: 1.1; /* Jarak antar baris di header */
         }
 
-        /* Baris Data */
+        /* Styling Baris Data */
         table.data-table tbody td {
-            padding: 6px 4px;
-            border-bottom: 1px solid #e5e7eb;
+            padding: 5px 3px;
+            border: 1px solid #e5e7eb; /* Border halus di setiap sel */
             vertical-align: middle;
-            word-wrap: break-word;
+            font-size: 7pt;
+            font-weight: bold;
+            font-size: 8pt;
         }
 
-        /* Zebra Striping */
+        /* Zebra Striping (Baris Genap) */
         table.data-table tbody tr:nth-child(even) {
             background-color: #f0fdf4;
         }
 
-        /* Typography Helper */
-        .text-right {
-            text-align: right;
+        /* Typography Helper Classes */
+        .text-center { text-align: center; }
+        .text-right  { text-align: right; }
+        .text-left   { text-align: left; }
+        
+        .font-bold   { font-weight: bold; }
+        .font-mono   { 
+            font-family: 'Courier New', Courier, monospace; 
+            letter-spacing: -0.3px; /* Agar angka rapat tapi jelas */
         }
 
-        .text-center {
-            text-align: center;
+        .text-emerald { color: #047857; }
+        .text-red     { color: #dc2626; }
+        .text-gray    { color: #4b5563; }
+
+        /* --- KEY FEATURES --- */
+
+        /* 1. Mencegah Angka Terpotong (No Wrap) */
+        .nowrap {
+            white-space: nowrap;
+            overflow: hidden;
         }
 
-        .text-left {
-            text-align: left;
-        }
-
-        .font-mono {
-            font-family: 'Courier New', Courier, monospace;
-            letter-spacing: -0.5px;
-        }
-
-        .font-bold {
-            font-weight: bold;
-        }
-
-        .text-emerald {
-            color: #047857;
-        }
-
-        .text-gray {
+        /* 2. Styling Khusus Tanggal Stacked */
+        .date-stacked {
+            font-size: 6pt;
+            line-height: 1.3;
             color: #4b5563;
         }
-
-        /** KOLOM WIDTH CONFIGURATION (perkiraan, tidak harus 100% pas) **/
-        .col-no {
-            width: 4%;
+        .date-separator {
+            color: #9ca3af; /* Warna strip lebih muda */
+            font-size: 5pt;
+            display: block;
+            margin: 1px 0;
         }
 
-        .col-pernr {
-            width: 8%;
-        }
+        /* 3. Pengaturan Lebar Kolom (Total est 100%) */
+        .w-no     { width: 3%; }
+        .w-pernr  { width: 6%; }
+        .w-range  { width: 7%; }
+        .w-nama   { width: 14%; }
+        .w-wc     { width: 6%; }
+        .w-desc   { width: 12%; }
+        .w-role   { width: 5%; }
+        .w-div    { width: 6%; }
+        
+        /* Kolom Angka (Dibuat fit agar tidak terlalu lebar tapi cukup) */
+        .w-num-sm { width: 5%; } /* Untuk menit/detik */
+        .w-num-md { width: 7%; } /* Untuk Rupiah */
 
-        .col-range {
-            width: 12%;
-        }
-
-        .col-nama {
-            width: 18%;
-        }
-
-        .col-wc {
-            width: 10%;
-        }
-
-        .col-desc {
-            width: 18%;
-        }
-
-        .col-role {
-            width: 7%;
-        }
-
-        .col-dev {
-            width: 10%;
-        }
-
-        .col-menit {
-            width: 6%;
-        }
-
-        .col-upah {
-            width: 7%;
-        }
-
-    /* ✅ kolom inspect dibesarkan sedikit */
-    .col-menit-inspect {
-        width: 6.5%;
-    }
-    .col-detik-inspect {
-        width: 6.5%;
-    }
-
-    /* ✅ garis pemisah biar tidak terlihat nempel */
-    .sep-left {
-        border-left: 1px solid rgba(255,255,255,0.55); /* untuk header */
-    }
-    table.data-table tbody td.sep-left {
-        border-left: 1px solid #e5e7eb; /* untuk body */
-    }
-
-    /* (opsional) kecilkan padding header khusus kolom menit */
-    th.col-menit,
-    th.col-menit-inspect,
-    th.col-detik-inspect {
-        padding-left: 2px;
-        padding-right: 2px;
-    }
-
-        table.data-table tbody td {
-        padding: 6px 4px;
-        border-bottom: 1px solid #e5e7eb;
-        vertical-align: middle;
-        word-wrap: break-word;
-    }
-
-    /* ✅ Tambahkan ini: angka jangan wrap */
-    .nowrap {
-        white-space: nowrap;
-    }
-
-    /* ✅ Lebarkan khusus kolom upah (buat class baru) */
-    .col-upah-wide {
-        width: 9%;
-    }
-
-    /* (opsional tapi bagus) kurangi sedikit kolom lain biar total tetap muat */
-    .col-nama { width: 16%; }   /* sebelumnya 18% */
-    .col-desc { width: 16%; }   /* sebelumnya 18% */
-    .col-dev  { width: 9%; }    /* sebelumnya 10% */
-    .col-menit { width: 5.5%; } /* sebelumnya 6% */
     </style>
 </head>
 
@@ -218,13 +158,13 @@
                     <div class="header-title">Laporan Ringkasan</div>
                     <div class="header-subtitle">Sistem Personalia WC-Person &bull; yppr058_data</div>
                 </td>
-                <td style="vertical-align: bottom;" class="header-meta">
+                <td class="header-meta">
                     <div>
-                        <strong>PLANT:</strong>
-                        <span style="font-size: 11pt; color: #059669;">{{ $werks }}</span>
+                        <strong>PLANT:</strong> 
+                        <span style="font-size: 10pt; color: #059669; font-weight:bold;">{{ $werks }}</span>
                     </div>
-                    <div style="margin-top: 2px;">
-                        Dicetak: {{ Carbon::now()->isoFormat('D MMMM Y, HH:mm') }}
+                    <div style="margin-top: 3px;">
+                        Dicetak: {{ Carbon::now()->isoFormat('D MMM Y, HH:mm') }}
                     </div>
                 </td>
             </tr>
@@ -234,26 +174,27 @@
     <table class="data-table">
         <thead>
             <tr>
-                <th class="col-no">No</th>
-                <th class="col-pernr">Personal No</th>
-                <th class="col-range">Rentang Tanggal</th>
+                <th class="w-no">NO</th>
+                <th class="w-pernr">PERSONAL<br>NO</th>
+                <th class="w-range">RENTANG<br>TANGGAL</th>
+                
+                <th class="w-nama">NAMA</th>
+                
+                <th class="w-wc">WC<br>PERSONAL</th>
+                <th class="w-desc">DESC<br>WC</th>
+                <th class="w-role">ROLE</th>
+                <th class="w-div">DEVISI</th>
 
-                <th class="col-nama">Nama</th>
-
-                <th class="col-wc">WC Personal</th>
-                <th class="col-desc">DESC WC</th>
-                <th class="col-role">Role</th>
-                <th class="col-dev">Devisi</th>
-
-                <th class="col-menit">Menit Hadir</th>
-                <th class="col-menit">Menit Conf</th>
-                <th class="col-menit-inspect">Menit Inspect</th>
-                <th class="col-detik-inspect sep-left">Detik Inspect</th>
-                <th class="col-menit">Detik Konf</th>
-                <th class="col-upah-wide">Upah Hadir</th>
-                <th class="col-upah-wide">Upah Inspect</th>
-                <th class="col-upah">Var Upah</th>
-                <th class="col-upah">% Var</th>
+                <th class="w-num-sm">MENIT<br>HADIR</th>
+                <th class="w-num-sm">MENIT<br>CONF</th>
+                <th class="w-num-sm">MENIT<br>INSP</th>
+                <th class="w-num-sm">DETIK<br>INSP</th>
+                <th class="w-num-sm">DETIK<br>KONF</th>
+                
+                <th class="w-num-md">UPAH<br>HADIR</th>
+                <th class="w-num-md">UPAH<br>INSP</th>
+                <th class="w-num-md">VAR<br>UPAH</th>
+                <th class="w-num-sm">% VAR</th>
             </tr>
         </thead>
         <tbody>
@@ -262,9 +203,9 @@
                     $minDate = Carbon::createFromFormat('Ymd', $data->min_begda)->format('d/m/y');
                     $maxDate = Carbon::createFromFormat('Ymd', $data->max_begda)->format('d/m/y');
 
-                    // Persentase Var = TOTAL Var Upah / TOTAL Upah Inspect * 100
-                    $gji2 = (float) $data->gji2; // Upah Inspect total
-                    $varnt = (float) $data->varnt; // Var Upah total
+                    // Kalkulasi Persentase
+                    $gji2 = (float) $data->gji2;
+                    $varnt = (float) $data->varnt;
                     $persenVar = $gji2 != 0.0 ? ($varnt / $gji2) * 100 : 0.0;
                 @endphp
 
@@ -273,24 +214,26 @@
                     <td class="text-center text-gray">{{ $i + 1 }}</td>
 
                     {{-- PERSONAL NO --}}
-                    <td class="font-bold text-emerald text-center">{{ $data->pernr }}</td>
+                    <td class="text-center font-bold text-emerald nowrap">{{ $data->pernr }}</td>
 
-                    {{-- RENTANG TANGGAL --}}
-                    <td class="text-center text-gray" style="font-size: 6pt;">
-                        {{ $minDate }} - {{ $maxDate }}
+                    {{-- RENTANG TANGGAL (STACKED) --}}
+                    <td class="text-center date-stacked">
+                        {{ $minDate }}
+                        <span class="date-separator">-</span>
+                        {{ $maxDate }}
                     </td>
 
                     {{-- NAMA --}}
-                    <td class="text-left" style="text-transform: capitalize;">
+                    <td class="text-left font-bold" style="text-transform: capitalize;">
                         {{ strtolower($data->cname) }}
                     </td>
 
                     {{-- WC PERSONAL --}}
-                    <td class="text-center text-gray" style="font-size: 6pt;">
+                    <td class="text-center text-gray nowrap" style="font-size: 6pt;">
                         {{ $data->arbpl }}
                     </td>
 
-                    {{-- DESC WC (FULL) --}}
+                    {{-- DESC WC --}}
                     <td class="text-left text-gray" style="font-size: 6pt;">
                         {{ $data->desc }}
                     </td>
@@ -305,48 +248,50 @@
                         {{ $data->devisi ?? '-' }}
                     </td>
 
-                    {{-- MENIT HADIR (total_jam) --}}
-                    <td class="text-center font-mono">
+                    {{-- === ANGKA (SEMUA PAKAI CLASS .nowrap) === --}}
+
+                    {{-- MENIT HADIR --}}
+                    <td class="text-center font-mono nowrap">
                         {{ number_format($data->total_jam, 1) }}
                     </td>
 
-                    {{-- MENIT CONF (mint2) --}}
-                    <td class="text-center font-mono">
+                    {{-- MENIT CONF --}}
+                    <td class="text-center font-mono nowrap">
                         {{ (int) $data->mint2 }}
                     </td>
 
-                    {{-- MENIT INSPECT (mintu) --}}
-                    <td class="text-center font-mono">
+                    {{-- MENIT INSPECT --}}
+                    <td class="text-center font-mono nowrap">
                         {{ (int) $data->mintu }}
                     </td>
 
-                    {{-- DETIK INSPECT (mintu2) --}}
-                    <td class="text-center font-mono">
+                    {{-- DETIK INSPECT --}}
+                    <td class="text-center font-mono nowrap">
                         {{ (int) $data->mintu2 }}
                     </td>
 
-                    {{-- DETIK KONFIRMASI (mintu3) --}}
-                    <td class="text-center font-mono">
+                    {{-- DETIK KONF --}}
+                    <td class="text-center font-mono nowrap">
                         {{ (int) $data->mintu3 }}
                     </td>
 
-                    {{-- UPAH HADIR (gji) --}}
-                    <td class="text-center font-mono">
+                    {{-- UPAH HADIR --}}
+                    <td class="text-right font-mono nowrap">
                         {{ number_format($data->gji, 0, ',', '.') }}
                     </td>
 
-                    {{-- UPAH INSPECT (gji2) --}}
-                    <td class="text-center font-mono">
+                    {{-- UPAH INSPECT --}}
+                    <td class="text-right font-mono nowrap">
                         {{ number_format($data->gji2, 0, ',', '.') }}
                     </td>
 
-                    {{-- VAR UPAH (varnt) --}}
-                    <td class="text-center font-mono" style="color: {{ $data->varnt < 0 ? '#dc2626' : '#333' }};">
+                    {{-- VAR UPAH --}}
+                    <td class="text-right font-mono nowrap {{ $data->varnt < 0 ? 'text-red' : '' }}">
                         {{ number_format($data->varnt, 0, ',', '.') }}
                     </td>
 
                     {{-- % VAR --}}
-                    <td class="text-center font-mono">
+                    <td class="text-center font-mono nowrap">
                         {{ number_format($persenVar, 2) }}%
                     </td>
                 </tr>
@@ -354,11 +299,12 @@
         </tbody>
     </table>
 
+    {{-- SCRIPT HALAMAN PDF --}}
     <script type="text/php">
         if (isset($pdf)) {
-            $text  = "Halaman {PAGE_NUM} dari {PAGE_COUNT}";
-            $size  = 6;
-            $font  = $fontMetrics->getFont("Helvetica", "italic");
+            $text = "Halaman {PAGE_NUM} dari {PAGE_COUNT}";
+            $size = 6;
+            $font = $fontMetrics->getFont("Helvetica", "italic");
             $width = $fontMetrics->getTextWidth($text, $font, $size);
             $pdf->page_text(
                 $pdf->get_width() - $width - 30,
@@ -366,11 +312,10 @@
                 $text,
                 $font,
                 $size,
-                [0.6, 0.6, 0.6]
+                [0.4, 0.4, 0.4]
             );
         }
     </script>
 
 </body>
-
 </html>

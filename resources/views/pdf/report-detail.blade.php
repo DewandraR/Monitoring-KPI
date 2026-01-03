@@ -73,10 +73,12 @@
             vertical-align: middle;
             word-wrap: break-word;
             font-size: 6.5pt;
+            font-weight: bold;
         }
 
         table.data-table tbody tr:nth-child(even) {
             background-color: #f0fdf4;
+            font-weight: bold;
         }
 
         .text-center {
