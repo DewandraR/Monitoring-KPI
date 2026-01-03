@@ -60,7 +60,7 @@
             color: #ffffff;
             text-align: center;
             font-weight: bold;
-            font-size: 6.5pt;
+            font-size: 8pt;
             text-transform: uppercase;
             padding: 6px 3px;
             border-bottom: 2px solid #064e3b;
@@ -72,7 +72,7 @@
             border-bottom: 1px solid #e5e7eb;
             vertical-align: middle;
             word-wrap: break-word;
-            font-size: 6.5pt;
+            font-size: 8pt;
             font-weight: bold;
         }
 
@@ -200,11 +200,11 @@
 
                 <th class="col-men">Menit<br>Hadir</th>
                 <th class="col-men">Menit<br>Conf</th>
-                <th class="col-men">Menit<br>Inspect</th>
-                <th class="col-men">Detik<br>Inspect</th>
-                <th class="col-men">Detik<br>Konfirmasi</th>
+                <th class="col-men">Menit<br>Insp</th>
+                <th class="col-men">Detik<br>Insp</th>
+                <th class="col-men">Detik<br>Conf</th>
                 <th class="col-var">Upah<br>Hadir</th>
-                <th class="col-var">Upah<br>Inspect</th>
+                <th class="col-var">Upah<br>Insp</th>
                 <th class="col-var">Var<br>Upah</th>
                 <th class="col-plant">Plant</th>
             </tr>
