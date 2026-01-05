@@ -40,10 +40,11 @@ class WiSummaryExport implements
             'NIK',             // B
             'Rentang Tanggal', // C
             'Nama',            // D
-            'WC',         // E
-            'Time WI',   // F
-            'Time QM',   // G
-            '% KPI',           // H
+            'WC',              // E
+            'Devisi',          // F ✅
+            'Time WI',         // G
+            'Time QM',         // H
+            '% KPI',           // I
         ];
     }
 
@@ -62,15 +63,19 @@ class WiSummaryExport implements
             $qm  = (float)($row->time_qm_sum ?? 0);
             $kpi = isset($row->kpi_pct) ? (float)$row->kpi_pct : ($wi == 0.0 ? 0.0 : (($qm / $wi) * 100));
 
+            $devisi = (string)($row->devisi ?? '');
+            if (trim($devisi) === '') $devisi = '-';
+
             return [
-                $i,                       // A
-                (string)($row->nik ?? ''),// B
-                $rentang,                 // C
-                (string)($row->nama ?? ''), // D
-                (string)($row->wc ?? ''), // E
-                $wi,                      // F
-                $qm,                      // G
-                $kpi,                     // H (angka, bukan "xx%")
+                $i,                          // A
+                (string)($row->nik ?? ''),   // B
+                $rentang,                    // C
+                (string)($row->nama ?? ''),  // D
+                (string)($row->wc ?? ''),    // E
+                $devisi,                     // F ✅
+                $wi,                         // G
+                $qm,                         // H
+                $kpi,                        // I
             ];
         });
     }
@@ -99,9 +104,9 @@ class WiSummaryExport implements
     public function columnFormats(): array
     {
         return [
-            'F' => '#,##0.00', // Time WI
-            'G' => '#,##0.00', // Time QM
-            'H' => '0.00',     // KPI (angka)
+            'G' => '#,##0.00', // Time WI
+            'H' => '#,##0.00', // Time QM
+            'I' => '0.00',     // KPI (angka)
         ];
     }
 
@@ -110,21 +115,24 @@ class WiSummaryExport implements
         return [
             AfterSheet::class => function (AfterSheet $event) {
                 $sheet = $event->sheet->getDelegate();
+
                 $rowCount = $this->rows->count() + 1; // + header
-                $lastCol = 'H';
+                $lastCol = 'I';
                 $tableRange = "A1:{$lastCol}{$rowCount}";
 
                 $sheet->setAutoFilter("A1:{$lastCol}1");
                 $sheet->freezePane('A2');
 
                 // Align
-                $sheet->getStyle("A2:A{$rowCount}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-                $sheet->getStyle("B2:B{$rowCount}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-                $sheet->getStyle("E2:E{$rowCount}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $sheet->getStyle("A2:A{$rowCount}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER); // No
+                $sheet->getStyle("B2:B{$rowCount}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER); // NIK
+                $sheet->getStyle("E2:E{$rowCount}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER); // WC
 
-                $sheet->getStyle("C2:D{$rowCount}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+                $sheet->getStyle("C2:C{$rowCount}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER); // Rentang
+                $sheet->getStyle("D2:D{$rowCount}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);   // Nama
+                $sheet->getStyle("F2:F{$rowCount}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);   // Devisi ✅
 
-                $sheet->getStyle("F2:H{$rowCount}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+                $sheet->getStyle("G2:I{$rowCount}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);  // angka
 
                 // Border
                 $sheet->getStyle($tableRange)->applyFromArray([

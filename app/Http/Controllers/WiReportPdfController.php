@@ -87,19 +87,27 @@ class WiReportPdfController extends Controller
      */
     protected function applyPlantPrefixScope($query, string $plant, array $cols)
     {
-        $prefix = substr(trim($plant), 0, 1);
+        $plant = trim($plant);
 
         if (in_array('kode_laravel', $cols, true)) {
             $query->whereNotNull('kode_laravel')
                 ->whereRaw("TRIM(kode_laravel) <> ''")
-                ->whereRaw("LEFT(TRIM(kode_laravel), 1) = ?", [$prefix]);
+                ->whereRaw("TRIM(kode_laravel) REGEXP '^[0-9]{4}'")
+                ->whereRaw("
+                    CASE
+                        WHEN LEFT(TRIM(kode_laravel),4) IN ('1001','1002','1003','1015') THEN '1001'
+                        WHEN LEFT(TRIM(kode_laravel),1) = '1' THEN '1000'
+                        ELSE CONCAT(LEFT(TRIM(kode_laravel),1),'000')
+                    END = ?
+                ", [$plant]);
         }
 
         return $query;
     }
 
     /**
-     * SUMMARY rows untuk PDF (per NIK)
+     * SUMMARY rows (per NIK) untuk PDF/Excel
+     * ✅ Tambah devisi dari yppr058_data (MAX(devisi))
      */
     protected function getSummaryRows(string $plant, array $dateIso, array $dateYmd, string $q = '', array $niks = []): Collection
     {
@@ -146,13 +154,21 @@ class WiReportPdfController extends Controller
 
         $wiAgg = $wiAgg->groupBy($this->wiNikColumn);
 
+        // ✅ QM + WC + DEVISI dari yppr058_data
         $qmAgg = DB::table('yppr058_data')
             ->selectRaw("
                 pernr as nik,
                 MAX(arbpl) as wc_qm,
+                MAX(NULLIF(TRIM(devisi),'')) as devisi_qm,
                 SUM(mintu) as mintu_sum
             ")
-            ->whereRaw('UPPER(TRIM(werks)) = ?', [strtoupper(trim($plant))])
+            ->whereRaw("
+                CASE
+                    WHEN TRIM(werks) IN ('1001','1002','1003','1015') THEN '1001'
+                    WHEN LEFT(TRIM(werks),1)='1' THEN '1000'
+                    ELSE CONCAT(LEFT(TRIM(werks),1),'000')
+                END = ?
+            ", [trim($plant)])
             ->whereBetween('begda', [$startYmd, $endYmd])
             ->groupBy('pernr');
 
@@ -165,6 +181,7 @@ class WiReportPdfController extends Controller
                 w.min_tanggal,
                 w.max_tanggal,
                 COALESCE(w.wc_wi, q.wc_qm) as wc,
+                q.devisi_qm as devisi,
                 w.time_wi_sum,
                 (COALESCE(q.mintu_sum,0) / {$this->qmDivisor}) as time_qm_sum,
                 CASE
@@ -178,10 +195,43 @@ class WiReportPdfController extends Controller
     }
 
     /**
-     * DETAIL rows untuk PDF
-     * (full range untuk setiap NIK yang dikirim)
+     * Parse detail keys "nik|YYYY-MM-DD"
      */
-    protected function getDetailRows(string $plant, array $dateIso, array $dateYmd, array $niks, string $q = ''): Collection
+    protected function parseDetailKeys(array $keys): array
+    {
+        $out = [];
+        foreach ($keys as $k) {
+            $k = trim((string)$k);
+            if ($k === '') continue;
+
+            [$nik, $tgl] = array_pad(explode('|', $k, 2), 2, '');
+            $nik = trim((string)$nik);
+            $tgl = trim((string)$tgl);
+
+            if ($nik === '' || $tgl === '') continue;
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tgl)) continue;
+
+            $out[$nik] ??= [];
+            $out[$nik][] = $tgl;
+        }
+
+        // unique + sort tanggal per nik
+        foreach ($out as $nik => $arr) {
+            $arr = array_values(array_unique(array_filter($arr)));
+            sort($arr);
+            $out[$nik] = $arr;
+        }
+
+        return $out; // [nik => [tgl,tgl]]
+    }
+
+    /**
+     * DETAIL rows untuk PDF/Excel
+     * - $fullRangeNiks: export full tanggal range untuk NIK ini (dari summary)
+     * - $detailKeys: export tanggal tertentu untuk NIK tertentu (dari modal detail)
+     * ✅ Tambah devisi dari yppr058_data
+     */
+    protected function getDetailRows(string $plant, array $dateIso, array $dateYmd, array $fullRangeNiks, array $detailKeys, string $q = ''): Collection
     {
         [$startIso, $endIso] = $dateIso;
         [$startYmd, $endYmd] = $dateYmd;
@@ -189,11 +239,49 @@ class WiReportPdfController extends Controller
         $start = Carbon::parse($startIso)->startOfDay();
         $end   = Carbon::parse($endIso)->startOfDay();
 
-        // list tanggal ISO inklusif
-        $dates = [];
-        for ($d = $start->copy(); $d->lte($end); $d->addDay()) {
-            $dates[] = $d->toDateString();
+        // normalize full nik
+        $fullRangeNiks = array_values(array_unique(array_filter(array_map(fn($x) => trim((string)$x), $fullRangeNiks))));
+
+        // parse keys -> [nik => [tgl]]
+        $partialByNik = $this->parseDetailKeys($detailKeys);
+
+        // buang partial nik yang sudah masuk full range (anti dobel)
+        if (!empty($fullRangeNiks) && !empty($partialByNik)) {
+            foreach ($fullRangeNiks as $n) {
+                unset($partialByNik[$n]);
+            }
         }
+
+        if (empty($fullRangeNiks) && empty($partialByNik)) {
+            return collect();
+        }
+
+        // list semua nik yg akan diambil datanya
+        $allNiks = array_values(array_unique(array_merge(
+            $fullRangeNiks,
+            array_keys($partialByNik)
+        )));
+
+        // list tanggal yg dibutuhkan
+        $allDatesRange = [];
+        for ($d = $start->copy(); $d->lte($end); $d->addDay()) {
+            $allDatesRange[] = $d->toDateString();
+        }
+
+        $datesNeeded = $allDatesRange;
+        if (empty($fullRangeNiks)) {
+            // kalau tidak ada full range, cukup tanggal yang dipilih saja
+            $datesNeeded = [];
+            foreach ($partialByNik as $nik => $arr) {
+                foreach ($arr as $tgl) $datesNeeded[] = $tgl;
+            }
+            $datesNeeded = array_values(array_unique($datesNeeded));
+            sort($datesNeeded);
+        }
+
+        // untuk QM, butuh format Ymd
+        $ymdNeeded = array_map(fn($iso) => Carbon::parse($iso)->format('Ymd'), $datesNeeded);
+        $ymdNeeded = array_values(array_unique($ymdNeeded));
 
         $cols = $this->getWiColumns();
 
@@ -202,13 +290,20 @@ class WiReportPdfController extends Controller
             $cols
         );
 
-        // WI per nik+tanggal
+        // ===== WI per nik+tanggal =====
         $wiQ = DB::table($this->wiTable);
         $wiQ = $this->applyPlantPrefixScope($wiQ, $plant, $cols);
 
+        $wiQ = $wiQ
+            ->whereIn($this->wiNikColumn, $allNiks)
+            ->whereBetween($this->wiDateColumn, [$startIso, $endIso]);
+
+        // kalau export hanya tanggal tertentu (tanpa full range), kita batasi tanggalnya
+        if (empty($fullRangeNiks) && !empty($datesNeeded)) {
+            $wiQ->whereIn($this->wiDateColumn, $datesNeeded);
+        }
+
         $wiPerDay = $wiQ
-            ->whereIn($this->wiNikColumn, $niks)
-            ->whereBetween($this->wiDateColumn, [$startIso, $endIso])
             ->when(trim($q) !== '' && !empty($searchCols), function ($qq) use ($q, $searchCols) {
                 $tokens = $this->tokenizeSearch($q);
                 foreach ($tokens as $t) {
@@ -229,17 +324,30 @@ class WiReportPdfController extends Controller
             ->get()
             ->keyBy(fn($r) => (string)$r->nik . '|' . (string)$r->tanggal);
 
-        // QM per nik+tanggal
-        $qmPerDay = DB::table('yppr058_data')
+        // ===== QM per nik+tanggal (+ devisi) =====
+        $qmQ = DB::table('yppr058_data')
             ->selectRaw("
                 pernr as nik,
                 begda,
                 MAX(arbpl) as wc_qm,
+                MAX(NULLIF(TRIM(devisi),'')) as devisi_qm,
                 SUM(mintu) as mintu_sum
             ")
-            ->whereRaw('UPPER(TRIM(werks)) = ?', [strtoupper(trim($plant))])
-            ->whereIn('pernr', $niks)
-            ->whereBetween('begda', [$startYmd, $endYmd])
+            ->whereRaw("
+                CASE
+                    WHEN TRIM(werks) IN ('1001','1002','1003','1015') THEN '1001'
+                    WHEN LEFT(TRIM(werks),1)='1' THEN '1000'
+                    ELSE CONCAT(LEFT(TRIM(werks),1),'000')
+                END = ?
+            ", [trim($plant)])
+            ->whereIn('pernr', $allNiks)
+            ->whereBetween('begda', [$startYmd, $endYmd]);
+
+        if (empty($fullRangeNiks) && !empty($ymdNeeded)) {
+            $qmQ->whereIn('begda', $ymdNeeded);
+        }
+
+        $qmPerDay = $qmQ
             ->groupBy('pernr', 'begda')
             ->get()
             ->keyBy(function ($r) {
@@ -247,43 +355,69 @@ class WiReportPdfController extends Controller
                 return (string)$r->nik . '|' . $tgl;
             });
 
-        // nama default per nik
+        // nama default per nik (dari WI)
         $nikNamaMap = $wiPerDay->values()
             ->groupBy('nik')
             ->map(fn($g) => (string)($g->first()->nama ?? '-'));
 
+        // devisi default per nik (dari QM) -> buat fallback kalau hari itu tidak ada qm row
+        $nikDevisiMap = $qmPerDay->values()
+            ->groupBy('nik')
+            ->map(fn($g) => (string)($g->first()->devisi_qm ?? ''));
+
         $out = collect();
 
-        foreach ($niks as $nik) {
-            $nik = (string)$nik;
+        // helper push row
+        $pushRow = function (string $nik, string $tgl) use ($wiPerDay, $qmPerDay, $nikNamaMap, $nikDevisiMap, &$out) {
+            $key = $nik . '|' . $tgl;
+
+            $wi = $wiPerDay->get($key);
+            $qm = $qmPerDay->get($key);
+
+            $timeWi = $wi ? (float)$wi->time_wi : null;
+            $timeQm = $qm ? ((float)$qm->mintu_sum / $this->qmDivisor) : null;
+
+            $wc     = $qm?->wc_qm ?? null;
+            $devisi = $qm?->devisi_qm ?? null;
+
+            if (is_null($devisi)) {
+                $fallback = (string)($nikDevisiMap[$nik] ?? '');
+                $devisi = $fallback !== '' ? $fallback : null;
+            }
+
             $namaDefault = (string)($nikNamaMap[$nik] ?? '-');
+            $nama = $wi?->nama ?? $namaDefault;
 
-            foreach ($dates as $tgl) {
-                $key = $nik . '|' . $tgl;
+            $kpi = null;
+            if (!is_null($timeWi)) {
+                $kpi = ($timeWi == 0.0) ? 0.0 : (((float)($timeQm ?? 0) / $timeWi) * 100);
+            }
 
-                $wi = $wiPerDay->get($key);
-                $qm = $qmPerDay->get($key);
+            $out->push((object)[
+                'nik'     => $nik,
+                'nama'    => (string)$nama,
+                'tanggal' => $tgl,
+                'wc'      => $wc,
+                'devisi'  => $devisi,
+                'time_wi' => $timeWi,
+                'time_qm' => $timeQm,
+                'kpi_pct' => $kpi,
+            ]);
+        };
 
-                $timeWi = $wi ? (float)$wi->time_wi : null;
-                $timeQm = $qm ? ((float)$qm->mintu_sum / $this->qmDivisor) : null;
+        // 1) Full range untuk NIK summary
+        foreach ($fullRangeNiks as $nik) {
+            $nik = (string)$nik;
+            foreach ($allDatesRange as $tgl) {
+                $pushRow($nik, $tgl);
+            }
+        }
 
-                $wc   = $qm?->wc_qm ?? null;
-                $nama = $wi?->nama ?? $namaDefault;
-
-                $kpi = null;
-                if (!is_null($timeWi)) {
-                    $kpi = ($timeWi == 0.0) ? 0.0 : (((float)($timeQm ?? 0) / $timeWi) * 100);
-                }
-
-                $out->push((object)[
-                    'nik'     => $nik,
-                    'nama'    => (string)$nama,
-                    'tanggal' => $tgl,
-                    'wc'      => $wc,
-                    'time_wi' => $timeWi,
-                    'time_qm' => $timeQm,
-                    'kpi_pct' => $kpi,
-                ]);
+        // 2) Partial dates untuk NIK yang hanya dipilih via modal detail
+        foreach ($partialByNik as $nik => $tgls) {
+            $nik = (string)$nik;
+            foreach ($tgls as $tgl) {
+                $pushRow($nik, $tgl);
             }
         }
 
@@ -338,23 +472,21 @@ class WiReportPdfController extends Controller
         $monthFilter = (string)$request->session()->get('wi_export_detail.month_filter', 'this');
         $q           = (string)$request->session()->get('wi_export_detail.q', '');
 
-        $niks = (array)$request->session()->get('wi_export_detail.niks', []);
-        $niks = array_values(array_filter(array_map('strval', $niks)));
+        $summaryNiks = (array)$request->session()->get('wi_export_detail.niks', []);
+        $summaryNiks = array_values(array_filter(array_map('strval', $summaryNiks)));
+
+        $detailKeys  = (array)$request->session()->get('wi_export_detail.keys', []);
+        $detailKeys  = array_values(array_filter(array_map('strval', $detailKeys)));
 
         [$start, $end] = $this->getDateRangeForMonth($monthFilter);
         $range = $this->getRangeStrings($start, $end);
 
-        // kalau kosong, fallback ambil semua nik dari summary filter
-        if (empty($niks)) {
-            $summaryRows = $this->getSummaryRows($plant, $range['iso'], $range['ymd'], $q, []);
-            $niks = $summaryRows->pluck('nik')->map(fn($x) => (string)$x)->unique()->values()->all();
+        // ✅ jangan fallback export semua NIK (biar sesuai UI). Harus ada pilihan.
+        if (empty($summaryNiks) && empty($detailKeys)) {
+            abort(404, 'Tidak ada pilihan NIK / tanggal untuk di-export detail.');
         }
 
-        if (empty($niks)) {
-            abort(404, 'Tidak ada NIK untuk di-export detail.');
-        }
-
-        $rows = $this->getDetailRows($plant, $range['iso'], $range['ymd'], $niks, $q);
+        $rows = $this->getDetailRows($plant, $range['iso'], $range['ymd'], $summaryNiks, $detailKeys, $q);
         if ($rows->isEmpty()) abort(404, 'Data detail WI tidak ditemukan untuk filter tersebut.');
 
         $request->session()->forget(['wi_export_detail.month_filter', 'wi_export_detail.q', 'wi_export_detail.niks', 'wi_export_detail.keys']);
@@ -368,6 +500,7 @@ class WiReportPdfController extends Controller
 
         return $pdf->download("wi-detail-{$plant}.pdf");
     }
+
     // ==========================
     // ROUTE: /wi-daily/{plant}/export-summary-excel
     // ==========================
@@ -402,25 +535,24 @@ class WiReportPdfController extends Controller
         $monthFilter = (string)$request->session()->get('wi_export_detail.month_filter', 'this');
         $q           = (string)$request->session()->get('wi_export_detail.q', '');
 
-        $niks = (array)$request->session()->get('wi_export_detail.niks', []);
-        $niks = array_values(array_filter(array_map('strval', $niks)));
+        $summaryNiks = (array)$request->session()->get('wi_export_detail.niks', []);
+        $summaryNiks = array_values(array_filter(array_map('strval', $summaryNiks)));
+
+        $detailKeys  = (array)$request->session()->get('wi_export_detail.keys', []);
+        $detailKeys  = array_values(array_filter(array_map('strval', $detailKeys)));
 
         [$start, $end] = $this->getDateRangeForMonth($monthFilter);
         $range = $this->getRangeStrings($start, $end);
 
-        if (empty($niks)) {
-            $summaryRows = $this->getSummaryRows($plant, $range['iso'], $range['ymd'], $q, []);
-            $niks = $summaryRows->pluck('nik')->map(fn($x) => (string)$x)->unique()->values()->all();
+        if (empty($summaryNiks) && empty($detailKeys)) {
+            abort(404, 'Tidak ada pilihan NIK / tanggal untuk di-export detail.');
         }
 
-        if (empty($niks)) abort(404, 'Tidak ada NIK untuk di-export detail.');
-
-        $rows = $this->getDetailRows($plant, $range['iso'], $range['ymd'], $niks, $q);
+        $rows = $this->getDetailRows($plant, $range['iso'], $range['ymd'], $summaryNiks, $detailKeys, $q);
         if ($rows->isEmpty()) abort(404, 'Data detail WI tidak ditemukan untuk filter tersebut.');
 
         $request->session()->forget(['wi_export_detail.month_filter', 'wi_export_detail.q', 'wi_export_detail.niks', 'wi_export_detail.keys']);
 
         return Excel::download(new WiDetailExport($rows, $plant), "wi-detail-{$plant}.xlsx");
     }
-
 }

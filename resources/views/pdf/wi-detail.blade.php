@@ -35,10 +35,11 @@
         .col-no{ width:5%; }
         .col-tgl{ width:12%; }
         .col-nik{ width:12%; }
-        .col-nama{ width:24%; }
-        .col-wc{ width:12%; }
-        .col-num{ width:12%; }
-        .col-kpi{ width:11%; }
+        .col-nama{ width:20%; }
+        .col-devisi{ width:14%; } /* ✅ kolom baru */
+        .col-wc{ width:10%; }
+        .col-num{ width:11%; }
+        .col-kpi{ width:9%; }
 
         .group-header-row td{
             background:#e5e7eb;
@@ -51,8 +52,8 @@
         .group-header-value{ font-weight:bold; color:#111827; }
     </style>
 </head>
-<body>
 
+<body>
     <div class="header-container">
         <table style="width:100%;">
             <tr>
@@ -74,12 +75,14 @@
                 <th class="col-tgl">Tanggal</th>
                 <th class="col-nik">NIK</th>
                 <th class="col-nama">Nama</th>
+                <th class="col-devisi">Devisi</th> {{-- ✅ tambah --}}
                 <th class="col-wc">WC</th>
                 <th class="col-num">Time WI</th>
                 <th class="col-num">Time QM</th>
                 <th class="col-kpi">% KPI</th>
             </tr>
         </thead>
+
         <tbody>
             @php
                 $currentKey = null;
@@ -95,13 +98,19 @@
                     @php
                         $currentKey = $groupKey;
                         $rowNumberPerPerson = 0;
+
+                        $devisiHeader = (string)($r->devisi ?? '');
+                        $devisiHeaderShow = $devisiHeader !== '' ? $devisiHeader : '-';
                     @endphp
                     <tr class="group-header-row">
-                        <td colspan="8">
+                        <td colspan="9">
                             <span class="group-header-label">Personal:</span>
                             <span class="group-header-value">{{ $r->nik }}</span>
                             &mdash;
                             <span style="text-transform:capitalize;">{{ strtolower((string)$r->nama) }}</span>
+                            &nbsp;&bull;&nbsp;
+                            <span class="group-header-label">Devisi:</span>
+                            <span class="group-header-value">{{ $devisiHeaderShow }}</span>
                         </td>
                     </tr>
                 @endif
@@ -111,6 +120,9 @@
                     $timeWi = $r->time_wi; // bisa null
                     $timeQm = $r->time_qm; // bisa null
                     $kpi    = $r->kpi_pct; // null kalau WI null
+
+                    $devisi = (string)($r->devisi ?? '');
+                    $devisiShow = $devisi !== '' ? $devisi : '-';
                 @endphp
 
                 <tr>
@@ -118,6 +130,7 @@
                     <td class="text-center font-mono">{{ Carbon::parse($r->tanggal)->format('d/m/y') }}</td>
                     <td class="text-center font-mono">{{ $r->nik }}</td>
                     <td class="text-left" style="text-transform:capitalize;">{{ strtolower((string)$r->nama) }}</td>
+                    <td class="text-center font-mono">{{ $devisiShow }}</td> {{-- ✅ tampil devisi --}}
                     <td class="text-center font-mono">{{ $r->wc ?? '-' }}</td>
 
                     <td class="text-center font-mono">
@@ -152,6 +165,5 @@
             );
         }
     </script>
-
 </body>
 </html>

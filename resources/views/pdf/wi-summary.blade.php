@@ -38,14 +38,15 @@
         .w-no{ width:4%; }
         .w-nik{ width:10%; }
         .w-range{ width:16%; }
-        .w-nama{ width:22%; }
-        .w-wc{ width:10%; }
-        .w-num{ width:12%; }
+        .w-nama{ width:20%; }
+        .w-devisi{ width:14%; }  /* ✅ kolom baru */
+        .w-wc{ width:8%; }
+        .w-num{ width:10%; }
         .w-kpi{ width:8%; }
     </style>
 </head>
-<body>
 
+<body>
     <div class="header-container">
         <table style="width:100%;">
             <tr>
@@ -67,12 +68,14 @@
                 <th class="w-nik">NIK</th>
                 <th class="w-range">Rentang Tanggal</th>
                 <th class="w-nama">Nama</th>
+                <th class="w-devisi">Devisi</th> {{-- ✅ tambah --}}
                 <th class="w-wc">WC</th>
-                <th class="w-num">Time WI </th>
-                <th class="w-num">Time QM </th>
+                <th class="w-num">Time WI</th>
+                <th class="w-num">Time QM</th>
                 <th class="w-kpi">% KPI</th>
             </tr>
         </thead>
+
         <tbody>
             @foreach($rows as $i => $row)
                 @php
@@ -82,12 +85,16 @@
                     $wiSum = (float)($row->time_wi_sum ?? 0);
                     $qmSum = (float)($row->time_qm_sum ?? 0);
                     $kpi   = isset($row->kpi_pct) ? (float)$row->kpi_pct : ($wiSum == 0 ? 0 : ($qmSum / $wiSum) * 100);
+
+                    $devisi = (string)($row->devisi ?? '');
+                    $devisiShow = $devisi !== '' ? $devisi : '-';
                 @endphp
                 <tr>
                     <td class="text-center">{{ $i+1 }}</td>
                     <td class="text-center font-mono nowrap">{{ $row->nik }}</td>
                     <td class="text-center font-mono nowrap">{{ $minDate }} - {{ $maxDate }}</td>
                     <td class="text-left" style="text-transform:capitalize;">{{ strtolower((string)($row->nama ?? '-')) }}</td>
+                    <td class="text-center font-mono nowrap">{{ $devisiShow }}</td> {{-- ✅ tampil devisi --}}
                     <td class="text-center font-mono nowrap">{{ $row->wc ?? '-' }}</td>
                     <td class="text-center font-mono nowrap">{{ number_format($wiSum, 2) }}</td>
                     <td class="text-center font-mono nowrap">{{ number_format($qmSum, 2) }}</td>
@@ -113,6 +120,5 @@
             );
         }
     </script>
-
 </body>
 </html>

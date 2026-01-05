@@ -40,10 +40,11 @@ class WiDetailExport implements
             'NIK',      // B
             'Tanggal',  // C
             'Nama',     // D
-            'WC',  // E
-            'Time WI',  // F
-            'Time QM',  // G
-            '% KPI',    // H
+            'Devisi',   // E ✅
+            'WC',       // F
+            'Time WI',  // G
+            'Time QM',  // H
+            '% KPI',    // I
         ];
     }
 
@@ -64,15 +65,19 @@ class WiDetailExport implements
                 $kpi = ($timeWi == 0.0) ? 0.0 : (((float)($timeQm ?? 0) / $timeWi) * 100);
             }
 
+            $devisi = (string)($row->devisi ?? '');
+            if (trim($devisi) === '') $devisi = '-';
+
             return [
                 $i,                         // A
                 (string)($row->nik ?? ''),  // B
                 $tgl,                       // C
                 (string)($row->nama ?? ''), // D
-                (string)($row->wc ?? ''),   // E
-                $timeWi,                    // F (boleh null)
-                $timeQm,                    // G (boleh ada walau WI null)
-                $kpi,                       // H (null kalau WI null)
+                $devisi,                    // E ✅
+                (string)($row->wc ?? ''),   // F
+                $timeWi,                    // G (boleh null)
+                $timeQm,                    // H (boleh ada walau WI null)
+                $kpi,                       // I (null kalau WI null)
             ];
         });
     }
@@ -101,9 +106,9 @@ class WiDetailExport implements
     public function columnFormats(): array
     {
         return [
-            'F' => '#,##0.00', // Time WI
-            'G' => '#,##0.00', // Time QM
-            'H' => '0.00',     // KPI
+            'G' => '#,##0.00', // Time WI
+            'H' => '#,##0.00', // Time QM
+            'I' => '0.00',     // KPI
         ];
     }
 
@@ -112,8 +117,9 @@ class WiDetailExport implements
         return [
             AfterSheet::class => function (AfterSheet $event) {
                 $sheet = $event->sheet->getDelegate();
-                $rowCount = $this->rows->count() + 1;
-                $lastCol = 'H';
+
+                $rowCount = $this->rows->count() + 1; // + header
+                $lastCol = 'I';
                 $tableRange = "A1:{$lastCol}{$rowCount}";
 
                 $sheet->setAutoFilter("A1:{$lastCol}1");
@@ -121,9 +127,10 @@ class WiDetailExport implements
 
                 // Align
                 $sheet->getStyle("A2:C{$rowCount}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER); // No, NIK, Tanggal
-                $sheet->getStyle("E2:E{$rowCount}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER); // WC
+                $sheet->getStyle("F2:F{$rowCount}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER); // WC
                 $sheet->getStyle("D2:D{$rowCount}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);   // Nama
-                $sheet->getStyle("F2:H{$rowCount}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);  // angka
+                $sheet->getStyle("E2:E{$rowCount}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);   // Devisi ✅
+                $sheet->getStyle("G2:I{$rowCount}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);  // angka
 
                 // Border
                 $sheet->getStyle($tableRange)->applyFromArray([

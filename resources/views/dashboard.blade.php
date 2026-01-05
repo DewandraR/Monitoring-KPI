@@ -21,7 +21,7 @@
                 {{-- =======================
                     MODE 1: KPI GAJI (yang sudah ada)
                 ======================= --}}
-                <h3 class="text-lg font-extrabold text-emerald-800 mb-3">KPI GAJI</h3>
+                <h3 class="text-lg font-extrabold text-emerald-800 mb-3">Key Performance Indicator</h3>
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                     @foreach ($plants as $p)
                         <a href="{{ route('report-data', ['werks' => $p->werks]) }}"

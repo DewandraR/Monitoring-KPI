@@ -8,25 +8,11 @@
      * =========================================================
      */
     $headersSummary = [
-        'No',
-        'NIK',
-        'Rentang Tanggal',
-        'Nama',
-        'WC',
-        'Time WI',
-        'Time QM',
-        '% KPI',
+        'No','NIK','Rentang Tanggal','Nama','WC','Devisi','Time WI','Time QM','% KPI',
     ];
 
     $headersDetail = [
-        'No',
-        'NIK',
-        'Tanggal',
-        'Nama',
-        'WC',
-        'Time WI',
-        'Time QM',
-        '% KPI',
+        'No','NIK','Tanggal','Nama','WC','Devisi','Time WI','Time QM','% KPI',
     ];
 
     /**
@@ -280,12 +266,14 @@
 
                     <span class="relative z-10 whitespace-nowrap">Export Report</span>
 
-                    {{-- COUNT DI SEBELAH TULISAN --}}
-                    <span class="flex h-6 min-w-[24px] items-center justify-center rounded-lg
-                                bg-white/95 text-emerald-800 text-[11px] font-black
-                                shadow-md ring-2 ring-white/50 relative z-10 px-1.5">
-                        {{ $selectedCount }}
-                    </span>
+                    {{-- COUNT DI SEBELAH TULISAN (tampil hanya jika > 0) --}}
+                    @if ($selectedCount > 0)
+                        <span class="flex h-6 min-w-[24px] items-center justify-center rounded-lg
+                                    bg-white/95 text-emerald-800 text-[11px] font-black
+                                    shadow-md ring-2 ring-white/50 relative z-10 px-1.5">
+                            {{ $selectedCount }}
+                        </span>
+                    @endif
 
                     <svg xmlns="http://www.w3.org/2000/svg"
                         class="h-4 w-4 relative z-10 transition-transform duration-300 group-hover:rotate-180"
@@ -305,9 +293,11 @@
                                 border-b border-emerald-100 flex items-center justify-between gap-2">
                         <span>📊 Summary Report</span>
 
-                        <span class="inline-flex items-center rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[10px] font-black">
-                            {{ $selectedCount }} NIK
-                        </span>
+                        @if ($selectedCount > 0)
+                            <span class="inline-flex items-center rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[10px] font-black">
+                                {{ $selectedCount }} NIK
+                            </span>
+                        @endif
                     </div>
 
                     <div class="p-2 space-y-1">
@@ -386,12 +376,14 @@
 
                     <span class="relative z-10 whitespace-nowrap">Export Detail</span>
 
-                    {{-- COUNT DI SEBELAH TULISAN --}}
-                    <span class="flex h-6 min-w-[24px] items-center justify-center rounded-lg
-                                bg-white/95 text-slate-800 text-[11px] font-black
-                                shadow-md ring-2 ring-white/50 relative z-10 px-1.5">
-                        {{ (int)$detailSelectedCount }}
-                    </span>
+                    {{-- COUNT DI SEBELAH TULISAN (tampil hanya jika > 0) --}}
+                    @if ((int)$detailSelectedCount > 0)
+                        <span class="flex h-6 min-w-[24px] items-center justify-center rounded-lg
+                                    bg-white/95 text-slate-800 text-[11px] font-black
+                                    shadow-md ring-2 ring-white/50 relative z-10 px-1.5">
+                            {{ (int)$detailSelectedCount }}
+                        </span>
+                    @endif
 
                     <svg xmlns="http://www.w3.org/2000/svg"
                         class="h-3.5 w-3.5 relative z-10 transition-transform duration-300 group-hover:rotate-180"
@@ -410,11 +402,12 @@
                                 text-gray-600 bg-gray-50 border-b border-gray-100 flex items-center justify-between gap-2">
                         <span>📅 Detail Report</span>
 
-                        <span class="inline-flex items-center rounded-full bg-slate-200 text-slate-800 px-2 py-0.5 text-[10px] font-black">
-                            {{ (int)$detailSelectedCount }} data
-                        </span>
+                        @if ((int)$detailSelectedCount > 0)
+                            <span class="inline-flex items-center rounded-full bg-slate-200 text-slate-800 px-2 py-0.5 text-[10px] font-black">
+                                {{ (int)$detailSelectedCount }} data
+                            </span>
+                        @endif
                     </div>
-
                     <div class="p-2 space-y-1">
 
                         {{-- PDF --}}
@@ -613,6 +606,11 @@
                                 {{ $row->wc ?? '-' }}
                             </td>
 
+                            {{-- DEVISI --}}
+                            <td class="px-6 py-4 text-left text-slate-700 font-semibold">
+                                {{ $row->devisi ?? '-' }}
+                            </td>
+
                             {{-- Time WI --}}
                             <td class="px-6 py-4 text-center text-gray-900 font-semibold tracking-tight">
                                 {{ number_format($wiSum, 2) }}
@@ -648,6 +646,19 @@
 
             </table>
         </div>
+        {{-- ✅ TARUH DI SINI (dibawah tabel) --}}
+        @if(!empty($missingNiks ?? []))
+            <div class="mt-3 px-3 py-2 rounded-lg border border-amber-200 bg-amber-50 text-amber-800 text-[14px]">
+                <div class="flex items-start gap-2">
+                    <span class="font-extrabold whitespace-nowrap">Tidak ditemukan:</span>
+
+                    {{-- Panjang → geser ke kanan (horizontal scroll), tidak makan tinggi --}}
+                    <div class="font-mono overflow-x-auto whitespace-nowrap w-full">
+                        {{ implode(', ', $missingNiks) }}
+                    </div>
+                </div>
+            </div>
+        @endif
     </div>
 
     {{-- ========================================================= --}}
@@ -773,6 +784,11 @@
                                             {{-- WC --}}
                                             <td class="px-4 py-2 text-sm font-mono text-center">
                                                 {{ $d['wc'] ?? '-' }}
+                                            </td>
+
+                                            {{-- DEVISI --}}
+                                            <td class="px-4 py-2 text-sm font-semibold text-left">
+                                                {{ $d['devisi'] ?? '-' }}
                                             </td>
 
                                             {{-- Time WI --}}

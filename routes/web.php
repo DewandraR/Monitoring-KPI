@@ -70,11 +70,22 @@ Route::middleware(['auth', 'verified', 'data.scope'])->group(function () {
             ->orderByRaw("UPPER(TRIM(werks)) ASC")
             ->get();
 
-         $wiSub = DailyTimeWi::query()
+        // ======================
+        // WI DAILY (GROUPING MENU)
+        // ======================
+        $wiSub = DailyTimeWi::query()
             ->whereNotNull('kode_laravel')
             ->whereRaw("TRIM(kode_laravel) <> ''")
+            // tambahan: pastikan minimal 4 digit angka di depan
+            ->whereRaw("TRIM(kode_laravel) REGEXP '^[0-9]{4}'")
             ->selectRaw("
-                CONCAT(LEFT(TRIM(kode_laravel),1),'000') as plant,
+                LEFT(TRIM(kode_laravel),4) as werks4,
+                CONCAT(LEFT(TRIM(kode_laravel),1),'000') as werks_base,
+                CASE
+                    WHEN LEFT(TRIM(kode_laravel),4) IN ('1001','1002','1003','1015') THEN '1001'
+                    WHEN LEFT(TRIM(kode_laravel),1) = '1' THEN '1000'
+                    ELSE CONCAT(LEFT(TRIM(kode_laravel),1),'000')
+                END as plant_group,
                 TRIM(nik) as nik
             ")
             ->toBase();
@@ -83,11 +94,9 @@ Route::middleware(['auth', 'verified', 'data.scope'])->group(function () {
 
         if (!$scopeAll) {
             if (empty($scopeDevUpper) && empty($scopeArbplUpper)) {
-                // tidak punya akses apa-apa
                 $wiQuery->whereRaw('1=0');
             } else {
 
-                // subquery dari yppr058_data (pakai Eloquent biar global scope ReportData ikut)
                 $rdSub = ReportData::query()
                     ->selectRaw("
                         TRIM(pernr) as pernr,
@@ -101,11 +110,12 @@ Route::middleware(['auth', 'verified', 'data.scope'])->group(function () {
                 $wiQuery->whereExists(function ($sq) use ($rdSub, $scopeDevUpper, $scopeArbplUpper) {
                     $sq->selectRaw('1')
                         ->fromSub($rdSub, 'y')
-                        // match NIK
                         ->whereColumn('y.pernr', 'x.nik')
-                        // match plant (werks) supaya plant 1000/2000 tidak ikut kalau scope-nya cuma plant 3000
-                        ->whereColumn('y.werks', 'x.plant')
-                        // apply scope devisi/arbpl
+                        // INI KUNCI: cocokkan werks ReportData dengan kemungkinan 4 digit ATAU base 1000/2000/3000
+                        ->where(function ($m) {
+                            $m->whereColumn('y.werks', 'x.werks4')
+                            ->orWhereColumn('y.werks', 'x.werks_base');
+                        })
                         ->where(function ($q) use ($scopeDevUpper, $scopeArbplUpper) {
 
                             if (!empty($scopeDevUpper)) {
@@ -121,12 +131,13 @@ Route::middleware(['auth', 'verified', 'data.scope'])->group(function () {
             }
         }
 
-        // hasil final untuk cards WI
+        // hasil final untuk cards WI (menu kategori)
         $wiPlants = $wiQuery
-            ->selectRaw("x.plant, COUNT(DISTINCT x.nik) as rows_count")
-            ->groupBy('x.plant')
-            ->orderByRaw("CAST(x.plant AS UNSIGNED) ASC")
+            ->selectRaw("x.plant_group as plant, COUNT(DISTINCT x.nik) as rows_count")
+            ->groupBy('x.plant_group')
+            ->orderByRaw("CAST(x.plant_group AS UNSIGNED) ASC")
             ->get();
+
 
         return view('dashboard', compact('plants', 'wiPlants'));
     })->name('dashboard');

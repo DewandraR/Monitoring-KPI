@@ -21,21 +21,28 @@ class WiDailyReport extends Component
     public ?string $selectedNik = null;
     public array $detailData = [];
 
-    // optional buat tampil total di modal
+    // total modal
     public ?float $detailTotalWi = null;
     public ?float $detailTotalQm = null;
     public ?float $detailKpi = null;
-    // tambahkan di property class
+
+    // devisi ringkas modal (unik/MULTI/-)
+    public ?string $detailDevisi = null;
+
+    // selection export
     public array $selectedNiks = [];
     public array $selectedDetailKeys = [];
 
+    /**
+     * Ambil scope dari middleware (data.scope)
+     */
     protected function scopeData(): array
     {
         $all   = (bool) request()->attributes->get('data_scope_all', false);
         $dev   = (array) request()->attributes->get('data_scope_devisi', []);
         $arbpl = (array) request()->attributes->get('data_scope_arbpl', []);
 
-        // OPTIONAL: kalau nanti kamu punya scope NIK (lihat patch middleware di bawah)
+        // OPTIONAL scope NIK kalau ada
         $niks  = (array) request()->attributes->get('data_scope_nik', []);
 
         $dev = array_values(array_unique(array_filter(array_map(
@@ -57,7 +64,8 @@ class WiDailyReport extends Component
     }
 
     /**
-     * Terapkan scope ke query ReportData (yppr058_data) berdasarkan devisi / arbpl / arbpl2 / (optional) nik list
+     * Terapkan scope ke query ReportData (yppr058_data)
+     * berdasarkan devisi / arbpl / arbpl2 / (optional) nik list
      */
     protected function applyScopeToReportData(Builder $q): void
     {
@@ -81,7 +89,7 @@ class WiDailyReport extends Component
 
             if (!empty($arbpl)) {
                 $w->orWhereIn(DB::raw('UPPER(TRIM(arbpl))'), $arbpl)
-                ->orWhereIn(DB::raw('UPPER(TRIM(arbpl2))'), $arbpl);
+                  ->orWhereIn(DB::raw('UPPER(TRIM(arbpl2))'), $arbpl);
             }
         });
     }
@@ -111,9 +119,12 @@ class WiDailyReport extends Component
             $sq->selectRaw('1')
                 ->from($rdTable)
                 ->whereColumn("$rdTable.pernr", "$wiTable.nik")
-                // penting: cocokkan tanggal WI -> begda (YYYYMMDD)
                 ->whereRaw("$rdTable.begda = DATE_FORMAT($wiTable.tanggal, '%Y%m%d')")
                 ->whereBetween("$rdTable.begda", [$begdaStart, $begdaEnd])
+                ->where(function ($m) use ($rdTable, $wiTable) {
+                    $m->whereRaw("TRIM($rdTable.werks) = LEFT(TRIM($wiTable.kode_laravel),4)")
+                    ->orWhereRaw("TRIM($rdTable.werks) = CONCAT(LEFT(TRIM($wiTable.kode_laravel),1),'000')");
+                })
                 ->where(function ($w) use ($rdTable, $dev, $arbpl, $niks) {
 
                     if (!empty($niks)) {
@@ -126,13 +137,15 @@ class WiDailyReport extends Component
 
                     if (!empty($arbpl)) {
                         $w->orWhereIn(DB::raw("UPPER(TRIM($rdTable.arbpl))"), $arbpl)
-                        ->orWhereIn(DB::raw("UPPER(TRIM($rdTable.arbpl2))"), $arbpl);
+                          ->orWhereIn(DB::raw("UPPER(TRIM($rdTable.arbpl2))"), $arbpl);
                     }
                 });
         });
     }
 
-    /** Validasi cepat akses NIK (buat hardening showNikDetail/export) */
+    /**
+     * Validasi cepat akses NIK (buat hardening showNikDetail/export)
+     */
     protected function canAccessNik(string $nik, string $begdaStart, string $begdaEnd): bool
     {
         [$all] = $this->scopeData();
@@ -147,7 +160,9 @@ class WiDailyReport extends Component
         return $q->limit(1)->exists();
     }
 
-    // tambahkan method ini di class
+    /**
+     * Export Summary
+     */
     public function export(string $format = 'pdf'): void
     {
         $format = strtolower(trim($format));
@@ -178,6 +193,9 @@ class WiDailyReport extends Component
         $this->dispatch('wi-open-url', url: $url);
     }
 
+    /**
+     * Export Detail
+     */
     public function exportDetail(string $format = 'pdf'): void
     {
         $format = strtolower(trim($format));
@@ -216,7 +234,6 @@ class WiDailyReport extends Component
         $this->dispatch('wi-open-url', url: $url);
     }
 
-
     public function mount(string $plant): void
     {
         $this->plant = trim($plant);
@@ -231,7 +248,6 @@ class WiDailyReport extends Component
         $this->monthFilter = $mode;
 
         session(['wi_daily.month_filter' => $this->monthFilter]);
-
         $this->closeDetailModal();
     }
 
@@ -255,26 +271,39 @@ class WiDailyReport extends Component
         return [$start, $end];
     }
 
+    /**
+     * Base query WI (daily_time_wi) + scope dari yppr058_data
+     */
     protected function baseWiQuery(): array
     {
-        $prefix = substr($this->plant, 0, 1);
+        $plant = trim($this->plant); // ini sekarang "plant_group" (1000/1001/2000/3000...)
         [$start, $end] = $this->getDateRangeForFilter();
 
         $q = DailyTimeWi::query()
             ->whereNotNull('kode_laravel')
             ->whereRaw("TRIM(kode_laravel) <> ''")
-            ->whereRaw("LEFT(TRIM(kode_laravel), 1) = ?", [$prefix])
+            // pastikan minimal 4 digit angka di depan (biar aman)
+            ->whereRaw("TRIM(kode_laravel) REGEXP '^[0-9]{4}'")
+            // INI KUNCI: filter berdasarkan plant_group, bukan prefix saja
+            ->whereRaw("
+                CASE
+                    WHEN LEFT(TRIM(kode_laravel),4) IN ('1001','1002','1003','1015') THEN '1001'
+                    WHEN LEFT(TRIM(kode_laravel),1) = '1' THEN '1000'
+                    ELSE CONCAT(LEFT(TRIM(kode_laravel),1),'000')
+                END = ?
+            ", [$plant])
             ->whereBetween('tanggal', [$start->toDateString(), $end->toDateString()]);
 
-        // >>> INI YANG PENTING: filter scope dari yppr058_data
         $this->applyScopeToWiQuery($q, $start, $end);
 
         return [$q, $start, $end];
     }
+
     /**
-     * Subquery agregasi dari yppr058_data:
-     * - ambil WC: MAX(arbpl)
-     * - TIME QM: SUM(mintu)
+     * Subquery agregasi QM dari yppr058_data:
+     * - WC  : MAX(arbpl)
+     * - DEV : MAX(devisi)
+     * - QM  : SUM(mintu)
      * group per pernr+begda
      */
     protected function qmAggSub(string $begdaStart, string $begdaEnd)
@@ -284,17 +313,26 @@ class WiDailyReport extends Component
                 pernr,
                 begda,
                 MAX(arbpl) as wc,
+                MAX(devisi) as devisi,
                 COALESCE(SUM(mintu),0) as time_qm
             ")
-            ->whereBetween('begda', [$begdaStart, $begdaEnd]);
+            ->whereBetween('begda', [$begdaStart, $begdaEnd])
+            ->whereRaw("
+                CASE
+                    WHEN TRIM(werks) IN ('1001','1002','1003','1015') THEN '1001'
+                    WHEN LEFT(TRIM(werks),1)='1' THEN '1000'
+                    ELSE CONCAT(LEFT(TRIM(werks),1),'000')
+                END = ?
+            ", [trim($this->plant)]);
 
-        // >>> scope!
         $this->applyScopeToReportData($q);
 
         return $q->groupBy('pernr', 'begda')->toBase();
     }
 
-
+    /**
+     * Live search (filter)
+     */
     protected function applyLiveSearch($query, Carbon $start, Carbon $end): void
     {
         $raw = trim((string) $this->q);
@@ -313,16 +351,14 @@ class WiDailyReport extends Component
             ->map(fn($t) => trim((string)$t))
             ->values();
 
-        // token dasar
-        $nikTokens  = $tokens->filter(fn($t) => preg_match('/^\d{6,}$/', $t));                 // nik
-        $dateTokens = $tokens->filter(fn($t) => preg_match('/^\d{4}-\d{2}-\d{2}$/', $t));       // yyyy-mm-dd
-        $kodeTokens = $tokens->filter(fn($t) => preg_match('/^\d{4}$/', $t));                   // 2002/3015
-        $idTokens   = $tokens->filter(fn($t) => preg_match('/^\d{1,5}$/', $t));                 // id pendek
+        $nikTokens  = $tokens->filter(fn($t) => preg_match('/^\d{6,}$/', $t));
+        $dateTokens = $tokens->filter(fn($t) => preg_match('/^\d{4}-\d{2}-\d{2}$/', $t));
+        $kodeTokens = $tokens->filter(fn($t) => preg_match('/^\d{4}$/', $t));
+        $idTokens   = $tokens->filter(fn($t) => preg_match('/^\d{1,5}$/', $t));
 
-        // >>> BARU: token WC (QM) / ARBPL, contoh: WC019, wc864, dll
+        // token WC
         $wcTokens = $tokens->filter(fn($t) => preg_match('/^wc[\w\-]*$/i', $t))->values();
 
-        // sisanya dianggap teks (nama)
         $textTokens = $tokens
             ->diff($nikTokens)
             ->diff($dateTokens)
@@ -331,7 +367,6 @@ class WiDailyReport extends Component
             ->diff($wcTokens)
             ->values();
 
-        // helper range begda (YYYYMMDD)
         $begdaStart = $start->format('Ymd');
         $begdaEnd   = $end->format('Ymd');
 
@@ -362,23 +397,22 @@ class WiDailyReport extends Component
             }
 
             foreach ($phrases as $p) {
-                // phrase nama
                 $q->orWhereRaw('LOWER(nama) LIKE ?', ["%{$p}%"]);
 
-                // >>> BARU: kalau phrase mengandung WC, ikut cari ke arbpl juga
                 if (preg_match('/^wc[\w\-]*$/i', $p)) {
                     $like = "%{$p}%";
                     $q->orWhereExists(function ($sq) use ($like, $begdaStart, $begdaEnd) {
+                        $table = (new ReportData)->getTable();
+
                         $sq->selectRaw('1')
-                            ->from((new ReportData)->getTable())
-                            ->whereColumn((new ReportData)->getTable().'.pernr', 'daily_time_wi.nik')
-                            ->whereBetween((new ReportData)->getTable().'.begda', [$begdaStart, $begdaEnd])
-                            ->whereRaw('LOWER('.(new ReportData)->getTable().'.arbpl) LIKE ?', [$like]);
+                            ->from($table)
+                            ->whereColumn($table.'.pernr', 'daily_time_wi.nik')
+                            ->whereBetween($table.'.begda', [$begdaStart, $begdaEnd])
+                            ->whereRaw('LOWER('.$table.'.arbpl) LIKE ?', [$like]);
                     });
                 }
             }
 
-            // >>> BARU: token WC -> cari ke yppr058_data.arbpl (WC QM)
             foreach ($wcTokens as $wc) {
                 $wcLower = mb_strtolower($wc);
                 $like = "%{$wcLower}%";
@@ -396,10 +430,31 @@ class WiDailyReport extends Component
         });
     }
 
+    protected function extractNikTokens(string $raw): array
+    {
+        $raw = trim((string) $raw);
+        if ($raw === '') return [];
+
+        // ambil token angka panjang (>= 8 digit)
+        $tokens = preg_split('/[\s,]+/u', $raw);
+        $tokens = array_map(fn($v) => trim((string)$v), $tokens);
+        $tokens = array_filter($tokens);
+
+        $niks = [];
+        foreach ($tokens as $t) {
+            if (preg_match('/^\d{8,}$/', $t)) {
+                $niks[] = $t;
+            }
+        }
+
+        // unique + urut sesuai input
+        $niks = array_values(array_unique($niks));
+        return $niks;
+    }
 
     /**
-     * Query detail per tanggal (sudah SUM time_wi),
-     * lalu JOIN ke QM (SUM mintu) + WC (arbpl) via begda format YYYYMMDD.
+     * Query detail per tanggal (WI SUM),
+     * lalu JOIN ke QM sub (SUM mintu) + WC + DEV via begda.
      */
     protected function detailJoinedQuery($wiBase)
     {
@@ -435,6 +490,7 @@ class WiDailyReport extends Component
                 wi.time_wi,
                 COALESCE(qm.time_qm,0) as time_qm,
                 qm.wc as wc,
+                qm.devisi as devisi,
                 CASE
                     WHEN wi.time_wi = 0 THEN 0
                     ELSE (COALESCE(qm.time_qm,0) / wi.time_wi) * 100
@@ -442,47 +498,51 @@ class WiDailyReport extends Component
             ");
     }
 
-
+    /**
+     * SHOW DETAIL MODAL per NIK
+     */
     public function showNikDetail(string $clickedNik): void
     {
         $this->selectedNik = trim((string) $clickedNik);
 
         [$wiBase, $start, $end] = $this->baseWiQuery();
 
-        // ambil QM per tanggal (yppr058_data) untuk nik ini dalam range
         $begdaStart = $start->format('Ymd');
         $begdaEnd   = $end->format('Ymd');
 
-        // >>> HARDENING: cegah akses NIK yang di luar scope (misal inject / manual call)
-        if (method_exists($this, 'canAccessNik') && !$this->canAccessNik($this->selectedNik, $begdaStart, $begdaEnd)) {
+        // hardening
+        if (!$this->canAccessNik($this->selectedNik, $begdaStart, $begdaEnd)) {
             $this->dispatch('wi-toast', type: 'error', message: 'Anda tidak memiliki akses untuk NIK ini.');
             return;
         }
 
-        // >>> QUERY QM (yppr058_data) + APPLY SCOPE
+        // QM per tanggal untuk NIK ini (ambil WC + DEV + QM)
         $qmQ = ReportData::query()
             ->selectRaw("
                 begda,
                 MAX(arbpl) as wc,
+                MAX(devisi) as devisi,
                 COALESCE(SUM(mintu),0) as time_qm
             ")
             ->where('pernr', $this->selectedNik)
             ->whereBetween('begda', [$begdaStart, $begdaEnd]);
+            $qmQ->whereRaw("
+                CASE
+                    WHEN TRIM(werks) IN ('1001','1002','1003','1015') THEN '1001'
+                    WHEN LEFT(TRIM(werks),1)='1' THEN '1000'
+                    ELSE CONCAT(LEFT(TRIM(werks),1),'000')
+                END = ?
+            ", [trim($this->plant)]);
 
-        // >>> apply scope ke ReportData (devisi / arbpl / arbpl2 / optional nik list)
-        if (method_exists($this, 'applyScopeToReportData')) {
-            $this->applyScopeToReportData($qmQ);
-        }
+        $this->applyScopeToReportData($qmQ);
 
-        $qmRows = $qmQ
-            ->groupBy('begda')
-            ->get();
+        $qmRows = $qmQ->groupBy('begda')->get();
 
         $qmByDate = $qmRows->keyBy(function ($r) {
-            return Carbon::createFromFormat('Ymd', (string) $r->begda)->toDateString(); // Y-m-d
+            return Carbon::createFromFormat('Ymd', (string) $r->begda)->toDateString();
         });
 
-        // query WI (yang sudah join QM untuk tanggal yang ada WI)
+        // WI detail join (tanggal yang ada WI)
         $rows = $this->detailJoinedQuery((clone $wiBase)->where('nik', $this->selectedNik))
             ->orderBy('wi.tanggal', 'asc')
             ->get();
@@ -491,28 +551,43 @@ class WiDailyReport extends Component
 
         $name = optional($rows->first())->nama ?? '-';
 
-        // TOTAL header modal (opsional: QM total dari semua tanggal, bukan cuma tanggal yang ada WI)
+        // total modal
         $sumWi = (float) $rows->sum('time_wi');
-        $sumQm = (float) $qmRows->sum('time_qm'); // <-- ini yang bikin Total QM ga lagi 0 kalau QM ada di tanggal kosong
+        $sumQm = (float) $qmRows->sum('time_qm');
         $kpi   = $sumWi == 0 ? 0 : ($sumQm / $sumWi) * 100;
 
         $this->detailTotalWi = $sumWi;
         $this->detailTotalQm = $sumQm;
         $this->detailKpi     = $kpi;
 
+        // devisi ringkas modal
+        $devs = collect($qmRows)
+            ->pluck('devisi')
+            ->map(fn($v) => trim((string)$v))
+            ->filter()
+            ->unique()
+            ->values();
+
+        $this->detailDevisi = $devs->count() === 1
+            ? $devs->first()
+            : ($devs->isEmpty() ? '-' : 'MULTI');
+
+        // build detail full date range
         $detail = [];
         $cursor = $start->copy();
 
         while ($cursor->lte($end)) {
-            $key = $cursor->toDateString(); // Y-m-d
-            $qm  = $qmByDate->get($key);    // bisa ada walau WI kosong
+            $key = $cursor->toDateString();
+            $qm  = $qmByDate->get($key);
 
             if ($byDate->has($key)) {
                 $r = $byDate->get($key);
 
                 $timeWi = (float) $r->time_wi;
-                $timeQm = $qm ? (float) $qm->time_qm : (float) $r->time_qm; // pakai qmByDate biar konsisten
+                $timeQm = $qm ? (float) $qm->time_qm : (float) $r->time_qm;
+
                 $wc     = $qm ? $qm->wc : $r->wc;
+                $devisi = $qm ? ($qm->devisi ?? null) : ($r->devisi ?? null);
 
                 $detail[] = [
                     'id'      => $r->id,
@@ -520,21 +595,22 @@ class WiDailyReport extends Component
                     'nik'     => (string) $r->nik,
                     'nama'    => (string) $r->nama,
                     'wc'      => $wc,
+                    'devisi'  => $devisi,
                     'time_wi' => $timeWi,
                     'time_qm' => $timeQm,
                     'kpi_pct' => $timeWi == 0 ? 0 : ($timeQm / $timeWi) * 100,
                 ];
             } else {
-                // tanggal tanpa WI, tapi isi WC + mintu dari yppr058_data kalau ada
                 $detail[] = [
                     'id'      => null,
                     'tanggal' => $key,
                     'nik'     => $this->selectedNik,
                     'nama'    => $name,
                     'wc'      => $qm->wc ?? null,
+                    'devisi'  => $qm->devisi ?? null,
                     'time_wi' => null,
                     'time_qm' => $qm ? (float) $qm->time_qm : null,
-                    'kpi_pct' => null, // WI kosong → KPI biarkan "-"
+                    'kpi_pct' => null,
                 ];
             }
 
@@ -554,14 +630,38 @@ class WiDailyReport extends Component
         $this->detailTotalWi = null;
         $this->detailTotalQm = null;
         $this->detailKpi = null;
+        $this->detailDevisi = null;
     }
 
     public function render()
     {
         [$wiBase, $start, $end] = $this->baseWiQuery();
 
-        // live search memfilter WI (dan otomatis memfilter join QM juga)
+        // clone base query (tanpa live search) untuk cek NIK tidak ditemukan
+        $wiBaseNoSearch = clone $wiBase;
+
+        // live search (filter tampilan)
         $this->applyLiveSearch($wiBase, $start, $end);
+
+        // =======================
+        // DETEKSI NIK TIDAK ADA
+        // =======================
+        $searchedNiks = $this->extractNikTokens($this->q);
+        $missingNiks = [];
+
+        if (!empty($searchedNiks)) {
+            $foundNiks = (clone $wiBaseNoSearch)
+                ->whereIn('nik', $searchedNiks)
+                ->select('nik')
+                ->distinct()
+                ->pluck('nik')
+                ->map(fn($v) => (string)$v)
+                ->all();
+
+            $foundSet = array_flip($foundNiks);
+
+            $missingNiks = array_values(array_filter($searchedNiks, fn($n) => !isset($foundSet[$n])));
+        }
 
         $detailJoined = $this->detailJoinedQuery($wiBase);
 
@@ -574,6 +674,7 @@ class WiDailyReport extends Component
                 MAX(tanggal) as max_tanggal,
                 MAX(nama) as nama,
                 MAX(wc) as wc,
+                MAX(devisi) as devisi,
                 COALESCE(SUM(time_wi),0) as time_wi_sum,
                 COALESCE(SUM(time_qm),0) as time_qm_sum,
                 CASE
@@ -585,7 +686,7 @@ class WiDailyReport extends Component
             ->orderByRaw("CAST(nik AS UNSIGNED) ASC")
             ->get();
 
-        // TOTAL keseluruhan (semua NIK yang tampil)
+        // TOTAL keseluruhan
         $overallWi = 0.0;
         $overallQm = 0.0;
 
@@ -596,6 +697,18 @@ class WiDailyReport extends Component
 
         $overallKpi = $overallWi == 0 ? 0 : ($overallQm / $overallWi) * 100;
 
+        // overall devisi ringkas (unik/MULTI/-) -> opsional dipakai di blade
+        $overallDevisiList = collect($reportData)
+            ->pluck('devisi')
+            ->map(fn($v) => trim((string)$v))
+            ->filter()
+            ->unique()
+            ->values();
+
+        $overallDevisi = $overallDevisiList->count() === 1
+            ? $overallDevisiList->first()
+            : ($overallDevisiList->isEmpty() ? '-' : 'MULTI');
+
         return view('livewire.wi-daily-report', [
             'reportData' => $reportData,
             'rangeStart' => $start->toDateString(),
@@ -604,6 +717,10 @@ class WiDailyReport extends Component
             'overallWi'  => $overallWi,
             'overallQm'  => $overallQm,
             'overallKpi' => $overallKpi,
+
+            // opsional
+            'overallDevisi' => $overallDevisi,
+            'missingNiks' => $missingNiks,
         ]);
     }
 }
