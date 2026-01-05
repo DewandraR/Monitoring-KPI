@@ -174,7 +174,7 @@
             <tr>
                 <td style="vertical-align:bottom;">
                     <div class="header-title">Laporan Detail</div>
-                    <div class="header-subtitle">Sistem Personalia WC-Person &bull; yppr058_data</div>
+                    <div class="header-subtitle">Monitoring KPI WC-Person &bull; yppr058_data</div>
                 </td>
                 <td class="header-meta">
                     <div>

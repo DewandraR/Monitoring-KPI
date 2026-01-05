@@ -160,7 +160,7 @@
             <tr>
                 <td>
                     <div class="header-title">Laporan WC Person</div>
-                    <div class="header-subtitle">Data Personalia Work Center &bull; wc_person_data</div>
+                    <div class="header-subtitle">Data NIK per Work Center &bull; wc_person_data</div>
                 </td>
                 <td class="header-meta">
                     <div>Dicetak: {{ Carbon::now()->isoFormat('D MMMM Y, HH:mm') }}</div>

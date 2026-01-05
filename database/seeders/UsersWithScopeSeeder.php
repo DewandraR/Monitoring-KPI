@@ -238,6 +238,48 @@ class UsersWithScopeSeeder extends Seeder
                 'scope_devisi' => ['ASSY UNIT - CHARLY'],
                 'scope_arbpl' => null,
             ],
+
+            [
+                'name' => 'Adi',
+                'email' => 'adi@gmail.com',
+                'password' => $pass,
+
+                'scope_all' => false,
+
+                'scope_devisi' => [
+                    'Sawmill',
+                    'Kiln Dry',
+                    'Slicer',
+                    'Wood Working Cutting',
+                    'Wood Working Finger Joint',
+                    'Wood Working Laminating',
+                    'Moulding',
+                    'Component Working',
+                    'Production 1',
+                    'Paneling',
+                    'CNC Paneling',
+                    'Casegood Drawer',
+                    'Production 3',
+                    'Upholestery',
+                    'Production 5',
+                    'Packaging Box',
+                    'Production 2',
+                    'FINISHING',
+                    'CGF Painting',
+                    'CGF Packing',
+                    'Production 4',
+                    'Research and Development',
+                    'Ware House',
+                    'Slicer 3',
+                    'Drying Machinery',
+                    'MP. Slicer',
+                    'Chair',
+                    'Painting',
+                ],
+
+                'scope_arbpl' => ['WC853']
+            ],
+
         ];
 
         foreach ($rows as $data) {

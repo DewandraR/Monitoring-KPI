@@ -12,7 +12,6 @@
             <h2 class="text-3xl font-bold text-gray-800 tracking-tight">
                 Daftar Akun Baru
             </h2>
-            <p class="text-base text-gray-500 mt-1">Bergabung dengan Sistem Personalia WC-Person</p>
         </div>
 
         <form method="POST" action="{{ route('register') }}" class="space-y-6">
