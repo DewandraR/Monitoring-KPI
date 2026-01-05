@@ -68,8 +68,8 @@
                 <th class="w-range">Rentang Tanggal</th>
                 <th class="w-nama">Nama</th>
                 <th class="w-wc">WC</th>
-                <th class="w-num">Time WI (SUM)</th>
-                <th class="w-num">Time QM (SUM)</th>
+                <th class="w-num">Time WI </th>
+                <th class="w-num">Time QM </th>
                 <th class="w-kpi">% KPI</th>
             </tr>
         </thead>

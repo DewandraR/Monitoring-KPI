@@ -41,8 +41,8 @@ class WiSummaryExport implements
             'Rentang Tanggal', // C
             'Nama',            // D
             'WC',         // E
-            'Time WI (SUM)',   // F
-            'Time QM (SUM)',   // G
+            'Time WI',   // F
+            'Time QM',   // G
             '% KPI',           // H
         ];
     }

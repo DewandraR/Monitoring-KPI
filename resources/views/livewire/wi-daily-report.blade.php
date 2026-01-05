@@ -13,8 +13,8 @@
         'Rentang Tanggal',
         'Nama',
         'WC',
-        'Time WI (SUM)',
-        'Time QM (SUM)',
+        'Time WI',
+        'Time QM',
         '% KPI',
     ];
 
