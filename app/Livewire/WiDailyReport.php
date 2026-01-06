@@ -155,7 +155,8 @@ class WiDailyReport extends Component
                 END as kpi_pct
             ")
             ->groupBy('d.nik')
-            ->orderByRaw("CAST(d.nik AS UNSIGNED) ASC")
+            ->orderBy('wc', 'asc') // 1. Urutkan WC (A-Z)
+            ->orderByRaw("CAST(d.nik AS UNSIGNED) ASC") // 2. Baru urutkan NIK (Angka)
             ->get();
         return $rows->map(fn($r) => [
             'nik'         => (string) $r->nik,
