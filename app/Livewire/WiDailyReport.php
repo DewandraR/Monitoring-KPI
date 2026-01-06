@@ -33,6 +33,13 @@ class WiDailyReport extends Component
     // selection export
     public array $selectedNiks = [];
     public array $selectedDetailKeys = [];
+    public string $reportMode = 'wi'; // wi | korlap
+
+    // untuk expand/collapse row korlap
+    public array $expandedKorlaps = []; // contoh: ['10000471','10000424']
+
+    // cache list NIK summary per korlap (agar expand cepat)
+    public array $korlapNikSummaries = []; // ['10000471' => [..rows..], ...]
 
     /**
      * Ambil scope dari middleware (data.scope)
@@ -62,6 +69,105 @@ class WiDailyReport extends Component
         ))));
 
         return [$all, $dev, $arbpl, $niks];
+    }
+
+
+    public function setReportMode(string $mode): void
+    {
+        $mode = $mode === 'korlap' ? 'korlap' : 'wi';
+        $this->reportMode = $mode;
+
+        session(['wi_daily.report_mode' => $this->reportMode]);
+
+        // reset state biar tidak nyangkut dari mode lain
+        $this->selectedNiks = [];
+        $this->selectedDetailKeys = [];
+
+        $this->expandedKorlaps = [];
+        $this->korlapNikSummaries = [];
+
+        $this->closeDetailModal();
+    }
+
+    protected function buildDetailJoinedForCurrentFilters(bool $withSearch = true): array
+    {
+        [$start, $end] = $this->getDateRangeForFilter();
+
+        $begdaStart = $start->format('Ymd');
+        $begdaEnd   = $end->format('Ymd');
+
+        $qmAgg = $this->qmAggSub($begdaStart, $begdaEnd);
+        $wiAgg = $this->wiAggSub($start, $end);
+
+        $detailJoined = $this->detailJoinedQuery($qmAgg, $wiAgg);
+
+        if ($withSearch) {
+            $this->applyLiveSearchToJoined($detailJoined);
+        }
+
+        return [$detailJoined, $start, $end];
+    }
+
+    public function toggleKorlap(string $korlapNik): void
+    {
+        $korlapNik = trim((string)$korlapNik);
+        if ($korlapNik === '') return;
+
+        // kalau sudah expand -> collapse
+        if (in_array($korlapNik, $this->expandedKorlaps, true)) {
+            $this->expandedKorlaps = array_values(array_diff($this->expandedKorlaps, [$korlapNik]));
+            return;
+        }
+
+        // expand
+        $this->expandedKorlaps[] = $korlapNik;
+
+        // lazy load daftar NIK di bawah korlap (sekali saja)
+        if (!array_key_exists($korlapNik, $this->korlapNikSummaries)) {
+            $this->korlapNikSummaries[$korlapNik] = $this->queryKorlapNikSummaries($korlapNik);
+        }
+    }
+
+    protected function queryKorlapNikSummaries(string $korlapNik): array
+    {
+        [$detailJoined] = $this->buildDetailJoinedForCurrentFilters(true);
+
+        // Ambil summary per NIK, tapi hanya baris yang WC-nya termasuk wc_korlap milik korlap ini
+        $rows = DB::query()
+            ->fromSub($detailJoined, 'd')
+            ->join('nik_korlap as nk', function ($join) {
+                $join->whereRaw("JSON_CONTAINS(nk.wc_korlap, JSON_QUOTE(d.wc))");
+            })
+            ->where('nk.nik', $korlapNik)
+            ->whereRaw('TRIM(nk.plant) = ?', [trim($this->plant)]) // ✅ penting
+            ->selectRaw("
+                d.nik as nik,
+                MAX(d.nama) as nama,
+                CASE WHEN COUNT(DISTINCT d.wc)=1 THEN MAX(d.wc) ELSE 'MULTI' END as wc,
+                CASE WHEN COUNT(DISTINCT d.devisi)=1 THEN MAX(d.devisi) ELSE 'MULTI' END as devisi,
+                MIN(d.tanggal) as min_tanggal,
+                MAX(d.tanggal) as max_tanggal,
+                COALESCE(SUM(d.time_wi),0) as time_wi_sum,
+                COALESCE(SUM(d.time_qm),0) as time_qm_sum,
+                CASE
+                    WHEN COALESCE(SUM(d.time_wi),0)=0 THEN 0
+                    ELSE (COALESCE(SUM(d.time_qm),0)/COALESCE(SUM(d.time_wi),0))*100
+                END as kpi_pct
+            ")
+            ->groupBy('d.nik')
+            ->orderByRaw("CAST(d.nik AS UNSIGNED) ASC")
+            ->get();
+        return $rows->map(fn($r) => [
+            'nik'         => (string) $r->nik,
+            'nama'        => (string) $r->nama,
+            'wc'          => (string) $r->wc,
+            'devisi'      => (string) $r->devisi,
+            'min_tanggal' => (string) $r->min_tanggal,
+            'max_tanggal' => (string) $r->max_tanggal,
+            'time_wi_sum' => (float) $r->time_wi_sum,
+            'time_qm_sum' => (float) $r->time_qm_sum,
+            'kpi_pct'     => (float) $r->kpi_pct,
+        ])->all();
     }
 
     /**
@@ -108,7 +214,11 @@ class WiDailyReport extends Component
         if ($m === 'none') $m = 'without';
 
         $this->wiMode = in_array($m, ['all','with','without'], true) ? $m : 'all';
-        }
+
+        $rm = (string) session('wi_daily.report_mode', 'wi');
+        $this->reportMode = in_array($rm, ['wi','korlap'], true) ? $rm : 'wi';
+
+    }
 
     public function setMonthFilter(string $mode): void
     {
@@ -591,23 +701,85 @@ class WiDailyReport extends Component
 
     public function render()
     {
-        [$start, $end] = $this->getDateRangeForFilter();
-        $begdaStart = $start->format('Ymd');
-        $begdaEnd   = $end->format('Ymd');
+        // ✅ base TANPA search dulu
+        [$detailJoinedBase, $start, $end] = $this->buildDetailJoinedForCurrentFilters(false);
 
-        // QM driver + WI optional
-        $qmAgg = $this->qmAggSub($begdaStart, $begdaEnd);
-        $wiAgg = $this->wiAggSub($start, $end);
+        // ✅ untuk missing NIK (NO SEARCH)
+        $detailJoinedNoSearch = clone $detailJoinedBase;
 
-        $detailJoined = $this->detailJoinedQuery($qmAgg, $wiAgg);
-        $detailJoinedNoSearch = clone $detailJoined;
-
-        // live search nempel ke joined query
+        // ✅ yang dipakai tampil: baru apply search SEKALI
+        $detailJoined = $detailJoinedBase;
         $this->applyLiveSearchToJoined($detailJoined);
+
+
+        // =========================================
+        // ✅ 4) JIKA MODE = KORLAP, RETURN DI SINI
+        // =========================================
+        if (($this->reportMode ?? 'wi') === 'korlap') {
+
+            // agregasi per KORLAP (SUM dari semua NIK pada WC yang ada di wc_korlap)
+            $korlapQuery = DB::query()
+                ->from('nik_korlap as nk')
+                ->whereRaw('TRIM(nk.plant) = ?', [trim($this->plant)]) // ✅ FILTER PLANT DI SINI
+                ->leftJoinSub($detailJoined, 'd', function ($join) {
+                    $join->on(DB::raw('1'), '=', DB::raw('1'))
+                        ->whereRaw("JSON_CONTAINS(nk.wc_korlap, JSON_QUOTE(d.wc))");
+                })
+                ->selectRaw("
+                    nk.nik as korlap_nik,
+                    nk.nama as korlap_nama,
+                    MAX(nk.wc_korlap) as wc_korlap,
+                    COUNT(DISTINCT d.nik) as nik_count,
+                    COALESCE(SUM(d.time_wi),0) as time_wi_sum,
+                    COALESCE(SUM(d.time_qm),0) as time_qm_sum,
+                    CASE
+                        WHEN COALESCE(SUM(d.time_wi),0)=0 THEN 0
+                        ELSE (COALESCE(SUM(d.time_qm),0)/COALESCE(SUM(d.time_wi),0))*100
+                    END as kpi_pct
+                ")
+                ->groupBy('nk.nik', 'nk.nama');
+            // ✅ filter wiMode juga berlaku untuk korlap
+            if ($this->wiMode === 'with') {
+                $korlapQuery->havingRaw("COALESCE(SUM(d.time_wi),0) > 0");
+            } elseif ($this->wiMode === 'without') {
+                $korlapQuery->havingRaw("COALESCE(SUM(d.time_wi),0) = 0");
+            }
+
+            $korlapData = $korlapQuery
+                ->orderBy('nk.nama')
+                ->get()
+                ->map(fn($r) => [
+                    'korlap_nik'  => (string)$r->korlap_nik,
+                    'korlap_nama' => (string)$r->korlap_nama,
+                    'wc_korlap'   => (json_decode($r->wc_korlap ?? '[]', true) ?: []),
+                    'nik_count'   => (int)$r->nik_count,
+                    'time_wi_sum' => (float)$r->time_wi_sum,
+                    'time_qm_sum' => (float)$r->time_qm_sum,
+                    'kpi_pct'     => (float)$r->kpi_pct,
+                ])
+                ->all();
+
+            return view('livewire.wi-daily-report', [
+                'korlapData' => $korlapData,
+                'rangeStart' => $start->toDateString(),
+                'rangeEnd'   => $end->toDateString(),
+
+                // supaya blade aman walau tidak dipakai
+                'reportData' => collect([]),
+                'missingNiks' => [],
+                'overallWi' => 0,
+                'overallQm' => 0,
+                'overallKpi' => 0,
+                'overallDevisi' => '-',
+            ]);
+        }
+
+        // =========================================
+        // ✅ 5) MODE WI (kode kamu yang lama) LANJUT
+        // =========================================
 
         // =======================
         // DETEKSI NIK TIDAK ADA
-        // (cek dari QM driver)
         // =======================
         $searchedNiks = $this->extractNikTokens($this->q);
         $missingNiks = [];
@@ -694,6 +866,9 @@ class WiDailyReport extends Component
 
             'overallDevisi' => $overallDevisi,
             'missingNiks' => $missingNiks,
+
+            // korlapData tidak dipakai di mode wi (biar blade aman kalau dicek)
+            'korlapData' => [],
         ]);
     }
 }

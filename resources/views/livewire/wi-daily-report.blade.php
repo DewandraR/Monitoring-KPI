@@ -39,7 +39,7 @@
      * HITUNG BADGE EXPORT DETAIL (JUMLAH "BARIS" YANG AKAN DIPRINT)
      * - Summary NIK: dihitung full range min..max (inklusif)
      * - Detail modal: dihitung per tanggal unik (nik|tanggal)
-     *   tapi tidak dobel jika nik sudah ikut summary
+     * tapi tidak dobel jika nik sudah ikut summary
      * =========================================================
      */
     $detailSelectedCount = 0;
@@ -99,6 +99,8 @@
     } catch (\Throwable $e) {
         $detailSelectedCount = 0;
     }
+    $isKorlapMode = (($reportMode ?? 'wi') === 'korlap');
+    $isWiMode = !$isKorlapMode;
 @endphp
 
 {{-- ROOT ELEMENT --}}
@@ -136,7 +138,29 @@
                     <span class="font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-lg shadow-sm">
                         {{ $rangeStart ?? '-' }} s.d. {{ $rangeEnd ?? '-' }}
                     </span>
-                    <span class="text-xs text-gray-400 italic">(Ringkasan per NIK)</span>
+
+                    {{-- ✅ TOGGLE REPORT MODE (WI / KORLAP) --}}
+                    <div class="inline-flex items-center rounded-xl bg-white/70 p-1 ring-1 ring-emerald-200 shadow-sm ml-2">
+                        <button type="button"
+                                wire:click="setReportMode('wi')"
+                                class="px-3 py-1.5 rounded-lg text-xs font-black tracking-wide transition-all
+                                    {{ $isWiMode ? 'bg-emerald-600 text-white shadow' : 'text-slate-600 hover:text-emerald-700' }}">
+                            Per NIK
+                        </button>
+
+                        <button type="button"
+                                wire:click="setReportMode('korlap')"
+                                class="px-3 py-1.5 rounded-lg text-xs font-black tracking-wide transition-all
+                                    {{-- UBAH WARNA AKTIF JADI HIJAU TUA MEWAH AGAR SENADA --}}
+                                    {{ $isKorlapMode ? 'bg-emerald-900 text-white shadow' : 'text-slate-600 hover:text-emerald-800' }}">
+                            Per Korlap
+                        </button>
+                    </div>
+
+                    <span class="text-xs text-gray-400 italic">
+                        {{ $isKorlapMode ? '(Ringkasan per Korlap)' : '(Ringkasan per NIK)' }}
+                    </span>
+
                 </div>
 
                 {{-- TOTAL (Tampil) DIHAPUS SESUAI PERMINTAAN --}}
@@ -159,8 +183,8 @@
                     <button type="button" wire:click="setMonthFilter('this')"
                             class="relative z-10 px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 ease-out flex items-center gap-2
                                    {{ ($monthFilter ?? 'this') === 'this'
-                                        ? 'text-emerald-700 scale-105'
-                                        : 'text-emerald-600/60 hover:text-emerald-700 hover:scale-105' }}">
+                                      ? 'text-emerald-700 scale-105'
+                                      : 'text-emerald-600/60 hover:text-emerald-700 hover:scale-105' }}">
                         <svg class="w-4 h-4 transition-all duration-300 {{ ($monthFilter ?? 'this') === 'this' ? 'rotate-0 scale-110' : 'rotate-12 scale-90 opacity-70' }}"
                              fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
@@ -179,8 +203,8 @@
                     <button type="button" wire:click="setMonthFilter('prev')"
                             class="relative z-10 px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 ease-out flex items-center gap-2
                                    {{ ($monthFilter ?? 'this') === 'prev'
-                                        ? 'text-teal-700 scale-105'
-                                        : 'text-teal-600/60 hover:text-teal-700 hover:scale-105' }}">
+                                      ? 'text-teal-700 scale-105'
+                                      : 'text-teal-600/60 hover:text-teal-700 hover:scale-105' }}">
                         <svg class="w-4 h-4 transition-all duration-300 {{ ($monthFilter ?? 'this') === 'prev' ? 'rotate-0 scale-110' : '-rotate-12 scale-90 opacity-70' }}"
                              fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
@@ -202,12 +226,12 @@
         </div>
 
         {{-- BARIS 2: BUTTONS --}}
-        {{-- Refresh View DIHAPUS, jadi 3 kolom --}}
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        @if($isWiMode)
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
 
-            {{-- (1) COPY NIK (TOAST) --}}
-            <button id="wi-btn-copy-nik" type="button"
-                    class="group relative overflow-hidden rounded-xl
+                {{-- (1) COPY NIK (TOAST) --}}
+                <button id="wi-btn-copy-nik" type="button"
+                        class="group relative overflow-hidden rounded-xl
                            bg-gradient-to-br from-teal-600 via-emerald-600 to-emerald-700
                            px-5 py-4 text-sm font-bold text-white
                            shadow-lg shadow-teal-600/30 ring-1 ring-teal-500/20
@@ -217,247 +241,246 @@
                            focus:outline-none focus:ring-2 focus:ring-teal-400 focus:ring-offset-2
                            flex items-center justify-center gap-2.5">
 
-                <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
-                    <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
-                </div>
-
-                <svg xmlns="http://www.w3.org/2000/svg"
-                     class="h-5 w-5 relative z-10 transition-all duration-300 group-hover:scale-110"
-                     fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                    <path stroke-linecap="round" stroke-linejoin="round"
-                          d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-                </svg>
-
-                <span class="relative z-10 whitespace-nowrap">Copy NIK</span>
-
-                @if ($selectedCount > 0)
-                    <span class="flex h-6 min-w-[24px] items-center justify-center rounded-lg
-                                 bg-white/95 text-teal-700 text-[11px] font-black
-                                 shadow-md ring-2 ring-white/50 relative z-10 px-1.5
-                                 transition-transform duration-300 group-hover:scale-110">
-                        {{ $selectedCount }}
-                    </span>
-                @endif
-            </button>
-
-            {{-- (2) EXPORT REPORT (SUMMARY) --}}
-            <div class="relative inline-block w-full">
-
-                <button id="wi-export-dropdown-button" type="button"
-                        class="group relative overflow-hidden rounded-xl w-full
-                            bg-gradient-to-br from-emerald-700 via-emerald-800 to-teal-900
-                            px-5 py-4 text-sm font-bold text-white
-                            shadow-lg shadow-emerald-700/30 ring-1 ring-emerald-600/20
-                            transition-all duration-300 ease-out
-                            hover:shadow-2xl hover:shadow-emerald-700/50 hover:-translate-y-1
-                            hover:ring-emerald-500/40
-                            focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2
-                            flex items-center justify-center gap-2.5">
-
                     <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
-                        <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+                        <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
                     </div>
 
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 relative z-10" fill="none"
-                        viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <svg xmlns="http://www.w3.org/2000/svg"
+                         class="h-5 w-5 relative z-10 transition-all duration-300 group-hover:scale-110"
+                         fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                         <path stroke-linecap="round" stroke-linejoin="round"
-                            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                              d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
                     </svg>
 
-                    <span class="relative z-10 whitespace-nowrap">Export Report</span>
+                    <span class="relative z-10 whitespace-nowrap">Copy NIK</span>
 
-                    {{-- COUNT DI SEBELAH TULISAN (tampil hanya jika > 0) --}}
                     @if ($selectedCount > 0)
                         <span class="flex h-6 min-w-[24px] items-center justify-center rounded-lg
-                                    bg-white/95 text-emerald-800 text-[11px] font-black
-                                    shadow-md ring-2 ring-white/50 relative z-10 px-1.5">
+                                   bg-white/95 text-teal-700 text-[11px] font-black
+                                   shadow-md ring-2 ring-white/50 relative z-10 px-1.5
+                                   transition-transform duration-300 group-hover:scale-110">
                             {{ $selectedCount }}
                         </span>
                     @endif
-
-                    <svg xmlns="http://www.w3.org/2000/svg"
-                        class="h-4 w-4 relative z-10 transition-transform duration-300 group-hover:rotate-180"
-                        fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
-                    </svg>
                 </button>
 
-                <div id="wi-export-dropdown-menu"
-                    class="hidden absolute right-0 left-0 sm:left-auto sm:right-0 mt-2 sm:w-56 w-full origin-top
-                            rounded-xl bg-white shadow-2xl ring-1 ring-emerald-900/10
-                            focus:outline-none z-50 overflow-hidden
-                            border border-emerald-100 animate-scale-in">
+                {{-- (2) EXPORT REPORT (SUMMARY) --}}
+                <div class="relative inline-block w-full">
 
-                    <div class="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest
-                                text-emerald-700 bg-gradient-to-r from-emerald-50 to-teal-50
-                                border-b border-emerald-100 flex items-center justify-between gap-2">
-                        <span>📊 Summary Report</span>
+                    <button id="wi-export-dropdown-button" type="button"
+                            class="group relative overflow-hidden rounded-xl w-full
+                               bg-gradient-to-br from-emerald-700 via-emerald-800 to-teal-900
+                               px-5 py-4 text-sm font-bold text-white
+                               shadow-lg shadow-emerald-700/30 ring-1 ring-emerald-600/20
+                               transition-all duration-300 ease-out
+                               hover:shadow-2xl hover:shadow-emerald-700/50 hover:-translate-y-1
+                               hover:ring-emerald-500/40
+                               focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2
+                               flex items-center justify-center gap-2.5">
 
+                        <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                            <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+                        </div>
+
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 relative z-10" fill="none"
+                             viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                        </svg>
+
+                        <span class="relative z-10 whitespace-nowrap">Export Report</span>
+
+                        {{-- COUNT DI SEBELAH TULISAN (tampil hanya jika > 0) --}}
                         @if ($selectedCount > 0)
-                            <span class="inline-flex items-center rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[10px] font-black">
-                                {{ $selectedCount }} NIK
+                            <span class="flex h-6 min-w-[24px] items-center justify-center rounded-lg
+                                            bg-white/95 text-emerald-800 text-[11px] font-black
+                                            shadow-md ring-2 ring-white/50 relative z-10 px-1.5">
+                                {{ $selectedCount }}
                             </span>
                         @endif
-                    </div>
 
-                    <div class="p-2 space-y-1">
+                        <svg xmlns="http://www.w3.org/2000/svg"
+                             class="h-4 w-4 relative z-10 transition-transform duration-300 group-hover:rotate-180"
+                             fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+                        </svg>
+                    </button>
 
-                        {{-- PDF --}}
-                        <button type="button" wire:click="export('pdf')"
-                                class="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5
-                                    text-sm font-semibold text-gray-700
-                                    transition-all hover:bg-red-50 hover:text-red-700 group/item">
+                    <div id="wi-export-dropdown-menu"
+                         class="hidden absolute right-0 left-0 sm:left-auto sm:right-0 mt-2 sm:w-56 w-full origin-top
+                               rounded-xl bg-white shadow-2xl ring-1 ring-emerald-900/10
+                               focus:outline-none z-50 overflow-hidden
+                               border border-emerald-100 animate-scale-in">
 
-                            <span class="flex items-center gap-3">
-                                <span class="flex h-8 w-8 items-center justify-center rounded-lg
-                                            bg-gradient-to-br from-red-100 to-red-200 text-red-600
-                                            shadow-sm group-hover/item:shadow-md group-hover/item:scale-110 transition-all">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
-                                        viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                        <path stroke-linecap="round" stroke-linejoin="round"
-                                            d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
-                                    </svg>
+                        <div class="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest
+                                   text-emerald-700 bg-gradient-to-r from-emerald-50 to-teal-50
+                                   border-b border-emerald-100 flex items-center justify-between gap-2">
+                            <span>📊 Summary Report</span>
+
+                            @if ($selectedCount > 0)
+                                <span class="inline-flex items-center rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[10px] font-black">
+                                    {{ $selectedCount }} NIK
                                 </span>
+                            @endif
+                        </div>
 
-                                <span>Download PDF</span>
-                            </span>
-                        </button>
+                        <div class="p-2 space-y-1">
 
-                        {{-- EXCEL --}}
-                        <button type="button" wire:click="export('xlsx')"
-                                class="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5
-                                    text-sm font-semibold text-gray-700
-                                    transition-all hover:bg-emerald-50 hover:text-emerald-700 group/item">
+                            {{-- PDF --}}
+                            <button type="button" wire:click="export('pdf')"
+                                    class="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5
+                                       text-sm font-semibold text-gray-700
+                                       transition-all hover:bg-red-50 hover:text-red-700 group/item">
 
-                            <span class="flex items-center gap-3">
-                                <span class="flex h-8 w-8 items-center justify-center rounded-lg
-                                            bg-gradient-to-br from-emerald-100 to-emerald-200 text-emerald-700
-                                            shadow-sm group-hover/item:shadow-md group-hover/item:scale-110 transition-all">
-                                    {{-- icon "sheet" --}}
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
-                                        viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                        <path stroke-linecap="round" stroke-linejoin="round"
-                                            d="M9 17v-2m3 2v-4m3 4v-6M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
-                                    </svg>
+                                <span class="flex items-center gap-3">
+                                    <span class="flex h-8 w-8 items-center justify-center rounded-lg
+                                                 bg-gradient-to-br from-red-100 to-red-200 text-red-600
+                                                 shadow-sm group-hover/item:shadow-md group-hover/item:scale-110 transition-all">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
+                                             viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                  d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                                        </svg>
+                                    </span>
+
+                                    <span>Download PDF</span>
                                 </span>
+                            </button>
 
-                                <span>Download Excel</span>
-                            </span>
-                        </button>
+                            {{-- EXCEL --}}
+                            <button type="button" wire:click="export('xlsx')"
+                                    class="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5
+                                       text-sm font-semibold text-gray-700
+                                       transition-all hover:bg-emerald-50 hover:text-emerald-700 group/item">
 
+                                <span class="flex items-center gap-3">
+                                    <span class="flex h-8 w-8 items-center justify-center rounded-lg
+                                                 bg-gradient-to-br from-emerald-100 to-emerald-200 text-emerald-700
+                                                 shadow-sm group-hover/item:shadow-md group-hover/item:scale-110 transition-all">
+                                        {{-- icon "sheet" --}}
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
+                                             viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                  d="M9 17v-2m3 2v-4m3 4v-6M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                                        </svg>
+                                    </span>
+
+                                    <span>Download Excel</span>
+                                </span>
+                            </button>
+
+                        </div>
                     </div>
                 </div>
-            </div>
 
 
-            {{-- (3) EXPORT DETAIL --}}
-            <div class="relative inline-block w-full">
+                {{-- (3) EXPORT DETAIL --}}
+                <div class="relative inline-block w-full">
 
-                <button id="wi-export-detail-dropdown-button" type="button"
-                        class="group relative overflow-hidden rounded-xl w-full
-                            bg-gradient-to-br from-slate-700 via-slate-800 to-gray-900
-                            px-5 py-4 text-sm font-bold text-white
-                            shadow-lg shadow-slate-700/30 ring-1 ring-slate-600/20
-                            transition-all duration-300 ease-out
-                            hover:shadow-2xl hover:shadow-slate-700/50 hover:-translate-y-1
-                            hover:ring-slate-500/40
-                            focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2
-                            flex items-center justify-center gap-2.5">
+                    <button id="wi-export-detail-dropdown-button" type="button"
+                            class="group relative overflow-hidden rounded-xl w-full
+                               bg-gradient-to-br from-slate-700 via-slate-800 to-gray-900
+                               px-5 py-4 text-sm font-bold text-white
+                               shadow-lg shadow-slate-700/30 ring-1 ring-slate-600/20
+                               transition-all duration-300 ease-out
+                               hover:shadow-2xl hover:shadow-slate-700/50 hover:-translate-y-1
+                               hover:ring-slate-500/40
+                               focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2
+                               flex items-center justify-center gap-2.5">
 
-                    <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
-                        <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
-                    </div>
+                        <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                            <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+                        </div>
 
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 relative z-10" fill="none"
-                        viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                        <path stroke-linecap="round" stroke-linejoin="round"
-                            d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                    </svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 relative z-10" fill="none"
+                             viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                  d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                        </svg>
 
-                    <span class="relative z-10 whitespace-nowrap">Export Detail</span>
+                        <span class="relative z-10 whitespace-nowrap">Export Detail</span>
 
-                    {{-- COUNT DI SEBELAH TULISAN (tampil hanya jika > 0) --}}
-                    @if ((int)$detailSelectedCount > 0)
-                        <span class="flex h-6 min-w-[24px] items-center justify-center rounded-lg
-                                    bg-white/95 text-slate-800 text-[11px] font-black
-                                    shadow-md ring-2 ring-white/50 relative z-10 px-1.5">
-                            {{ (int)$detailSelectedCount }}
-                        </span>
-                    @endif
-
-                    <svg xmlns="http://www.w3.org/2000/svg"
-                        class="h-3.5 w-3.5 relative z-10 transition-transform duration-300 group-hover:rotate-180"
-                        fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
-                    </svg>
-                </button>
-
-                <div id="wi-export-detail-dropdown-menu"
-                    class="hidden absolute right-0 left-0 sm:left-auto sm:right-0 mt-2 sm:w-56 w-full origin-top
-                            rounded-xl bg-white shadow-xl ring-1 ring-black/5
-                            focus:outline-none z-50 overflow-hidden
-                            border border-gray-100 animate-scale-in">
-
-                    <div class="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest
-                                text-gray-600 bg-gray-50 border-b border-gray-100 flex items-center justify-between gap-2">
-                        <span>📅 Detail Report</span>
-
+                        {{-- COUNT DI SEBELAH TULISAN (tampil hanya jika > 0) --}}
                         @if ((int)$detailSelectedCount > 0)
-                            <span class="inline-flex items-center rounded-full bg-slate-200 text-slate-800 px-2 py-0.5 text-[10px] font-black">
-                                {{ (int)$detailSelectedCount }} data
+                            <span class="flex h-6 min-w-[24px] items-center justify-center rounded-lg
+                                            bg-white/95 text-slate-800 text-[11px] font-black
+                                            shadow-md ring-2 ring-white/50 relative z-10 px-1.5">
+                                {{ (int)$detailSelectedCount }}
                             </span>
                         @endif
-                    </div>
-                    <div class="p-2 space-y-1">
 
-                        {{-- PDF --}}
-                        <button type="button" wire:click="exportDetail('pdf')"
-                                class="flex w-full items-center justify-between gap-2.5 rounded-lg px-3 py-2.5
-                                    text-sm font-semibold text-gray-700
-                                    transition-colors hover:bg-red-50 hover:text-red-700 group/item">
+                        <svg xmlns="http://www.w3.org/2000/svg"
+                             class="h-3.5 w-3.5 relative z-10 transition-transform duration-300 group-hover:rotate-180"
+                             fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+                        </svg>
+                    </button>
 
-                            <span class="flex items-center gap-3">
-                                <span class="flex h-8 w-8 items-center justify-center rounded-lg
-                                            bg-red-100 text-red-600
-                                            group-hover/item:bg-red-200 transition-colors">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
-                                        viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                        <path stroke-linecap="round" stroke-linejoin="round"
-                                            d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
-                                    </svg>
+                    <div id="wi-export-detail-dropdown-menu"
+                         class="hidden absolute right-0 left-0 sm:left-auto sm:right-0 mt-2 sm:w-56 w-full origin-top
+                               rounded-xl bg-white shadow-xl ring-1 ring-black/5
+                               focus:outline-none z-50 overflow-hidden
+                               border border-gray-100 animate-scale-in">
+
+                        <div class="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest
+                                   text-gray-600 bg-gray-50 border-b border-gray-100 flex items-center justify-between gap-2">
+                            <span>📅 Detail Report</span>
+
+                            @if ((int)$detailSelectedCount > 0)
+                                <span class="inline-flex items-center rounded-full bg-slate-200 text-slate-800 px-2 py-0.5 text-[10px] font-black">
+                                    {{ (int)$detailSelectedCount }} data
                                 </span>
+                            @endif
+                        </div>
+                        <div class="p-2 space-y-1">
 
-                                <span>Download PDF</span>
-                            </span>
-                        </button>
+                            {{-- PDF --}}
+                            <button type="button" wire:click="exportDetail('pdf')"
+                                    class="flex w-full items-center justify-between gap-2.5 rounded-lg px-3 py-2.5
+                                       text-sm font-semibold text-gray-700
+                                       transition-colors hover:bg-red-50 hover:text-red-700 group/item">
 
-                        {{-- EXCEL --}}
-                        <button type="button" wire:click="exportDetail('xlsx')"
-                                class="flex w-full items-center justify-between gap-2.5 rounded-lg px-3 py-2.5
-                                    text-sm font-semibold text-gray-700
-                                    transition-colors hover:bg-emerald-50 hover:text-emerald-700 group/item">
+                                <span class="flex items-center gap-3">
+                                    <span class="flex h-8 w-8 items-center justify-center rounded-lg
+                                                 bg-red-100 text-red-600
+                                                 group-hover/item:bg-red-200 transition-colors">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
+                                             viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                  d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                                        </svg>
+                                    </span>
 
-                            <span class="flex items-center gap-3">
-                                <span class="flex h-8 w-8 items-center justify-center rounded-lg
-                                            bg-emerald-100 text-emerald-700
-                                            group-hover/item:bg-emerald-200 transition-colors">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
-                                        viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                        <path stroke-linecap="round" stroke-linejoin="round"
-                                            d="M9 17v-2m3 2v-4m3 4v-6M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
-                                    </svg>
+                                    <span>Download PDF</span>
                                 </span>
+                            </button>
 
-                                <span>Download Excel</span>
-                            </span>
-                        </button>
+                            {{-- EXCEL --}}
+                            <button type="button" wire:click="exportDetail('xlsx')"
+                                    class="flex w-full items-center justify-between gap-2.5 rounded-lg px-3 py-2.5
+                                       text-sm font-semibold text-gray-700
+                                       transition-colors hover:bg-emerald-50 hover:text-emerald-700 group/item">
 
+                                <span class="flex items-center gap-3">
+                                    <span class="flex h-8 w-8 items-center justify-center rounded-lg
+                                                 bg-emerald-100 text-emerald-700
+                                                 group-hover/item:bg-emerald-200 transition-colors">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
+                                             viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                  d="M9 17v-2m3 2v-4m3 4v-6M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                                        </svg>
+                                    </span>
+
+                                    <span>Download Excel</span>
+                                </span>
+                            </button>
+
+                        </div>
                     </div>
                 </div>
             </div>
-
-
-        </div>
+        @endif
     </div>
 
     {{-- ========================================================= --}}
@@ -469,7 +492,7 @@
             <p class="text-lg font-bold text-emerald-800 flex items-center gap-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                 </svg>
                 {{ __('Filter Data Berdasarkan Kriteria:') }}
             </p>
@@ -484,7 +507,7 @@
 
                 @php
                     // Pastikan ada default value jika wiMode null
-                    $currentMode = $wiMode ?? 'all'; 
+                    $currentMode = $wiMode ?? 'all';
                     
                     // Definisi opsi agar kode lebih rapi & logic warnanya konsisten
                     $options = [
@@ -564,153 +587,343 @@
     </div>
 
     {{-- ========================================================= --}}
-    {{-- BAGIAN 3: TABEL SUMMARY --}}
+    {{-- BAGIAN 3: TABEL SUMMARY (WI MODE / KORLAP MODE) --}}
     {{-- ========================================================= --}}
-    <div wire:key="wi-summary-{{ md5(($plant ?? ($werks ?? request()->route('werks'))) . '|' . ($q ?? '') . '|' . ($monthFilter ?? 'this') . '|' . ($wiMode ?? 'all')) }}">
-        <div class="overflow-y-auto max-h-[75vh] shadow-xl sm:rounded-xl border border-gray-200/75">
-            <table id="wi-summary-table" class="min-w-full divide-y divide-gray-200">
 
-                <thead class="sticky top-0 z-20 bg-gradient-to-r from-emerald-800 to-teal-900 text-white shadow-md">
-                    <tr>
-                        @php
-                            $pageNiks = collect($reportData ?? [])->pluck('nik')->map(fn($v) => (string)$v)->all();
-                            $selectedN = $selectedNiksArr->all();
-                            $allCurrentSelected = !empty($pageNiks) && count(array_intersect($pageNiks, $selectedN)) === count($pageNiks);
-                        @endphp
+    <div wire:key="wi-summary-{{ md5(($plant ?? ($werks ?? request()->route('werks'))) . '|' . ($q ?? '') . '|' . ($monthFilter ?? 'this') . '|' . ($wiMode ?? 'all') . '|' . ($reportMode ?? 'wi')) }}">
 
-                        {{-- CHECKBOX ALL (SUMMARY) --}}
-                        <th scope="col"
-                            class="sticky left-0 z-30 px-6 py-4 text-center text-sm font-bold uppercase tracking-wider w-10 bg-emerald-800">
-                            <label class="inline-flex items-center justify-center gap-2 select-none cursor-pointer group">
-                                <input id="wi-check-all-summary" type="checkbox"
-                                       class="rounded border-gray-300 text-emerald-500 focus:ring-emerald-500 transition-colors cursor-pointer bg-white/90 h-4 w-4"
-                                       @checked($allCurrentSelected)>
-                            </label>
-                        </th>
+        {{-- ======================= --}}
+        {{-- ✅ MODE WI (TABEL NIK) --}}
+        {{-- ======================= --}}
+        @if($isWiMode)
 
-                        @foreach ($headersSummary as $header)
-                            <th scope="col" class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap">
-                                {{ __($header) }}
-                            </th>
-                        @endforeach
-                    </tr>
-                </thead>
+            <div class="overflow-y-auto max-h-[75vh] shadow-xl sm:rounded-xl border border-gray-200/75">
+                <table id="wi-summary-table" class="min-w-full divide-y divide-gray-200">
 
-                <tbody class="bg-white divide-y divide-gray-200">
-                    @forelse($reportData as $row)
-                        @php
-                            $minDate = !empty($row->min_tanggal) ? Carbon::parse($row->min_tanggal) : null;
-                            $maxDate = !empty($row->max_tanggal) ? Carbon::parse($row->max_tanggal) : null;
-
-                            $wiSum = (float)($row->time_wi_sum ?? 0);
-                            $qmSum = (float)($row->time_qm_sum ?? 0);
-                            $kpi   = isset($row->kpi_pct)
-                                ? (float)$row->kpi_pct
-                                : ($wiSum == 0 ? 0 : (($qmSum / $wiSum) * 100));
-                        @endphp
-
-                        <tr wire:key="wi-row-{{ (string)$row->nik }}"
-                            wire:click="showNikDetail({{ \Illuminate\Support\Js::from((string)$row->nik) }})"
-                            class="group/row transition-all duration-200 ease-in-out hover:bg-emerald-50 cursor-pointer odd:bg-white even:bg-slate-50/50">
-
-                            {{-- CHECKBOX (SUMMARY) STICKY LEFT --}}
-                            <td class="sticky left-0 z-10 px-6 py-4 bg-white group-even/row:bg-slate-50/50 group-hover/row:bg-emerald-50">
-                                <input type="checkbox"
-                                       wire:model.live="selectedNiks"
-                                       value="{{ (string)$row->nik }}"
-                                       class="wi-summary-check rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer h-5 w-5"
-                                       wire:click.stop>
-                            </td>
-
-                            {{-- NO --}}
-                            <td class="px-6 py-4 text-center font-extrabold text-emerald-800/80">
-                                {{ $loop->iteration }}
-                            </td>
-
-                            {{-- NIK --}}
-                            <td class="px-6 py-4 text-center font-mono text-gray-900">
-                                {{ $row->nik }}
-                            </td>
-
-                            {{-- RENTANG TANGGAL --}}
-                            <td class="px-6 py-4 text-gray-600 text-xs">
-                                @if($minDate && $maxDate)
-                                    <div class="flex flex-col items-center font-mono leading-tight">
-                                        <span>{{ $minDate->format('Y') }}</span>
-                                        <span>{{ $minDate->format('m-d') }}</span>
-                                        <span class="text-emerald-500 text-xs my-0.5">↓</span>
-                                        <span>{{ $maxDate->format('Y') }}</span>
-                                        <span>{{ $maxDate->format('m-d') }}</span>
-                                    </div>
-                                @else
-                                    -
-                                @endif
-                            </td>
-
-                            {{-- NAMA --}}
-                            <td class="px-6 py-4 font-semibold text-slate-800 capitalize text-left">
-                                {{ strtolower((string)($row->nama ?? '-')) }}
-                            </td>
-
-                            {{-- WC --}}
-                            <td class="px-6 py-4 text-center text-slate-700 font-medium">
-                                {{ $row->wc ?? '-' }}
-                            </td>
-
-                            {{-- DEVISI --}}
-                            <td class="px-6 py-4 text-left text-slate-700 font-semibold">
-                                {{ $row->devisi ?? '-' }}
-                            </td>
-
-                            {{-- Time WI --}}
-                            <td class="px-6 py-4 text-center text-gray-900 font-semibold tracking-tight">
-                                {{ number_format($wiSum, 2) }}
-                            </td>
-
-                            {{-- Time QM --}}
-                            <td class="px-6 py-4 text-center text-gray-900 font-semibold tracking-tight">
-                                {{ number_format($qmSum, 2) }}
-                            </td>
-
-                            {{-- KPI --}}
-                            <td class="px-6 py-4 text-center">
-                                <span class="inline-flex items-center px-2.5 py-1 rounded text-[11px] font-semibold
-                                    {{ $kpi < 100 ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800' }}">
-                                    {{ number_format($kpi, 0) }}%
-                                </span>
-                            </td>
-                        </tr>
-                    @empty
+                    <thead class="sticky top-0 z-20 bg-gradient-to-r from-emerald-800 to-teal-900 text-white shadow-md">
                         <tr>
-                            <td colspan="{{ count($headersSummary) + 1 }}" class="px-6 py-16 text-center">
-                                <div class="flex flex-col items-center justify-center text-gray-400">
-                                    <svg class="w-16 h-16 mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                              d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                    </svg>
-                                    <span class="text-xl font-medium text-gray-500">{{ __('Tidak ada data untuk filter saat ini.') }}</span>
-                                </div>
-                            </td>
+                            @php
+                                $pageNiks = collect($reportData ?? [])->pluck('nik')->map(fn($v) => (string)$v)->all();
+                                $selectedN = $selectedNiksArr->all();
+                                $allCurrentSelected = !empty($pageNiks) && count(array_intersect($pageNiks, $selectedN)) === count($pageNiks);
+                            @endphp
+
+                            {{-- CHECKBOX ALL (SUMMARY) --}}
+                            <th scope="col"
+                                class="sticky left-0 z-30 px-6 py-4 text-center text-sm font-bold uppercase tracking-wider w-10 bg-emerald-800">
+                                <label class="inline-flex items-center justify-center gap-2 select-none cursor-pointer group">
+                                    <input id="wi-check-all-summary" type="checkbox"
+                                           class="rounded border-gray-300 text-emerald-500 focus:ring-emerald-500 transition-colors cursor-pointer bg-white/90 h-4 w-4"
+                                           @checked($allCurrentSelected)>
+                                </label>
+                            </th>
+
+                            @foreach ($headersSummary as $header)
+                                <th scope="col" class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap">
+                                    {{ __($header) }}
+                                </th>
+                            @endforeach
                         </tr>
-                    @endforelse
-                </tbody>
+                    </thead>
 
-            </table>
-        </div>
-        {{-- ✅ TARUH DI SINI (dibawah tabel) --}}
-        @if(!empty($missingNiks ?? []))
-            <div class="mt-3 px-3 py-2 rounded-lg border border-amber-200 bg-amber-50 text-amber-800 text-[14px]">
-                <div class="flex items-start gap-2">
-                    <span class="font-extrabold whitespace-nowrap">Tidak ditemukan:</span>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        @forelse($reportData as $row)
+                            @php
+                                $minDate = !empty($row->min_tanggal) ? Carbon::parse($row->min_tanggal) : null;
+                                $maxDate = !empty($row->max_tanggal) ? Carbon::parse($row->max_tanggal) : null;
 
-                    {{-- Panjang → geser ke kanan (horizontal scroll), tidak makan tinggi --}}
-                    <div class="font-mono overflow-x-auto whitespace-nowrap w-full">
-                        {{ implode(', ', $missingNiks) }}
+                                $wiSum = (float)($row->time_wi_sum ?? 0);
+                                $qmSum = (float)($row->time_qm_sum ?? 0);
+                                $kpi   = isset($row->kpi_pct)
+                                    ? (float)$row->kpi_pct
+                                    : ($wiSum == 0 ? 0 : (($qmSum / $wiSum) * 100));
+                            @endphp
+
+                            <tr wire:key="wi-row-{{ (string)$row->nik }}"
+                                wire:click="showNikDetail({{ \Illuminate\Support\Js::from((string)$row->nik) }})"
+                                class="group/row transition-all duration-200 ease-in-out hover:bg-emerald-50 cursor-pointer odd:bg-white even:bg-slate-50/50">
+
+                                {{-- CHECKBOX (SUMMARY) STICKY LEFT --}}
+                                <td class="sticky left-0 z-10 px-6 py-4 bg-white group-even/row:bg-slate-50/50 group-hover/row:bg-emerald-50">
+                                    <input type="checkbox"
+                                           wire:model.live="selectedNiks"
+                                           value="{{ (string)$row->nik }}"
+                                           class="wi-summary-check rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer h-5 w-5"
+                                           wire:click.stop>
+                                </td>
+
+                                {{-- NO --}}
+                                <td class="px-6 py-4 text-center font-extrabold text-emerald-800/80">
+                                    {{ $loop->iteration }}
+                                </td>
+
+                                {{-- NIK --}}
+                                <td class="px-6 py-4 text-center font-mono text-gray-900">
+                                    {{ $row->nik }}
+                                </td>
+
+                                {{-- RENTANG TANGGAL --}}
+                                <td class="px-6 py-4 text-gray-600 text-xs">
+                                    @if($minDate && $maxDate)
+                                        <div class="flex flex-col items-center font-mono leading-tight">
+                                            <span>{{ $minDate->format('Y') }}</span>
+                                            <span>{{ $minDate->format('m-d') }}</span>
+                                            <span class="text-emerald-500 text-xs my-0.5">↓</span>
+                                            <span>{{ $maxDate->format('Y') }}</span>
+                                            <span>{{ $maxDate->format('m-d') }}</span>
+                                        </div>
+                                    @else
+                                        -
+                                    @endif
+                                </td>
+
+                                {{-- NAMA --}}
+                                <td class="px-6 py-4 font-semibold text-slate-800 capitalize text-left">
+                                    {{ strtolower((string)($row->nama ?? '-')) }}
+                                </td>
+
+                                {{-- WC --}}
+                                <td class="px-6 py-4 text-center text-slate-700 font-medium">
+                                    {{ $row->wc ?? '-' }}
+                                </td>
+
+                                {{-- DEVISI --}}
+                                <td class="px-6 py-4 text-left text-slate-700 font-semibold">
+                                    {{ $row->devisi ?? '-' }}
+                                </td>
+
+                                {{-- Time WI --}}
+                                <td class="px-6 py-4 text-center text-gray-900 font-semibold tracking-tight">
+                                    {{ number_format($wiSum, 2) }}
+                                </td>
+
+                                {{-- Time QM --}}
+                                <td class="px-6 py-4 text-center text-gray-900 font-semibold tracking-tight">
+                                    {{ number_format($qmSum, 2) }}
+                                </td>
+
+                                {{-- KPI --}}
+                                <td class="px-6 py-4 text-center">
+                                    <span class="inline-flex items-center px-2.5 py-1 rounded text-[11px] font-semibold
+                                        {{ $kpi < 100 ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800' }}">
+                                        {{ number_format($kpi, 0) }}%
+                                    </span>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="{{ count($headersSummary) + 1 }}" class="px-6 py-16 text-center">
+                                    <div class="flex flex-col items-center justify-center text-gray-400">
+                                        <svg class="w-16 h-16 mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                  d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                        </svg>
+                                        <span class="text-xl font-medium text-gray-500">{{ __('Tidak ada data untuk filter saat ini.') }}</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+
+                </table>
+            </div>
+
+            {{-- ✅ Missing NIK (hanya WI mode) --}}
+            @if(!empty($missingNiks ?? []))
+                <div class="mt-3 px-3 py-2 rounded-lg border border-amber-200 bg-amber-50 text-amber-800 text-[14px]">
+                    <div class="flex items-start gap-2">
+                        <span class="font-extrabold whitespace-nowrap">Tidak ditemukan:</span>
+                        <div class="font-mono overflow-x-auto whitespace-nowrap w-full">
+                            {{ implode(', ', $missingNiks) }}
+                        </div>
                     </div>
                 </div>
+            @endif
+
+
+        {{-- =========================== --}}
+        {{-- ✅ MODE KORLAP (TABEL KORLAP) --}}
+        {{-- =========================== --}}
+        @else
+
+            <div class="overflow-y-auto max-h-[75vh] shadow-xl sm:rounded-xl border border-gray-200/75">
+                <table class="min-w-full divide-y divide-gray-200">
+
+                    {{-- HEADER KORLAP DIUBAH MENJADI GRADIENT EMERALD MEWAH --}}
+                    <thead class="sticky top-0 z-20 bg-gradient-to-r from-emerald-900 to-teal-950 text-white shadow-md">
+                        <tr>
+                            <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">No</th>
+                            <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">NIK Korlap</th>
+                            <th class="px-6 py-4 text-left text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">Nama Korlap</th>
+                            <th class="px-6 py-4 text-left text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">WC Korlap</th>
+                            <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">Jumlah NIK</th>
+                            <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">Time WI</th>
+                            <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">Time QM</th>
+                            <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">% KPI</th>
+                        </tr>
+                    </thead>
+
+                    <tbody class="bg-white divide-y divide-gray-200">
+
+                        @forelse(($korlapData ?? []) as $k)
+                            @php
+                                $korlapNik = (string)($k['korlap_nik'] ?? '');
+                                $kpi = (float)($k['kpi_pct'] ?? 0);
+
+                                $wcList = $k['wc_korlap'] ?? [];
+                                if (!is_array($wcList)) $wcList = [];
+
+                                // optional: rapikan dan hilangkan duplikat + urutkan
+                                $wcList = array_values(array_unique(array_map('trim', $wcList)));
+                                sort($wcList);
+
+                                $wcPreview = implode(', ', $wcList);
+
+                                $isExpanded = in_array($korlapNik, ($expandedKorlaps ?? []), true);
+                                $childRows = $korlapNikSummaries[$korlapNik] ?? [];
+                            @endphp
+
+                            {{-- ✅ ROW KORLAP (klik untuk expand) --}}
+                            <tr wire:key="korlap-row-{{ $korlapNik }}"
+                                wire:click="toggleKorlap({{ \Illuminate\Support\Js::from($korlapNik) }})"
+                                class="cursor-pointer group/korlap hover:bg-emerald-50/60 transition-all border-l-4 border-transparent {{ $isExpanded ? 'border-emerald-600 bg-emerald-50/80' : 'hover:border-emerald-300' }}">
+
+                                <td class="px-6 py-4 text-center font-bold text-slate-700">
+                                    <div class="flex items-center justify-center gap-2">
+                                        <div class="w-6 h-6 rounded-full flex items-center justify-center transition-all duration-300 {{ $isExpanded ? 'bg-emerald-200 text-emerald-800 rotate-90' : 'bg-slate-100 text-slate-400 group-hover/korlap:bg-emerald-100 group-hover/korlap:text-emerald-600' }}">
+                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 5l7 7-7 7"/>
+                                            </svg>
+                                        </div>
+                                        <span>{{ $loop->iteration }}</span>
+                                    </div>
+                                </td>
+
+                                <td class="px-6 py-4 text-center font-mono font-semibold text-emerald-900/80">{{ $korlapNik ?: '-' }}</td>
+
+                                <td class="px-6 py-4 text-left font-bold text-emerald-900 capitalize">
+                                    {{ strtolower((string)($k['korlap_nama'] ?? '-')) }}
+                                </td>
+
+                                <td class="px-6 py-4 text-left text-sm font-mono text-slate-600 whitespace-normal break-words">
+                                    {{ $wcPreview ?: '-' }}
+                                </td>
+
+                                <td class="px-6 py-4 text-center font-extrabold text-slate-800">
+                                    <span class="inline-flex items-center justify-center px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs">
+                                        {{ (int)($k['nik_count'] ?? 0) }} Orang
+                                    </span>
+                                </td>
+
+                                <td class="px-6 py-4 text-center font-semibold text-slate-700">
+                                    {{ number_format((float)($k['time_wi_sum'] ?? 0), 2) }}
+                                </td>
+
+                                <td class="px-6 py-4 text-center font-semibold text-slate-700">
+                                    {{ number_format((float)($k['time_qm_sum'] ?? 0), 2) }}
+                                </td>
+
+                                <td class="px-6 py-4 text-center">
+                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold shadow-sm
+                                        {{ $kpi < 100 ? 'bg-red-100 text-red-800 ring-1 ring-red-200' : 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200' }}">
+                                        {{ number_format($kpi, 0) }}%
+                                    </span>
+                                </td>
+                            </tr>
+
+                            {{-- ✅ EXPAND AREA: LIST NIK SUMMARY --}}
+                            @if($isExpanded)
+                                <tr wire:key="korlap-expand-{{ $korlapNik }}">
+                                    <td colspan="8" class="p-0 border-b border-emerald-100/50">
+                                        {{-- Container Gradient Halus --}}
+                                        <div class="px-6 py-6 bg-gradient-to-b from-emerald-50/50 to-white shadow-inner">
+                                            
+                                            <div class="flex items-center justify-between mb-4 px-1">
+                                                <div class="flex items-center gap-2">
+                                                    <div class="w-1 h-8 bg-emerald-500 rounded-full"></div>
+                                                    <div>
+                                                        <div class="text-sm font-extrabold text-emerald-900">
+                                                            Detail Tim Korlap: <span class="uppercase">{{ strtolower((string)($k['korlap_nama'] ?? '-')) }}</span>
+                                                        </div>
+                                                        <div class="text-xs text-emerald-600/70 italic">
+                                                            Klik baris NIK untuk melihat detail harian.
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div class="overflow-hidden rounded-xl border border-emerald-100 shadow-lg shadow-emerald-100/50 bg-white">
+                                                <table class="min-w-full divide-y divide-emerald-50">
+                                                    <thead class="bg-emerald-50/50">
+                                                        <tr>
+                                                            <th class="px-4 py-3 text-center text-xs font-black text-emerald-800/70 uppercase">No</th>
+                                                            <th class="px-4 py-3 text-center text-xs font-black text-emerald-800/70 uppercase">NIK</th>
+                                                            <th class="px-4 py-3 text-left   text-xs font-black text-emerald-800/70 uppercase">Nama</th>
+                                                            <th class="px-4 py-3 text-center text-xs font-black text-emerald-800/70 uppercase">WC</th>
+                                                            <th class="px-4 py-3 text-left   text-xs font-black text-emerald-800/70 uppercase">Devisi</th>
+                                                            <th class="px-4 py-3 text-center text-xs font-black text-emerald-800/70 uppercase">Time WI</th>
+                                                            <th class="px-4 py-3 text-center text-xs font-black text-emerald-800/70 uppercase">Time QM</th>
+                                                            <th class="px-4 py-3 text-center text-xs font-black text-emerald-800/70 uppercase">% KPI</th>
+                                                        </tr>
+                                                    </thead>
+
+                                                    <tbody class="divide-y divide-emerald-50/50">
+                                                        @forelse($childRows as $idx => $r)
+                                                            @php
+                                                                $nikChild = (string)($r['nik'] ?? '');
+                                                                $wiSum2 = (float)($r['time_wi_sum'] ?? 0);
+                                                                $qmSum2 = (float)($r['time_qm_sum'] ?? 0);
+                                                                $kpi2 = (float)($r['kpi_pct'] ?? 0);
+                                                            @endphp
+
+                                                            <tr class="hover:bg-emerald-50 transition-colors cursor-pointer group/child"
+                                                                wire:click.stop="showNikDetail({{ \Illuminate\Support\Js::from($nikChild) }})">
+                                                                <td class="px-4 py-3 text-center text-sm font-bold text-emerald-600/60">{{ $idx + 1 }}</td>
+                                                                <td class="px-4 py-3 text-center text-sm font-mono text-slate-600 font-semibold group-hover/child:text-emerald-700">{{ $nikChild }}</td>
+                                                                <td class="px-4 py-3 text-left text-sm font-semibold text-slate-700 capitalize group-hover/child:text-emerald-900">{{ strtolower((string)($r['nama'] ?? '-')) }}</td>
+                                                                <td class="px-4 py-3 text-center text-sm font-mono text-slate-500">{{ $r['wc'] ?? '-' }}</td>
+                                                                <td class="px-4 py-3 text-left text-sm font-medium text-slate-600">{{ $r['devisi'] ?? '-' }}</td>
+                                                                <td class="px-4 py-3 text-center text-sm font-bold font-mono text-slate-700">{{ number_format($wiSum2, 2) }}</td>
+                                                                <td class="px-4 py-3 text-center text-sm font-bold font-mono text-slate-700">{{ number_format($qmSum2, 2) }}</td>
+                                                                <td class="px-4 py-3 text-center">
+                                                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold
+                                                                        {{ $kpi2 < 100 ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600' }}">
+                                                                        {{ number_format($kpi2, 0) }}%
+                                                                    </span>
+                                                                </td>
+                                                            </tr>
+                                                        @empty
+                                                            <tr>
+                                                                <td colspan="8" class="px-4 py-8 text-center text-slate-400 italic">
+                                                                    Tidak ada NIK yang match untuk WC korlap ini.
+                                                                </td>
+                                                            </tr>
+                                                        @endforelse
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            @endif
+
+                        @empty
+                            <tr>
+                                <td colspan="8" class="px-6 py-16 text-center text-slate-500">
+                                    <div class="flex flex-col items-center">
+                                        <span class="text-lg font-medium text-slate-400">Tidak ada data Korlap untuk filter saat ini.</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        @endforelse
+
+                    </tbody>
+                </table>
             </div>
+
         @endif
     </div>
+
 
     {{-- ========================================================= --}}
     {{-- BAGIAN 4: MODAL DETAIL --}}
