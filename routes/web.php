@@ -89,12 +89,15 @@ Route::middleware(['auth', 'verified', 'data.scope'])->group(function () {
 
         // paksa selalu ada 4 card (biar desktop rapi & ga bolong)
         $wiPlants = collect(['1000','1001','2000','3000'])->map(function ($plant) use ($wiPlantsRaw) {
-            $row = $wiPlantsRaw->firstWhere('plant', $plant);
-            return (object) [
-                'plant' => $plant,
-                'rows_count' => (int) ($row->rows_count ?? 0),
-            ];
-        });
+    $row = $wiPlantsRaw->firstWhere('plant', $plant);
+    return (object) [
+        'plant' => $plant,
+        'rows_count' => (int) ($row->rows_count ?? 0),
+    ];
+})
+->filter(fn($x) => (int)$x->rows_count > 0)
+->values();
+
 
         return view('dashboard', compact('plants', 'wiPlants'));
     })->name('dashboard');
