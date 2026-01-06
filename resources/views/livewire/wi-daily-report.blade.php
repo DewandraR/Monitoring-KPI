@@ -1113,163 +1113,149 @@
     @push('scripts')
         <script>
             (function () {
-                if (window.__wiBound) return;
-                window.__wiBound = true;
+            if (window.__wiBound) return;
+            window.__wiBound = true;
 
-                const $  = (sel, root = document) => root.querySelector(sel);
-                const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+            const $  = (sel, root = document) => root.querySelector(sel);
+            const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
-                function showToast(message, type = 'success') {
-                    const container = $('#wi-toast-container');
-                    if (!container) return;
+            function showToast(message, type = 'success') {
+                const container = $('#wi-toast-container');
+                if (!container) return;
 
-                    const colors = {
-                        success: 'bg-emerald-600',
-                        warning: 'bg-amber-600',
-                        error: 'bg-rose-600',
-                        info: 'bg-slate-700',
-                    };
+                const colors = {
+                success: 'bg-emerald-600',
+                warning: 'bg-amber-600',
+                error:   'bg-rose-600',
+                info:    'bg-slate-700',
+                };
 
-                    const el = document.createElement('div');
-                    el.className = `text-white ${colors[type] || colors.info} shadow-2xl rounded-xl px-4 py-3 text-sm font-semibold flex items-start gap-3 max-w-[360px]`;
-                    el.innerHTML = `
-                        <div class="mt-0.5">
-                            <svg class="w-5 h-5 opacity-95" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                      d="M12 9v2m0 4h.01M12 5.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13z"/>
-                            </svg>
-                        </div>
-                        <div class="flex-1 leading-snug">${String(message || '')}</div>
-                        <button type="button" class="ml-2 opacity-80 hover:opacity-100">✕</button>
-                    `;
+                const el = document.createElement('div');
+                el.className = `text-white ${colors[type] || colors.info} shadow-2xl rounded-xl px-4 py-3 text-sm font-semibold flex items-start gap-3 max-w-[360px]`;
+                el.innerHTML = `
+                <div class="mt-0.5">
+                    <svg class="w-5 h-5 opacity-95" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 9v2m0 4h.01M12 5.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13z"/>
+                    </svg>
+                </div>
+                <div class="flex-1 leading-snug">${String(message || '')}</div>
+                <button type="button" class="ml-2 opacity-80 hover:opacity-100">✕</button>
+                `;
 
-                    const btn = el.querySelector('button');
-                    btn.addEventListener('click', () => el.remove());
+                el.querySelector('button')?.addEventListener('click', () => el.remove());
+                container.appendChild(el);
 
-                    container.appendChild(el);
+                setTimeout(() => {
+                el.style.transition = 'all 300ms ease';
+                el.style.opacity = '0';
+                el.style.transform = 'translateY(-6px)';
+                setTimeout(() => el.remove(), 320);
+                }, 3000);
+            }
 
-                    setTimeout(() => {
-                        el.style.transition = 'all 300ms ease';
-                        el.style.opacity = '0';
-                        el.style.transform = 'translateY(-6px)';
-                        setTimeout(() => el.remove(), 320);
-                    }, 3000);
+            function getSelectedNiks() {
+                const root = $('#wi-root');
+                if (!root) return [];
+                try { return JSON.parse(root.dataset.selectedNiks || '[]') || []; }
+                catch { return []; }
+            }
+
+            async function copySelectedNiks() {
+                const niks = getSelectedNiks().map(v => String(v || '').trim()).filter(Boolean);
+                if (!niks.length) {
+                showToast('Belum ada NIK yang dipilih di tabel ringkasan.', 'warning');
+                return;
                 }
-
-                function getSelectedNiks() {
-                    const root = $('#wi-root');
-                    if (!root) return [];
-                    try { return JSON.parse(root.dataset.selectedNiks || '[]') || []; }
-                    catch { return []; }
+                const text = niks.join(' ');
+                try {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(text);
+                } else {
+                    const ta = document.createElement('textarea');
+                    ta.value = text;
+                    ta.style.position = 'fixed';
+                    ta.style.left = '-9999px';
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(ta);
                 }
-
-                // Dropdown Export Summary
-                const exportBtn = $('#wi-export-dropdown-button');
-                const exportMenu = $('#wi-export-dropdown-menu');
-                if (exportBtn && exportMenu) {
-                    exportBtn.addEventListener('click', function (e) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        exportMenu.classList.toggle('hidden');
-                    });
-                    document.addEventListener('click', function (e) {
-                        if (!exportMenu.classList.contains('hidden') &&
-                            !exportBtn.contains(e.target) &&
-                            !exportMenu.contains(e.target)) {
-                            exportMenu.classList.add('hidden');
-                        }
-                    });
+                showToast(`Berhasil copy ${niks.length} NIK.`, 'success');
+                } catch {
+                showToast('Gagal menyalin. Silakan copy manual dari pilihan NIK.', 'error');
                 }
+            }
 
-                // Dropdown Export Detail
-                const exportDetailBtn = $('#wi-export-detail-dropdown-button');
+            // ✅ CLICK HANDLER (delegation) - aman meski Livewire re-render
+            document.addEventListener('click', (e) => {
+                const exportBtn       = e.target.closest('#wi-export-dropdown-button');
+                const exportDetailBtn = e.target.closest('#wi-export-detail-dropdown-button');
+                const copyBtn         = e.target.closest('#wi-btn-copy-nik');
+
+                const exportMenu       = $('#wi-export-dropdown-menu');
                 const exportDetailMenu = $('#wi-export-detail-dropdown-menu');
-                if (exportDetailBtn && exportDetailMenu) {
-                    exportDetailBtn.addEventListener('click', function (e) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        exportDetailMenu.classList.toggle('hidden');
-                    });
-                    document.addEventListener('click', function (e) {
-                        if (!exportDetailMenu.classList.contains('hidden') &&
-                            !exportDetailBtn.contains(e.target) &&
-                            !exportDetailMenu.contains(e.target)) {
-                            exportDetailMenu.classList.add('hidden');
-                        }
-                    });
+
+                if (exportBtn) {
+                e.preventDefault(); e.stopPropagation();
+                exportMenu?.classList.toggle('hidden');
+                exportDetailMenu?.classList.add('hidden');
+                return;
                 }
 
-                // Copy NIK (TOAST)
-                const copyBtn = $('#wi-btn-copy-nik');
-                async function copySelectedNiks() {
-                    const niks = getSelectedNiks().map(v => String(v || '').trim()).filter(Boolean);
-                    if (!niks.length) {
-                        showToast('Belum ada NIK yang dipilih di tabel ringkasan.', 'warning');
-                        return;
-                    }
-
-                    const text = niks.join(' ');
-                    try {
-                        if (navigator.clipboard && navigator.clipboard.writeText) {
-                            await navigator.clipboard.writeText(text);
-                        } else {
-                            const ta = document.createElement('textarea');
-                            ta.value = text;
-                            ta.style.position = 'fixed';
-                            ta.style.left = '-9999px';
-                            document.body.appendChild(ta);
-                            ta.select();
-                            document.execCommand('copy');
-                            document.body.removeChild(ta);
-                        }
-                        showToast(`Berhasil copy ${niks.length} NIK.`, 'success');
-                    } catch (err) {
-                        showToast('Gagal menyalin. Silakan copy manual dari pilihan NIK.', 'error');
-                    }
+                if (exportDetailBtn) {
+                e.preventDefault(); e.stopPropagation();
+                exportDetailMenu?.classList.toggle('hidden');
+                exportMenu?.classList.add('hidden');
+                return;
                 }
 
                 if (copyBtn) {
-                    copyBtn.addEventListener('click', function (e) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        copySelectedNiks();
-                    });
+                e.preventDefault(); e.stopPropagation();
+                copySelectedNiks();
+                return;
                 }
 
-                // Check-all logic
-                document.addEventListener('change', function (e) {
-                    // CHECK ALL SUMMARY
-                    if (e.target && e.target.id === 'wi-check-all-summary') {
-                        $$('.wi-summary-check').forEach(cb => {
-                            cb.checked = e.target.checked;
-                            cb.dispatchEvent(new Event('change', { bubbles: true }));
-                            cb.dispatchEvent(new Event('input', { bubbles: true }));
-                        });
-                    }
+                // klik di luar -> tutup dropdown
+                if (exportMenu && !exportMenu.classList.contains('hidden') && !exportMenu.contains(e.target)) {
+                exportMenu.classList.add('hidden');
+                }
+                if (exportDetailMenu && !exportDetailMenu.classList.contains('hidden') && !exportDetailMenu.contains(e.target)) {
+                exportDetailMenu.classList.add('hidden');
+                }
+            });
 
-                    // CHECK ALL DETAIL (di modal)
-                    if (e.target && e.target.id === 'wi-check-all-detail') {
-                        const modal = $('#wi-modal') || document;
-                        $$('.wi-detail-check', modal).forEach(cb => {
-                            cb.checked = e.target.checked;
-                            cb.dispatchEvent(new Event('change', { bubbles: true }));
-                            cb.dispatchEvent(new Event('input', { bubbles: true }));
-                        });
-                    }
+            // ✅ CHECK ALL (delegation) - ini udah benar, tetap dipakai
+            document.addEventListener('change', (e) => {
+                if (e.target && e.target.id === 'wi-check-all-summary') {
+                $$('.wi-summary-check').forEach(cb => {
+                    cb.checked = e.target.checked;
+                    cb.dispatchEvent(new Event('change', { bubbles: true }));
+                    cb.dispatchEvent(new Event('input', { bubbles: true }));
                 });
+                }
 
-                // Livewire -> open url (buat download PDF tanpa pindah halaman)
-                window.addEventListener('wi-open-url', function (e) {
-                    const url = e?.detail?.url;
-                    if (url) window.open(url, '_blank');
+                if (e.target && e.target.id === 'wi-check-all-detail') {
+                const modal = $('#wi-modal') || document;
+                $$('.wi-detail-check', modal).forEach(cb => {
+                    cb.checked = e.target.checked;
+                    cb.dispatchEvent(new Event('change', { bubbles: true }));
+                    cb.dispatchEvent(new Event('input', { bubbles: true }));
                 });
+                }
+            });
 
-                // Livewire -> toast
-                window.addEventListener('wi-toast', function (e) {
-                    showToast(e?.detail?.message || '', e?.detail?.type || 'info');
-                });
+            // ✅ Livewire browser events
+            document.addEventListener('wi-open-url', (e) => {
+                const url = e?.detail?.url;
+                if (url) window.open(url, '_blank');
+            });
+
+            document.addEventListener('wi-toast', (e) => {
+                showToast(e?.detail?.message || '', e?.detail?.type || 'info');
+            });
 
             })();
-        </script>
+            </script>
     @endpush
 @endonce

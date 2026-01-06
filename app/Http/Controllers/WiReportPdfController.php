@@ -31,6 +31,33 @@ class WiReportPdfController extends Controller
     // role filter (driver)
     protected string $qmRoleValue = 'INDUK';
 
+    // di WiReportPdfController
+    protected string $dataVisibleFrom = '2026-01-01';
+
+    protected function dataVisibleFromDate(): ?Carbon
+    {
+        $raw = trim((string) $this->dataVisibleFrom);
+        if ($raw === '') return null;
+
+        try {
+            return Carbon::parse($raw)->startOfDay();
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    protected function clampStartByVisibleFrom(Carbon &$start, Carbon $end): void
+    {
+        $vf = $this->dataVisibleFromDate();
+        if (!$vf) return;
+
+        // sama seperti Livewire: clamp kalau vf masih masuk range
+        if ($vf->lte($end) && $start->lt($vf)) {
+            $start = $vf->copy();
+        }
+    }
+
+
     // =========================================================
     // DATE RANGE
     // =========================================================
@@ -52,8 +79,12 @@ class WiReportPdfController extends Controller
             }
         }
 
+        // ✅ penting: cutoff
+        $this->clampStartByVisibleFrom($start, $end);
+
         return [$start, $end];
     }
+
 
     protected function getRangeStrings(Carbon $start, Carbon $end): array
     {
@@ -497,7 +528,11 @@ class WiReportPdfController extends Controller
             }
         }
 
-        return $out->sortBy([['nik','asc'], ['tanggal','asc']])->values();
+        return $out->sortBy([
+            ['wc', 'asc'],      // 1. WC
+            ['nik', 'asc'],     // 2. NIK
+            ['tanggal', 'asc']  // 3. Tanggal
+        ])->values();
     }
 
     // =========================================================

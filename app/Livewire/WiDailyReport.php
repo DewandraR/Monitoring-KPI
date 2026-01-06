@@ -41,6 +41,8 @@ class WiDailyReport extends Component
     // cache list NIK summary per korlap (agar expand cepat)
     public array $korlapNikSummaries = []; // ['10000471' => [..rows..], ...]
 
+    public string $dataVisibleFrom = '2026-01-01'; 
+
     /**
      * Ambil scope dari middleware (data.scope)
      */
@@ -69,6 +71,36 @@ class WiDailyReport extends Component
         ))));
 
         return [$all, $dev, $arbpl, $niks];
+    }
+
+    protected function dataVisibleFromDate(): ?Carbon
+    {
+        $raw = trim((string) $this->dataVisibleFrom);
+        if ($raw === '') return null;
+
+        try {
+            return Carbon::parse($raw)->startOfDay();
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    protected function applyVisibleFromToQm(Builder $q): void
+    {
+        $vf = $this->dataVisibleFromDate();
+        if (!$vf) return;
+
+        // begda format Ymd
+        $q->where('begda', '>=', $vf->format('Ymd'));
+    }
+
+    protected function applyVisibleFromToWi($q): void
+    {
+        $vf = $this->dataVisibleFromDate();
+        if (!$vf) return;
+
+        // tanggal format Y-m-d
+        $q->where('tanggal', '>=', $vf->toDateString());
     }
 
 
@@ -266,6 +298,14 @@ class WiDailyReport extends Component
             }
         }
 
+        // ✅ clamp start agar data sebelum tanggal ini dianggap tidak ada
+        if ($vf = $this->dataVisibleFromDate()) {
+            // hanya clamp kalau vf masih masuk range; biar tidak bikin start > end saat awal bulan
+            if ($vf->lte($end) && $start->lt($vf)) {
+                $start = $vf->copy();
+            }
+        }
+
         return [$start, $end];
     }
 
@@ -290,6 +330,8 @@ class WiDailyReport extends Component
             ", [trim($this->plant)]);
 
         $this->applyScopeToReportData($q);
+
+        $this->applyVisibleFromToQm($q);
 
         return $q->limit(1)->exists();
     }
@@ -326,6 +368,8 @@ class WiDailyReport extends Component
 
         $this->applyScopeToReportData($q);
 
+        $this->applyVisibleFromToQm($q);
+
         return $q->groupBy('pernr', 'begda')->toBase();
     }
 
@@ -339,7 +383,7 @@ class WiDailyReport extends Component
     {
         $plant = trim($this->plant);
 
-        return DailyTimeWi::query()
+        $q = DailyTimeWi::query()
             ->selectRaw("
                 MIN(id) as id,
                 tanggal,
@@ -357,9 +401,12 @@ class WiDailyReport extends Component
                     ELSE CONCAT(LEFT(TRIM(kode_laravel),1),'000')
                 END = ?
             ", [$plant])
-            ->whereBetween('tanggal', [$start->toDateString(), $end->toDateString()])
-            ->groupBy('tanggal', 'nik')
-            ->toBase();
+            ->whereBetween('tanggal', [$start->toDateString(), $end->toDateString()]);
+
+        // ✅ apply cutoff DI SINI (setelah $q ada)
+        $this->applyVisibleFromToWi($q);
+
+        return $q->groupBy('tanggal', 'nik')->toBase();
     }
 
     /**
@@ -574,7 +621,9 @@ class WiDailyReport extends Component
             return;
         }
 
-        // QM per tanggal untuk NIK ini (role INDUK)
+        // =========================
+        // QM per tanggal (role INDUK)
+        // =========================
         $qmQ = ReportData::query()
             ->selectRaw("
                 begda,
@@ -596,16 +645,22 @@ class WiDailyReport extends Component
 
         $this->applyScopeToReportData($qmQ);
 
+        // ✅ cutoff QM
+        $this->applyVisibleFromToQm($qmQ);
+
         $qmRows = $qmQ->groupBy('begda')->get();
 
         $qmByDate = $qmRows->keyBy(function ($r) {
             return Carbon::createFromFormat('Ymd', (string) $r->begda)->toDateString();
         });
 
-        // WI per tanggal untuk NIK ini (optional)
+        // =========================
+        // WI per tanggal (optional)
+        // =========================
         $plant = trim($this->plant);
 
-        $wiRows = DailyTimeWi::query()
+        // ✅ bikin builder dulu
+        $wiQ = DailyTimeWi::query()
             ->where('nik', $this->selectedNik)
             ->whereNotNull('kode_laravel')
             ->whereRaw("TRIM(kode_laravel) <> ''")
@@ -623,14 +678,20 @@ class WiDailyReport extends Component
                 MAX(kode_laravel) as kode_laravel,
                 COALESCE(SUM(total_time_wi),0) as time_wi
             ")
-            ->groupBy('tanggal')
-            ->get();
+            ->groupBy('tanggal');
+
+        // ✅ cutoff WI (ini yang sebelumnya belum ada)
+        $this->applyVisibleFromToWi($wiQ);
+
+        $wiRows = $wiQ->get();
 
         $wiByDate = $wiRows->keyBy(fn($r) => Carbon::parse($r->tanggal)->toDateString());
 
         $name = optional($qmRows->first())->nama ?? '-';
 
+        // =========================
         // total modal
+        // =========================
         $sumWi = (float) $wiRows->sum('time_wi');
         $sumQm = (float) $qmRows->sum('time_qm');
         $kpi   = $sumWi == 0 ? 0 : ($sumQm / $sumWi) * 100;
@@ -651,7 +712,9 @@ class WiDailyReport extends Component
             ? $devs->first()
             : ($devs->isEmpty() ? '-' : 'MULTI');
 
-        // build detail full date range (layout kamu tetap)
+        // =========================
+        // build detail full date range
+        // =========================
         $detail = [];
         $cursor = $start->copy();
 
@@ -661,12 +724,11 @@ class WiDailyReport extends Component
             $qm = $qmByDate->get($key);
             $wi = $wiByDate->get($key);
 
-            $timeWi = $wi ? (float) $wi->time_wi : null; // kalau tidak ada -> NULL (Blade tampil "-")
+            $timeWi = $wi ? (float) $wi->time_wi : null; // null -> Blade "-"
             $timeQm = $qm ? (float) $qm->time_qm : null;
 
             $wc     = $qm->wc ?? null;
             $devisi = $qm->devisi ?? null;
-
             $namaRow = $qm->nama ?? $name;
 
             $detail[] = [
@@ -687,6 +749,7 @@ class WiDailyReport extends Component
         $this->detailData = $detail;
         $this->showDetailModal = true;
     }
+
 
     public function closeDetailModal(): void
     {
@@ -830,6 +893,7 @@ class WiDailyReport extends Component
         }
 
         $reportData = $reportDataQuery
+            ->orderBy('wc', 'asc')
             ->orderByRaw("CAST(nik AS UNSIGNED) ASC")
             ->get();
 
