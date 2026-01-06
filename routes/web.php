@@ -73,71 +73,28 @@ Route::middleware(['auth', 'verified', 'data.scope'])->group(function () {
         // ======================
         // WI DAILY (GROUPING MENU)
         // ======================
-        $wiSub = DailyTimeWi::query()
-            ->whereNotNull('kode_laravel')
-            ->whereRaw("TRIM(kode_laravel) <> ''")
-            // tambahan: pastikan minimal 4 digit angka di depan
-            ->whereRaw("TRIM(kode_laravel) REGEXP '^[0-9]{4}'")
+        $wiPlantsRaw = (clone $query)
+            ->whereRaw("UPPER(TRIM(role)) = 'INDUK'")
             ->selectRaw("
-                LEFT(TRIM(kode_laravel),4) as werks4,
-                CONCAT(LEFT(TRIM(kode_laravel),1),'000') as werks_base,
                 CASE
-                    WHEN LEFT(TRIM(kode_laravel),4) IN ('1001','1002','1003','1015') THEN '1001'
-                    WHEN LEFT(TRIM(kode_laravel),1) = '1' THEN '1000'
-                    ELSE CONCAT(LEFT(TRIM(kode_laravel),1),'000')
-                END as plant_group,
-                TRIM(nik) as nik
+                    WHEN TRIM(werks) IN ('1001','1002','1003','1015') THEN '1001'
+                    WHEN LEFT(TRIM(werks),1)='1' THEN '1000'
+                    ELSE CONCAT(LEFT(TRIM(werks),1),'000')
+                END as plant,
+                COUNT(DISTINCT TRIM(pernr)) as rows_count
             ")
-            ->toBase();
-
-        $wiQuery = DB::query()->fromSub($wiSub, 'x');
-
-        if (!$scopeAll) {
-            if (empty($scopeDevUpper) && empty($scopeArbplUpper)) {
-                $wiQuery->whereRaw('1=0');
-            } else {
-
-                $rdSub = ReportData::query()
-                    ->selectRaw("
-                        TRIM(pernr) as pernr,
-                        TRIM(werks) as werks,
-                        devisi,
-                        arbpl,
-                        arbpl2
-                    ")
-                    ->toBase();
-
-                $wiQuery->whereExists(function ($sq) use ($rdSub, $scopeDevUpper, $scopeArbplUpper) {
-                    $sq->selectRaw('1')
-                        ->fromSub($rdSub, 'y')
-                        ->whereColumn('y.pernr', 'x.nik')
-                        // INI KUNCI: cocokkan werks ReportData dengan kemungkinan 4 digit ATAU base 1000/2000/3000
-                        ->where(function ($m) {
-                            $m->whereColumn('y.werks', 'x.werks4')
-                            ->orWhereColumn('y.werks', 'x.werks_base');
-                        })
-                        ->where(function ($q) use ($scopeDevUpper, $scopeArbplUpper) {
-
-                            if (!empty($scopeDevUpper)) {
-                                $q->orWhereIn(DB::raw('UPPER(TRIM(y.devisi))'), $scopeDevUpper);
-                            }
-
-                            if (!empty($scopeArbplUpper)) {
-                                $q->orWhereIn(DB::raw('UPPER(TRIM(y.arbpl))'), $scopeArbplUpper)
-                                ->orWhereIn(DB::raw('UPPER(TRIM(y.arbpl2))'), $scopeArbplUpper);
-                            }
-                        });
-                });
-            }
-        }
-
-        // hasil final untuk cards WI (menu kategori)
-        $wiPlants = $wiQuery
-            ->selectRaw("x.plant_group as plant, COUNT(DISTINCT x.nik) as rows_count")
-            ->groupBy('x.plant_group')
-            ->orderByRaw("CAST(x.plant_group AS UNSIGNED) ASC")
+            ->groupBy('plant')
+            ->orderByRaw("CAST(plant AS UNSIGNED) ASC")
             ->get();
 
+        // paksa selalu ada 4 card (biar desktop rapi & ga bolong)
+        $wiPlants = collect(['1000','1001','2000','3000'])->map(function ($plant) use ($wiPlantsRaw) {
+            $row = $wiPlantsRaw->firstWhere('plant', $plant);
+            return (object) [
+                'plant' => $plant,
+                'rows_count' => (int) ($row->rows_count ?? 0),
+            ];
+        });
 
         return view('dashboard', compact('plants', 'wiPlants'));
     })->name('dashboard');

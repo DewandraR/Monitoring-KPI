@@ -464,13 +464,64 @@
     {{-- BAGIAN 2: FILTER SEARCH --}}
     {{-- ========================================================= --}}
     <div class="mb-8 p-6 bg-emerald-50/50 rounded-xl shadow-inner border border-emerald-100/80 backdrop-blur-sm">
-        <p class="text-lg font-bold text-emerald-800 mb-4 flex items-center gap-2">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-            </svg>
-            {{ __('Filter Data Berdasarkan Kriteria:') }}
-        </p>
+        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-4">
+            {{-- KIRI: Judul --}}
+            <p class="text-lg font-bold text-emerald-800 flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                </svg>
+                {{ __('Filter Data Berdasarkan Kriteria:') }}
+            </p>
+
+            {{-- KANAN: Radio WI Mode --}}
+            <div class="w-full lg:w-auto lg:ml-auto flex flex-wrap items-center justify-start lg:justify-end gap-x-6 gap-y-2"
+                 wire:key="wi-mode-radios">
+
+                <span class="text-[11px] uppercase tracking-widest text-emerald-900/70 font-black whitespace-nowrap self-center">
+                    FILTER WI:
+                </span>
+
+                @php
+                    // Pastikan ada default value jika wiMode null
+                    $currentMode = $wiMode ?? 'all'; 
+                    
+                    // Definisi opsi agar kode lebih rapi & logic warnanya konsisten
+                    $options = [
+                        'all'     => 'Semua',
+                        'with'    => 'Ada WI',
+                        'without' => 'Belum Ada WI',
+                    ];
+                @endphp
+
+                @foreach($options as $val => $label)
+                    @php
+                        $isActive = $currentMode === $val;
+                    @endphp
+                    
+                    <div class="inline-flex items-center group cursor-pointer" wire:key="wi-opt-{{ $val }}">
+                        <input id="wi-mode-{{ $val }}"
+                               name="wiMode"
+                               type="radio"
+                               class="h-4 w-4 text-emerald-600 border-gray-300 focus:ring-emerald-500 cursor-pointer rounded-full transition-all duration-200"
+                               wire:model.live="wiMode"
+                               value="{{ $val }}"
+                               @checked($isActive)>
+                               
+                        <label for="wi-mode-{{ $val }}"
+                               class="ml-2 block text-sm cursor-pointer transition-colors duration-200 select-none
+                                      {{ $isActive 
+                                         ? 'text-emerald-700 font-bold' 
+                                         : 'text-slate-600 font-medium hover:text-emerald-700' 
+                                      }}">
+                            {{ $label }}
+                        </label>
+                    </div>
+                @endforeach
+
+            </div>
+
+        </div>
 
         <div class="grid grid-cols-1 gap-6">
             <div class="relative group">
@@ -515,7 +566,7 @@
     {{-- ========================================================= --}}
     {{-- BAGIAN 3: TABEL SUMMARY --}}
     {{-- ========================================================= --}}
-    <div wire:key="wi-summary-{{ md5(($plant ?? ($werks ?? request()->route('werks'))) . '|' . ($q ?? '') . '|' . ($monthFilter ?? 'this')) }}">
+    <div wire:key="wi-summary-{{ md5(($plant ?? ($werks ?? request()->route('werks'))) . '|' . ($q ?? '') . '|' . ($monthFilter ?? 'this') . '|' . ($wiMode ?? 'all')) }}">
         <div class="overflow-y-auto max-h-[75vh] shadow-xl sm:rounded-xl border border-gray-200/75">
             <table id="wi-summary-table" class="min-w-full divide-y divide-gray-200">
 

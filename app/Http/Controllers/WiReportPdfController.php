@@ -14,18 +14,26 @@ use App\Exports\WiDetailExport;
 
 class WiReportPdfController extends Controller
 {
-    // ====== SESUAIKAN DENGAN TABEL ASLI ======
-    protected string $wiTable      = 'daily_time_wi';
+    // ====== TABLES ======
+    protected string $qmTable = 'yppr058_data';   // DRIVER UTAMA (QM)
+    protected string $wiTable = 'daily_time_wi';  // JOIN OPTIONAL (WI)
+
+    // ====== WI COLUMNS ======
     protected string $wiNikColumn  = 'nik';
     protected string $wiNamaColumn = 'nama';
     protected string $wiDateColumn = 'tanggal';
     protected string $wiTimeColumn = 'total_time_wi';
-    protected ?string $wiWcColumn  = null; // tabel WI biasanya tidak punya wc
 
-    // QM dari yppr058_data = SUM(mintu)
+    // QM (yppr058_data) => SUM(mintu)
     // kalau mau convert menit -> jam: set 60
     protected float $qmDivisor = 1.0;
 
+    // role filter (driver)
+    protected string $qmRoleValue = 'INDUK';
+
+    // =========================================================
+    // DATE RANGE
+    // =========================================================
     protected function getDateRangeForMonth(?string $monthFilter): array
     {
         $today = Carbon::today();
@@ -55,6 +63,69 @@ class WiReportPdfController extends Controller
         ];
     }
 
+    // =========================================================
+    // SCOPE (SAMA SEPERTI LIVEWIRE) - OPTIONAL TAPI DISARANKAN
+    // (mengikuti request attributes dari middleware)
+    // =========================================================
+    protected function scopeData(): array
+    {
+        $all   = (bool) request()->attributes->get('data_scope_all', false);
+        $dev   = (array) request()->attributes->get('data_scope_devisi', []);
+        $arbpl = (array) request()->attributes->get('data_scope_arbpl', []);
+
+        $niks  = (array) request()->attributes->get('data_scope_nik', []);
+
+        $dev = array_values(array_unique(array_filter(array_map(
+            fn ($v) => strtoupper(trim((string) $v)),
+            $dev
+        ))));
+
+        $arbpl = array_values(array_unique(array_filter(array_map(
+            fn ($v) => strtoupper(trim((string) $v)),
+            $arbpl
+        ))));
+
+        $niks = array_values(array_unique(array_filter(array_map(
+            fn ($v) => trim((string) $v),
+            $niks
+        ))));
+
+        return [$all, $dev, $arbpl, $niks];
+    }
+
+    /**
+     * Terapkan scope ke query yppr058_data
+     */
+    protected function applyScopeToQmQuery($q): void
+    {
+        [$all, $dev, $arbpl, $niks] = $this->scopeData();
+
+        if ($all) return;
+
+        if (empty($dev) && empty($arbpl) && empty($niks)) {
+            $q->whereRaw('1=0');
+            return;
+        }
+
+        $q->where(function ($w) use ($dev, $arbpl, $niks) {
+            if (!empty($niks)) {
+                $w->orWhereIn('pernr', $niks);
+            }
+
+            if (!empty($dev)) {
+                $w->orWhereIn(DB::raw('UPPER(TRIM(devisi))'), $dev);
+            }
+
+            if (!empty($arbpl)) {
+                $w->orWhereIn(DB::raw('UPPER(TRIM(arbpl))'), $arbpl)
+                  ->orWhereIn(DB::raw('UPPER(TRIM(arbpl2))'), $arbpl);
+            }
+        });
+    }
+
+    // =========================================================
+    // SEARCH TOKENIZER (SAMA SEPERTI SEBELUMNYA)
+    // =========================================================
     protected function tokenizeSearch(string $q): array
     {
         $q = trim($q);
@@ -70,22 +141,37 @@ class WiReportPdfController extends Controller
         return array_values(array_filter(array_map('trim', $tokens)));
     }
 
+    // =========================================================
+    // PLANT GROUP SCOPE
+    // =========================================================
+
+    /**
+     * PLANT untuk yppr058_data berdasarkan WERKS (sama seperti Livewire)
+     */
+    protected function applyPlantGroupScopeToQm($query, string $plant)
+    {
+        $plant = trim($plant);
+
+        $query->whereRaw("
+            CASE
+                WHEN TRIM(werks) IN ('1001','1002','1003','1015') THEN '1001'
+                WHEN LEFT(TRIM(werks),1)='1' THEN '1000'
+                ELSE CONCAT(LEFT(TRIM(werks),1),'000')
+            END = ?
+        ", [$plant]);
+
+        return $query;
+    }
+
+    /**
+     * PLANT untuk daily_time_wi berdasarkan kode_laravel (sama seperti Livewire)
+     */
     protected function getWiColumns(): array
     {
         return Schema::getColumnListing($this->wiTable);
     }
 
-    protected function pickExistingColumns(array $wanted, array $available): array
-    {
-        $set = array_flip($available);
-        return array_values(array_filter($wanted, fn($c) => isset($set[$c])));
-    }
-
-    /**
-     * Scope plant sama seperti Livewire:
-     * plant 3000 => prefix "3" (LEFT(kode_laravel,1) = "3")
-     */
-    protected function applyPlantPrefixScope($query, string $plant, array $cols)
+    protected function applyPlantGroupScopeToWi($query, string $plant, array $cols)
     {
         $plant = trim($plant);
 
@@ -105,98 +191,176 @@ class WiReportPdfController extends Controller
         return $query;
     }
 
+    // =========================================================
+    // BUILD SUBQUERY: QM DAY (driver) & WI DAY (optional)
+    // =========================================================
+
     /**
-     * SUMMARY rows (per NIK) untuk PDF/Excel
-     * ✅ Tambah devisi dari yppr058_data (MAX(devisi))
+     * QM per nik+begda (role INDUK) => driver rows
      */
-    protected function getSummaryRows(string $plant, array $dateIso, array $dateYmd, string $q = '', array $niks = []): Collection
+    protected function qmDaySub(string $plant, array $dateYmd, array $niks = [])
     {
-        [$startIso, $endIso] = $dateIso;
         [$startYmd, $endYmd] = $dateYmd;
 
-        $cols = $this->getWiColumns();
+        $q = DB::table($this->qmTable)
+            ->whereBetween('begda', [$startYmd, $endYmd])
+            ->whereRaw("UPPER(TRIM(role)) = ?", [strtoupper($this->qmRoleValue)]);
 
-        $searchCols = $this->pickExistingColumns(
-            [$this->wiNikColumn, $this->wiNamaColumn, $this->wiDateColumn, 'kode_laravel', 'id'],
-            $cols
-        );
+        $this->applyPlantGroupScopeToQm($q, $plant);
+        $this->applyScopeToQmQuery($q);
 
-        $wiAgg = DB::table($this->wiTable);
-        $wiAgg = $this->applyPlantPrefixScope($wiAgg, $plant, $cols);
-
-        $wiAgg = $wiAgg
-            ->whereBetween($this->wiDateColumn, [$startIso, $endIso])
-            ->when(!empty($niks), fn($qq) => $qq->whereIn($this->wiNikColumn, $niks))
-            ->when(trim($q) !== '' && !empty($searchCols), function ($qq) use ($q, $searchCols) {
-                $tokens = $this->tokenizeSearch($q);
-                foreach ($tokens as $t) {
-                    $qq->where(function ($w) use ($t, $searchCols) {
-                        foreach ($searchCols as $col) {
-                            $w->orWhere($col, 'like', '%' . $t . '%');
-                        }
-                    });
-                }
-            })
-            ->selectRaw("
-                {$this->wiNikColumn} as nik,
-                MAX({$this->wiNamaColumn}) as nama,
-                MIN({$this->wiDateColumn}) as min_tanggal,
-                MAX({$this->wiDateColumn}) as max_tanggal,
-                SUM({$this->wiTimeColumn}) as time_wi_sum
-            ");
-
-        // aman walau WI tidak punya wc
-        if ($this->wiWcColumn && in_array($this->wiWcColumn, $cols, true)) {
-            $wiAgg->addSelect(DB::raw("MAX({$this->wiWcColumn}) as wc_wi"));
-        } else {
-            $wiAgg->addSelect(DB::raw("NULL as wc_wi"));
+        if (!empty($niks)) {
+            $q->whereIn('pernr', $niks);
         }
 
-        $wiAgg = $wiAgg->groupBy($this->wiNikColumn);
-
-        // ✅ QM + WC + DEVISI dari yppr058_data
-        $qmAgg = DB::table('yppr058_data')
-            ->selectRaw("
+        return $q->selectRaw("
                 pernr as nik,
-                MAX(arbpl) as wc_qm,
-                MAX(NULLIF(TRIM(devisi),'')) as devisi_qm,
-                SUM(mintu) as mintu_sum
+                begda,
+                MAX(cname) as nama,
+                MAX(arbpl) as wc,
+                MAX(NULLIF(TRIM(devisi),'')) as devisi,
+                COALESCE(SUM(mintu),0) as mintu_sum
             ")
-            ->whereRaw("
-                CASE
-                    WHEN TRIM(werks) IN ('1001','1002','1003','1015') THEN '1001'
-                    WHEN LEFT(TRIM(werks),1)='1' THEN '1000'
-                    ELSE CONCAT(LEFT(TRIM(werks),1),'000')
-                END = ?
-            ", [trim($plant)])
-            ->whereBetween('begda', [$startYmd, $endYmd])
-            ->groupBy('pernr');
-
-        return DB::query()
-            ->fromSub($wiAgg, 'w')
-            ->leftJoinSub($qmAgg, 'q', 'q.nik', '=', 'w.nik')
-            ->selectRaw("
-                w.nik,
-                w.nama,
-                w.min_tanggal,
-                w.max_tanggal,
-                COALESCE(w.wc_wi, q.wc_qm) as wc,
-                q.devisi_qm as devisi,
-                w.time_wi_sum,
-                (COALESCE(q.mintu_sum,0) / {$this->qmDivisor}) as time_qm_sum,
-                CASE
-                    WHEN w.time_wi_sum = 0 THEN 0
-                    ELSE ((COALESCE(q.mintu_sum,0) / {$this->qmDivisor}) / w.time_wi_sum) * 100
-                END as kpi_pct
-            ")
-            ->orderByRaw("COALESCE(NULLIF(TRIM(COALESCE(w.wc_wi, q.wc_qm)), ''), 'ZZZZ') ASC")
-            ->orderByRaw("CAST(w.nik AS UNSIGNED) ASC")
-            ->get();
+            ->groupBy('pernr', 'begda');
     }
 
     /**
-     * Parse detail keys "nik|YYYY-MM-DD"
+     * WI per nik+tanggal (optional)
      */
+    protected function wiDaySub(string $plant, array $dateIso, array $niks = [])
+    {
+        [$startIso, $endIso] = $dateIso;
+
+        $cols = $this->getWiColumns();
+
+        $q = DB::table($this->wiTable);
+        $q = $this->applyPlantGroupScopeToWi($q, $plant, $cols);
+
+        $q->whereBetween($this->wiDateColumn, [$startIso, $endIso]);
+
+        if (!empty($niks)) {
+            $q->whereIn($this->wiNikColumn, $niks);
+        }
+
+        return $q->selectRaw("
+                MIN(id) as id,
+                {$this->wiNikColumn} as nik,
+                {$this->wiDateColumn} as tanggal,
+                MAX(kode_laravel) as kode_laravel,
+                COALESCE(SUM({$this->wiTimeColumn}),0) as time_wi
+            ")
+            ->groupBy($this->wiNikColumn, $this->wiDateColumn);
+    }
+
+    /**
+     * Joined per day: QM (driver) LEFT JOIN WI
+     * Hasilnya dipakai untuk:
+     * - summary aggregation
+     * - detail day map
+     */
+    protected function joinedDayQuery(string $plant, array $dateIso, array $dateYmd, array $niks = [], string $q = '')
+    {
+        $qmDay = $this->qmDaySub($plant, $dateYmd, $niks);
+        $wiDay = $this->wiDaySub($plant, $dateIso, $niks);
+
+        $joined = DB::query()
+            ->fromSub($qmDay, 'qm')
+            ->leftJoinSub($wiDay, 'wi', function ($join) {
+                $join->on('wi.nik', '=', 'qm.nik')
+                    ->on(DB::raw("DATE_FORMAT(wi.tanggal, '%Y%m%d')"), '=', 'qm.begda');
+            })
+            ->selectRaw("
+                qm.nik,
+                DATE_FORMAT(STR_TO_DATE(qm.begda,'%Y%m%d'), '%Y-%m-%d') as tanggal,
+                qm.begda,
+                qm.nama,
+                qm.wc,
+                qm.devisi,
+                (qm.mintu_sum / {$this->qmDivisor}) as time_qm,
+                wi.id as wi_id,
+                wi.kode_laravel as kode_laravel,
+                wi.time_wi as time_wi,
+                CASE
+                    WHEN wi.time_wi IS NULL THEN NULL
+                    WHEN wi.time_wi = 0 THEN 0
+                    ELSE ((qm.mintu_sum / {$this->qmDivisor}) / wi.time_wi) * 100
+                END as kpi_pct
+            ");
+
+        // search (AND per token)
+        $raw = trim((string) $q);
+        if ($raw !== '') {
+            $tokens = $this->tokenizeSearch($raw);
+
+            foreach ($tokens as $t) {
+                $t = trim((string)$t);
+                if ($t === '') continue;
+
+                $lower = mb_strtolower($t);
+                $like  = "%{$lower}%";
+
+                $ymd = null;
+                if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $t)) {
+                    $ymd = str_replace('-', '', $t);
+                }
+
+                $joined->where(function ($w) use ($t, $lower, $like, $ymd) {
+                    // NIK
+                    $w->orWhere('qm.nik', 'like', "%{$t}%");
+
+                    // tanggal
+                    if ($ymd) {
+                        $w->orWhere('qm.begda', $ymd);
+                        $w->orWhereDate('wi.tanggal', $t);
+                    }
+
+                    // nama, wc, devisi
+                    $w->orWhereRaw('LOWER(qm.nama) LIKE ?', [$like]);
+                    $w->orWhereRaw('LOWER(qm.wc) LIKE ?', [$like]);
+                    $w->orWhereRaw('LOWER(qm.devisi) LIKE ?', [$like]);
+
+                    // kode_laravel, id (optional)
+                    $w->orWhereRaw('LOWER(COALESCE(wi.kode_laravel,"")) LIKE ?', [$like]);
+                    $w->orWhereRaw('CAST(COALESCE(wi.id,0) AS CHAR) LIKE ?', ["%{$t}%"]);
+                });
+            }
+        }
+
+        return $joined;
+    }
+
+    // =========================================================
+    // SUMMARY ROWS (PDF/EXCEL)
+    // =========================================================
+    protected function getSummaryRows(string $plant, array $dateIso, array $dateYmd, string $q = '', array $niks = []): Collection
+    {
+        $joined = $this->joinedDayQuery($plant, $dateIso, $dateYmd, $niks, $q);
+
+        return DB::query()
+            ->fromSub($joined, 'd')
+            ->selectRaw("
+                nik,
+                MAX(nama) as nama,
+                MIN(tanggal) as min_tanggal,
+                MAX(tanggal) as max_tanggal,
+                MAX(wc) as wc,
+                MAX(devisi) as devisi,
+                COALESCE(SUM(COALESCE(time_wi,0)),0) as time_wi_sum,
+                COALESCE(SUM(COALESCE(time_qm,0)),0) as time_qm_sum,
+                CASE
+                    WHEN SUM(COALESCE(time_wi,0)) = 0 THEN 0
+                    ELSE (SUM(COALESCE(time_qm,0)) / SUM(COALESCE(time_wi,0))) * 100
+                END as kpi_pct
+            ")
+            ->groupBy('nik')
+            ->orderByRaw("COALESCE(NULLIF(TRIM(MAX(wc)), ''), 'ZZZZ') ASC")
+            ->orderByRaw("CAST(nik AS UNSIGNED) ASC")
+            ->get();
+    }
+
+    // =========================================================
+    // DETAIL ROWS (PDF/EXCEL)
+    // =========================================================
     protected function parseDetailKeys(array $keys): array
     {
         $out = [];
@@ -215,178 +379,76 @@ class WiReportPdfController extends Controller
             $out[$nik][] = $tgl;
         }
 
-        // unique + sort tanggal per nik
         foreach ($out as $nik => $arr) {
             $arr = array_values(array_unique(array_filter($arr)));
             sort($arr);
             $out[$nik] = $arr;
         }
 
-        return $out; // [nik => [tgl,tgl]]
+        return $out;
     }
 
-    /**
-     * DETAIL rows untuk PDF/Excel
-     * - $fullRangeNiks: export full tanggal range untuk NIK ini (dari summary)
-     * - $detailKeys: export tanggal tertentu untuk NIK tertentu (dari modal detail)
-     * ✅ Tambah devisi dari yppr058_data
-     */
-    protected function getDetailRows(string $plant, array $dateIso, array $dateYmd, array $fullRangeNiks, array $detailKeys, string $q = ''): Collection
-    {
+    protected function getDetailRows(
+        string $plant,
+        array $dateIso,
+        array $dateYmd,
+        array $fullRangeNiks,
+        array $detailKeys,
+        string $q = ''
+    ): Collection {
         [$startIso, $endIso] = $dateIso;
-        [$startYmd, $endYmd] = $dateYmd;
 
-        $start = Carbon::parse($startIso)->startOfDay();
-        $end   = Carbon::parse($endIso)->startOfDay();
-
-        // normalize full nik
+        // normalize
         $fullRangeNiks = array_values(array_unique(array_filter(array_map(fn($x) => trim((string)$x), $fullRangeNiks))));
+        $partialByNik  = $this->parseDetailKeys($detailKeys);
 
-        // parse keys -> [nik => [tgl]]
-        $partialByNik = $this->parseDetailKeys($detailKeys);
-
-        // buang partial nik yang sudah masuk full range (anti dobel)
+        // anti dobel
         if (!empty($fullRangeNiks) && !empty($partialByNik)) {
-            foreach ($fullRangeNiks as $n) {
-                unset($partialByNik[$n]);
-            }
+            foreach ($fullRangeNiks as $n) unset($partialByNik[$n]);
         }
 
         if (empty($fullRangeNiks) && empty($partialByNik)) {
             return collect();
         }
 
-        // list semua nik yg akan diambil datanya
-        $allNiks = array_values(array_unique(array_merge(
-            $fullRangeNiks,
-            array_keys($partialByNik)
-        )));
+        $allNiks = array_values(array_unique(array_merge($fullRangeNiks, array_keys($partialByNik))));
 
-        // list tanggal yg dibutuhkan
-        $allDatesRange = [];
-        for ($d = $start->copy(); $d->lte($end); $d->addDay()) {
-            $allDatesRange[] = $d->toDateString();
-        }
+        // ambil joined day data (driver QM INDUK + optional WI)
+        $joinedRows = $this->joinedDayQuery($plant, $dateIso, $dateYmd, $allNiks, $q)
+            ->get();
 
-        $datesNeeded = $allDatesRange;
-        if (empty($fullRangeNiks)) {
-            // kalau tidak ada full range, cukup tanggal yang dipilih saja
-            $datesNeeded = [];
-            foreach ($partialByNik as $nik => $arr) {
-                foreach ($arr as $tgl) $datesNeeded[] = $tgl;
-            }
-            $datesNeeded = array_values(array_unique($datesNeeded));
-            sort($datesNeeded);
-        }
+        $byKey = $joinedRows->keyBy(fn($r) => (string)$r->nik . '|' . (string)$r->tanggal);
 
-        // untuk QM, butuh format Ymd
-        $ymdNeeded = array_map(fn($iso) => Carbon::parse($iso)->format('Ymd'), $datesNeeded);
-        $ymdNeeded = array_values(array_unique($ymdNeeded));
-
-        $cols = $this->getWiColumns();
-
-        $searchCols = $this->pickExistingColumns(
-            [$this->wiNikColumn, $this->wiNamaColumn, $this->wiDateColumn, 'kode_laravel', 'id'],
-            $cols
-        );
-
-        // ===== WI per nik+tanggal =====
-        $wiQ = DB::table($this->wiTable);
-        $wiQ = $this->applyPlantPrefixScope($wiQ, $plant, $cols);
-
-        $wiQ = $wiQ
-            ->whereIn($this->wiNikColumn, $allNiks)
-            ->whereBetween($this->wiDateColumn, [$startIso, $endIso]);
-
-        // kalau export hanya tanggal tertentu (tanpa full range), kita batasi tanggalnya
-        if (empty($fullRangeNiks) && !empty($datesNeeded)) {
-            $wiQ->whereIn($this->wiDateColumn, $datesNeeded);
-        }
-
-        $wiPerDay = $wiQ
-            ->when(trim($q) !== '' && !empty($searchCols), function ($qq) use ($q, $searchCols) {
-                $tokens = $this->tokenizeSearch($q);
-                foreach ($tokens as $t) {
-                    $qq->where(function ($w) use ($t, $searchCols) {
-                        foreach ($searchCols as $col) {
-                            $w->orWhere($col, 'like', '%' . $t . '%');
-                        }
-                    });
-                }
-            })
-            ->selectRaw("
-                {$this->wiNikColumn} as nik,
-                {$this->wiDateColumn} as tanggal,
-                MAX({$this->wiNamaColumn}) as nama,
-                SUM({$this->wiTimeColumn}) as time_wi
-            ")
-            ->groupBy($this->wiNikColumn, $this->wiDateColumn)
-            ->get()
-            ->keyBy(fn($r) => (string)$r->nik . '|' . (string)$r->tanggal);
-
-        // ===== QM per nik+tanggal (+ devisi) =====
-        $qmQ = DB::table('yppr058_data')
-            ->selectRaw("
-                pernr as nik,
-                begda,
-                MAX(arbpl) as wc_qm,
-                MAX(NULLIF(TRIM(devisi),'')) as devisi_qm,
-                SUM(mintu) as mintu_sum
-            ")
-            ->whereRaw("
-                CASE
-                    WHEN TRIM(werks) IN ('1001','1002','1003','1015') THEN '1001'
-                    WHEN LEFT(TRIM(werks),1)='1' THEN '1000'
-                    ELSE CONCAT(LEFT(TRIM(werks),1),'000')
-                END = ?
-            ", [trim($plant)])
-            ->whereIn('pernr', $allNiks)
-            ->whereBetween('begda', [$startYmd, $endYmd]);
-
-        if (empty($fullRangeNiks) && !empty($ymdNeeded)) {
-            $qmQ->whereIn('begda', $ymdNeeded);
-        }
-
-        $qmPerDay = $qmQ
-            ->groupBy('pernr', 'begda')
-            ->get()
-            ->keyBy(function ($r) {
-                $tgl = Carbon::createFromFormat('Ymd', (string)$r->begda)->toDateString();
-                return (string)$r->nik . '|' . $tgl;
-            });
-
-        // nama default per nik (dari WI)
-        $nikNamaMap = $wiPerDay->values()
-            ->groupBy('nik')
-            ->map(fn($g) => (string)($g->first()->nama ?? '-'));
-
-        // devisi default per nik (dari QM) -> buat fallback kalau hari itu tidak ada qm row
-        $nikDevisiMap = $qmPerDay->values()
-            ->groupBy('nik')
-            ->map(fn($g) => (string)($g->first()->devisi_qm ?? ''));
+        // fallback per nik
+        $fallback = $joinedRows->groupBy('nik')->map(function ($g) {
+            $first = $g->first();
+            return [
+                'nama'   => (string)($first->nama ?? '-'),
+                'wc'     => $first->wc ?? null,
+                'devisi' => $first->devisi ?? null,
+                'min'    => (string)($g->min('tanggal') ?? ''),
+                'max'    => (string)($g->max('tanggal') ?? ''),
+            ];
+        });
 
         $out = collect();
 
-        // helper push row
-        $pushRow = function (string $nik, string $tgl) use ($wiPerDay, $qmPerDay, $nikNamaMap, $nikDevisiMap, &$out) {
+        $pushRow = function (string $nik, string $tgl) use (&$out, $byKey, $fallback) {
             $key = $nik . '|' . $tgl;
+            $r = $byKey->get($key);
 
-            $wi = $wiPerDay->get($key);
-            $qm = $qmPerDay->get($key);
+            $fb = $fallback->get($nik, [
+                'nama' => '-',
+                'wc' => null,
+                'devisi' => null,
+            ]);
 
-            $timeWi = $wi ? (float)$wi->time_wi : null;
-            $timeQm = $qm ? ((float)$qm->mintu_sum / $this->qmDivisor) : null;
+            $nama   = $r?->nama ?? $fb['nama'] ?? '-';
+            $wc     = $r?->wc ?? ($fb['wc'] ?? null);
+            $devisi = $r?->devisi ?? ($fb['devisi'] ?? null);
 
-            $wc     = $qm?->wc_qm ?? null;
-            $devisi = $qm?->devisi_qm ?? null;
-
-            if (is_null($devisi)) {
-                $fallback = (string)($nikDevisiMap[$nik] ?? '');
-                $devisi = $fallback !== '' ? $fallback : null;
-            }
-
-            $namaDefault = (string)($nikNamaMap[$nik] ?? '-');
-            $nama = $wi?->nama ?? $namaDefault;
+            $timeWi = isset($r) ? ($r->time_wi !== null ? (float)$r->time_wi : null) : null;
+            $timeQm = isset($r) ? ($r->time_qm !== null ? (float)$r->time_qm : null) : null;
 
             $kpi = null;
             if (!is_null($timeWi)) {
@@ -399,49 +461,63 @@ class WiReportPdfController extends Controller
                 'tanggal' => $tgl,
                 'wc'      => $wc,
                 'devisi'  => $devisi,
-                'time_wi' => $timeWi,
+                'time_wi' => $timeWi, // NULL => view tampil "-"
                 'time_qm' => $timeQm,
                 'kpi_pct' => $kpi,
             ]);
         };
 
-        // 1) Full range untuk NIK summary
+        // 1) full range: pakai min..max dari driver QM (hasil joined) supaya sesuai badge logic UI
         foreach ($fullRangeNiks as $nik) {
             $nik = (string)$nik;
-            foreach ($allDatesRange as $tgl) {
-                $pushRow($nik, $tgl);
+
+            $min = (string)($fallback->get($nik)['min'] ?? '');
+            $max = (string)($fallback->get($nik)['max'] ?? '');
+
+            // kalau tidak ketemu (misal karena q terlalu ketat), fallback ke range bulan
+            if ($min === '' || $max === '') {
+                $min = $startIso;
+                $max = $endIso;
+            }
+
+            $cur = Carbon::parse($min)->startOfDay();
+            $end = Carbon::parse($max)->startOfDay();
+
+            while ($cur->lte($end)) {
+                $pushRow($nik, $cur->toDateString());
+                $cur->addDay();
             }
         }
 
-        // 2) Partial dates untuk NIK yang hanya dipilih via modal detail
+        // 2) partial dates
         foreach ($partialByNik as $nik => $tgls) {
             $nik = (string)$nik;
             foreach ($tgls as $tgl) {
-                $pushRow($nik, $tgl);
+                $pushRow($nik, (string)$tgl);
             }
         }
 
-        return $out->sortBy([['nik', 'asc'], ['tanggal', 'asc']])->values();
+        return $out->sortBy([['nik','asc'], ['tanggal','asc']])->values();
     }
 
-    // ==========================
-    // ROUTE: /wi-daily/{plant}/export-summary-pdf
-    // ==========================
+    // =========================================================
+    // ROUTES
+    // =========================================================
+
     public function exportSummaryPdf(Request $request, string $plant)
     {
         $plant = strtoupper(trim($plant));
 
         $monthFilter = (string)$request->session()->get('wi_export.month_filter', 'this');
         $q           = (string)$request->session()->get('wi_export.q', '');
-
-        $niks = (array)$request->session()->get('wi_export.niks', []);
-        $niks = array_values(array_filter(array_map('strval', $niks)));
+        $niks        = (array)$request->session()->get('wi_export.niks', []);
+        $niks        = array_values(array_filter(array_map('strval', $niks)));
 
         [$start, $end] = $this->getDateRangeForMonth($monthFilter);
         $range = $this->getRangeStrings($start, $end);
 
         $rows = $this->getSummaryRows($plant, $range['iso'], $range['ymd'], $q, $niks);
-        if ($rows->isEmpty()) abort(404, 'Tidak ada data WI untuk filter tersebut.');
+        if ($rows->isEmpty()) abort(404, 'Tidak ada data QM (role INDUK) untuk filter tersebut.');
 
         $overallWi  = (float)$rows->sum(fn($r) => (float)($r->time_wi_sum ?? 0));
         $overallQm  = (float)$rows->sum(fn($r) => (float)($r->time_qm_sum ?? 0));
@@ -462,9 +538,6 @@ class WiReportPdfController extends Controller
         return $pdf->download("wi-summary-{$plant}.pdf");
     }
 
-    // ==========================
-    // ROUTE: /wi-daily/{plant}/export-detail-pdf
-    // ==========================
     public function exportDetailPdf(Request $request, string $plant)
     {
         $plant = strtoupper(trim($plant));
@@ -481,15 +554,19 @@ class WiReportPdfController extends Controller
         [$start, $end] = $this->getDateRangeForMonth($monthFilter);
         $range = $this->getRangeStrings($start, $end);
 
-        // ✅ jangan fallback export semua NIK (biar sesuai UI). Harus ada pilihan.
         if (empty($summaryNiks) && empty($detailKeys)) {
             abort(404, 'Tidak ada pilihan NIK / tanggal untuk di-export detail.');
         }
 
         $rows = $this->getDetailRows($plant, $range['iso'], $range['ymd'], $summaryNiks, $detailKeys, $q);
-        if ($rows->isEmpty()) abort(404, 'Data detail WI tidak ditemukan untuk filter tersebut.');
+        if ($rows->isEmpty()) abort(404, 'Data detail tidak ditemukan untuk filter tersebut.');
 
-        $request->session()->forget(['wi_export_detail.month_filter', 'wi_export_detail.q', 'wi_export_detail.niks', 'wi_export_detail.keys']);
+        $request->session()->forget([
+            'wi_export_detail.month_filter',
+            'wi_export_detail.q',
+            'wi_export_detail.niks',
+            'wi_export_detail.keys'
+        ]);
 
         $pdf = Pdf::loadView('pdf.wi-detail', [
             'rows'       => $rows,
@@ -501,9 +578,6 @@ class WiReportPdfController extends Controller
         return $pdf->download("wi-detail-{$plant}.pdf");
     }
 
-    // ==========================
-    // ROUTE: /wi-daily/{plant}/export-summary-excel
-    // ==========================
     public function exportSummaryExcel(Request $request, string $plant)
     {
         $plant = strtoupper(trim($plant));
@@ -518,16 +592,13 @@ class WiReportPdfController extends Controller
         $range = $this->getRangeStrings($start, $end);
 
         $rows = $this->getSummaryRows($plant, $range['iso'], $range['ymd'], $q, $niks);
-        if ($rows->isEmpty()) abort(404, 'Tidak ada data WI untuk filter tersebut.');
+        if ($rows->isEmpty()) abort(404, 'Tidak ada data QM (role INDUK) untuk filter tersebut.');
 
         $request->session()->forget(['wi_export.month_filter', 'wi_export.q', 'wi_export.niks']);
 
         return Excel::download(new WiSummaryExport($rows, $plant), "wi-summary-{$plant}.xlsx");
     }
 
-    // ==========================
-    // ROUTE: /wi-daily/{plant}/export-detail-excel
-    // ==========================
     public function exportDetailExcel(Request $request, string $plant)
     {
         $plant = strtoupper(trim($plant));
@@ -549,9 +620,14 @@ class WiReportPdfController extends Controller
         }
 
         $rows = $this->getDetailRows($plant, $range['iso'], $range['ymd'], $summaryNiks, $detailKeys, $q);
-        if ($rows->isEmpty()) abort(404, 'Data detail WI tidak ditemukan untuk filter tersebut.');
+        if ($rows->isEmpty()) abort(404, 'Data detail tidak ditemukan untuk filter tersebut.');
 
-        $request->session()->forget(['wi_export_detail.month_filter', 'wi_export_detail.q', 'wi_export_detail.niks', 'wi_export_detail.keys']);
+        $request->session()->forget([
+            'wi_export_detail.month_filter',
+            'wi_export_detail.q',
+            'wi_export_detail.niks',
+            'wi_export_detail.keys'
+        ]);
 
         return Excel::download(new WiDetailExport($rows, $plant), "wi-detail-{$plant}.xlsx");
     }
