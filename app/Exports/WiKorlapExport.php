@@ -54,8 +54,8 @@ class WiKorlapExport implements
                 'NO',
                 'NIK KORLAP',
                 'NAMA KORLAP',
-                'WC KORLAP',
-                'JML NIK',
+                'WC Anggota',
+                'JML NIK WI',
                 'TIME WI',
                 'TIME CONF',
                 'TIME QM',
@@ -146,7 +146,7 @@ class WiKorlapExport implements
                 $sheet->getColumnDimension('A')->setWidth(5);   // No
                 $sheet->getColumnDimension('B')->setWidth(14);  // NIK
                 $sheet->getColumnDimension('C')->setWidth(30);  // Nama
-                $sheet->getColumnDimension('D')->setWidth(24);  // Devisi / WC Korlap
+                $sheet->getColumnDimension('D')->setWidth(24);  // Devisi / WC Anggota
                 $sheet->getColumnDimension('E')->setWidth(12);  // WC / Jml
                 $sheet->getColumnDimension('F')->setWidth(12);  // WI
                 $sheet->getColumnDimension('G')->setWidth(12);  // Conf

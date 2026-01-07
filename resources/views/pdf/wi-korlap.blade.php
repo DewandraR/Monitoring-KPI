@@ -129,19 +129,6 @@
         .text-left { text-align:left; }
         .text-right { text-align:right; }
         .font-mono { font-family:'Courier New', monospace; font-weight: 600; }
-
-        .badge-filter {
-            display:inline-block;
-            padding: 3px 8px;
-            border-radius: 0;
-            font-size: 8pt;
-            font-weight: bold;
-            background: #e2e8f0;
-            color: #2d3748;
-            margin-left: 15px;
-            border: 2px solid #2d3748;
-            text-transform: uppercase;
-        }
     </style>
 </head>
 
@@ -153,16 +140,6 @@
                     <div class="header-title">Laporan Tim Korlap</div>
                     <div class="header-subtitle">
                         Plant {{ $plant }} | Periode: {{ $rangeStart }} s.d. {{ $rangeEnd }}
-
-                        @if(($wiMode ?? 'all') === 'with')
-                            <span class="badge-filter" style="background:#d1fae5; color:#065f46; border-color:#059669;">
-                                FILTER: HANYA YG ADA WI
-                            </span>
-                        @elseif(($wiMode ?? 'all') === 'without')
-                            <span class="badge-filter" style="background:#fee2e2; color:#991b1b; border-color:#b91c1c;">
-                                FILTER: BELUM ADA WI
-                            </span>
-                        @endif
                     </div>
                 </td>
                 <td class="header-meta">
@@ -187,8 +164,8 @@
                         <th style="width:4%">No</th>
                         <th style="width:9%">NIK Korlap</th>
                         <th style="width:18%">Nama Korlap</th>
-                        <th style="width:16%">WC Korlap</th>
-                        <th style="width:6%">Jml NIK</th>
+                        <th style="width:16%">WC Anggota</th>
+                        <th style="width:6%">Jml NIK WI</th>
                         <th style="width:9%">Time WI</th>
                         <th style="width:9%">Time CONF</th>
                         <th style="width:9%">Time QM</th>
