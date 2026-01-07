@@ -45,8 +45,8 @@ class WiDetailExport implements
             'Time WI',       // G
             'Time CONF',     // H
             'Time QM',       // I
-            '% Hasil WI',     // J
-            '% HASIL QM', // K
+            '% HASIL MENIT WI',     // J
+            '% HASIL MENIT QM', // K
         ];
     }
 

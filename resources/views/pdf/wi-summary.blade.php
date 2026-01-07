@@ -74,8 +74,8 @@
                 <th class="w-num">Time WI</th>
                 <th class="w-num">Time CONF</th> {{-- ✅ KOLOM BARU --}}
                 <th class="w-num">Time QM</th>
-                <th class="w-kpi">% HASIL WI</th>
-                <th class="w-kpi">% HASIL QM</th>
+                <th class="w-kpi">% HASIL MENIT WI</th>
+                <th class="w-kpi">% HASIL MENIT QM</th>
             </tr>
         </thead>
 

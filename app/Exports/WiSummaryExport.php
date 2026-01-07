@@ -45,8 +45,8 @@ class WiSummaryExport implements
             'Time WI',         // G
             'Time CONF',       // H
             'Time QM',         // I
-            '% HASIL WI',       // J
-            '% HASIL QM',   // K
+            '% HASIL MENIT WI',       // J
+            '% HASIL MENIT QM',   // K
         ];
     }
 

@@ -7,8 +7,8 @@
      * HEADER (SUMMARY) & DETAIL HEADERS (untuk style konsisten)
      * =========================================================
      */
-    $headersSummary = ['No','NIK','Rentang Tanggal','Nama','WC','Devisi','Time WI','Time CONF','Time QM','% HASIL WI','% HASIL QM'];
-    $headersDetail  = ['No','NIK','Tanggal','Nama','WC','Devisi','Time WI','Time CONF','Time QM','% HASIL WI','% HASIL QM'];
+    $headersSummary = ['No','NIK','Rentang Tanggal','Nama','WC','Devisi','Time WI','Time CONF','Time QM','% HASIL MENIT WI','% HASIL MENIT QM'];
+    $headersDetail  = ['No','NIK','Tanggal','Nama','WC','Devisi','Time WI','Time CONF','Time QM','% HASIL MENIT WI','% HASIL MENIT QM'];
 
     /**
      * =========================================================
@@ -766,8 +766,8 @@
                             <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">Time WI</th>
                             <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">Time CONF</th>
                             <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">Time QM</th>
-                            <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">% HASIL WI</th>
-                            <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">% HASIL QM</th>
+                            <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">% HASIL MENIT WI</th>
+                            <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">% HASIL MENIT QM</th>
                         </tr>
                     </thead>
 
@@ -888,8 +888,8 @@
                                                             <th class="px-4 py-3 text-center text-xs font-black text-emerald-800/70 uppercase">Time WI</th>
                                                             <th class="px-4 py-3 text-center text-xs font-black text-emerald-800/70 uppercase">Time CONF</th>
                                                             <th class="px-4 py-3 text-center text-xs font-black text-emerald-800/70 uppercase">Time QM</th>
-                                                            <th class="px-4 py-3 text-center text-xs font-black text-emerald-800/70 uppercase">% HASIL WI</th>
-                                                            <th class="px-4 py-3 text-center text-xs font-black text-emerald-800/70 uppercase">% HASIL QM</th>
+                                                            <th class="px-4 py-3 text-center text-xs font-black text-emerald-800/70 uppercase">% HASIL MENIT WI</th>
+                                                            <th class="px-4 py-3 text-center text-xs font-black text-emerald-800/70 uppercase">% HASIL MENIT QM</th>
                                                         </tr>
                                                     </thead>
 
