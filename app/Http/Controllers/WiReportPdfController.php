@@ -245,15 +245,16 @@ class WiReportPdfController extends Controller
         }
 
         return $q->selectRaw("
-                pernr as nik,
-                begda,
-                MAX(cname) as nama,
-                MAX(arbpl) as wc,
-                MAX(NULLIF(TRIM(devisi),'')) as devisi,
-                COALESCE(SUM(mintu),0) as mintu_sum
-            ")
-            ->groupBy('pernr', 'begda');
-    }
+            pernr as nik,
+            begda,
+            MAX(cname) as nama,
+            MAX(arbpl) as wc,
+            MAX(NULLIF(TRIM(devisi),'')) as devisi,
+            COALESCE(SUM(mintu),0) as mintu_sum,
+            COALESCE(SUM(mint2),0) as mint2_sum
+        ")
+        ->groupBy('pernr', 'begda');
+        }
 
     /**
      * WI per nik+tanggal (optional)
@@ -308,6 +309,7 @@ class WiReportPdfController extends Controller
                 qm.wc,
                 qm.devisi,
                 (qm.mintu_sum / {$this->qmDivisor}) as time_qm,
+                (qm.mint2_sum / {$this->qmDivisor}) as time_conf,
                 wi.id as wi_id,
                 wi.kode_laravel as kode_laravel,
                 wi.time_wi as time_wi,
@@ -317,6 +319,7 @@ class WiReportPdfController extends Controller
                     ELSE ((qm.mintu_sum / {$this->qmDivisor}) / wi.time_wi) * 100
                 END as kpi_pct
             ");
+
 
         // search (AND per token)
         $raw = trim((string) $q);
@@ -377,6 +380,7 @@ class WiReportPdfController extends Controller
                 MAX(wc) as wc,
                 MAX(devisi) as devisi,
                 COALESCE(SUM(COALESCE(time_wi,0)),0) as time_wi_sum,
+                COALESCE(SUM(COALESCE(time_conf,0)),0) as time_conf_sum,
                 COALESCE(SUM(COALESCE(time_qm,0)),0) as time_qm_sum,
                 CASE
                     WHEN SUM(COALESCE(time_wi,0)) = 0 THEN 0

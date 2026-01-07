@@ -7,13 +7,9 @@
      * HEADER (SUMMARY) & DETAIL HEADERS (untuk style konsisten)
      * =========================================================
      */
-    $headersSummary = [
-        'No','NIK','Rentang Tanggal','Nama','WC','Devisi','Time WI','Time QM','% KPI',
-    ];
+    $headersSummary = ['No','NIK','Rentang Tanggal','Nama','WC','Devisi','Time WI','Time CONF','Time QM','% KPI'];
+    $headersDetail  = ['No','NIK','Tanggal','Nama','WC','Devisi','Time WI','Time CONF','Time QM','% KPI'];
 
-    $headersDetail = [
-        'No','NIK','Tanggal','Nama','WC','Devisi','Time WI','Time QM','% KPI',
-    ];
 
     /**
      * =========================================================
@@ -632,8 +628,9 @@
                                 $minDate = !empty($row->min_tanggal) ? Carbon::parse($row->min_tanggal) : null;
                                 $maxDate = !empty($row->max_tanggal) ? Carbon::parse($row->max_tanggal) : null;
 
-                                $wiSum = (float)($row->time_wi_sum ?? 0);
-                                $qmSum = (float)($row->time_qm_sum ?? 0);
+                                $wiSum   = (float)($row->time_wi_sum ?? 0);
+                                $confSum = (float)($row->time_conf_sum ?? 0);
+                                $qmSum   = (float)($row->time_qm_sum ?? 0);
                                 $kpi   = isset($row->kpi_pct)
                                     ? (float)$row->kpi_pct
                                     : ($wiSum == 0 ? 0 : (($qmSum / $wiSum) * 100));
@@ -697,6 +694,11 @@
                                     {{ number_format($wiSum, 2) }}
                                 </td>
 
+                                {{-- Time CONF --}}
+                                <td class="px-6 py-4 text-center text-gray-900 font-semibold tracking-tight">
+                                    {{ number_format($confSum, 2) }}
+                                </td>
+
                                 {{-- Time QM --}}
                                 <td class="px-6 py-4 text-center text-gray-900 font-semibold tracking-tight">
                                     {{ number_format($qmSum, 2) }}
@@ -758,6 +760,7 @@
                             <th class="px-6 py-4 text-left text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">WC Korlap</th>
                             <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">Jumlah NIK</th>
                             <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">Time WI</th>
+                            <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">Time CONF</th>
                             <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">Time QM</th>
                             <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">% KPI</th>
                         </tr>
@@ -820,8 +823,13 @@
                                 </td>
 
                                 <td class="px-6 py-4 text-center font-semibold text-slate-700">
+                                    {{ number_format((float)($k['time_conf_sum'] ?? 0), 2) }}
+                                </td>
+
+                                <td class="px-6 py-4 text-center font-semibold text-slate-700">
                                     {{ number_format((float)($k['time_qm_sum'] ?? 0), 2) }}
                                 </td>
+
 
                                 <td class="px-6 py-4 text-center">
                                     <span class="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold shadow-sm
@@ -834,7 +842,7 @@
                             {{-- ✅ EXPAND AREA: LIST NIK SUMMARY --}}
                             @if($isExpanded)
                                 <tr wire:key="korlap-expand-{{ $korlapNik }}">
-                                    <td colspan="8" class="p-0 border-b border-emerald-100/50">
+                                    <td colspan="9" class="p-0 border-b border-emerald-100/50">
                                         {{-- Container Gradient Halus --}}
                                         <div class="px-6 py-6 bg-gradient-to-b from-emerald-50/50 to-white shadow-inner">
                                             
@@ -862,6 +870,7 @@
                                                             <th class="px-4 py-3 text-center text-xs font-black text-emerald-800/70 uppercase">WC</th>
                                                             <th class="px-4 py-3 text-left   text-xs font-black text-emerald-800/70 uppercase">Devisi</th>
                                                             <th class="px-4 py-3 text-center text-xs font-black text-emerald-800/70 uppercase">Time WI</th>
+                                                            <th class="px-4 py-3 text-center text-xs font-black text-emerald-800/70 uppercase">Time CONF</th>
                                                             <th class="px-4 py-3 text-center text-xs font-black text-emerald-800/70 uppercase">Time QM</th>
                                                             <th class="px-4 py-3 text-center text-xs font-black text-emerald-800/70 uppercase">% KPI</th>
                                                         </tr>
@@ -872,6 +881,7 @@
                                                             @php
                                                                 $nikChild = (string)($r['nik'] ?? '');
                                                                 $wiSum2 = (float)($r['time_wi_sum'] ?? 0);
+                                                                $confSum2 = (float)($r['time_conf_sum'] ?? 0);
                                                                 $qmSum2 = (float)($r['time_qm_sum'] ?? 0);
                                                                 $kpi2 = (float)($r['kpi_pct'] ?? 0);
                                                             @endphp
@@ -883,8 +893,17 @@
                                                                 <td class="px-4 py-3 text-left text-sm font-semibold text-slate-700 capitalize group-hover/child:text-emerald-900">{{ strtolower((string)($r['nama'] ?? '-')) }}</td>
                                                                 <td class="px-4 py-3 text-center text-sm font-mono text-slate-500">{{ $r['wc'] ?? '-' }}</td>
                                                                 <td class="px-4 py-3 text-left text-sm font-medium text-slate-600">{{ $r['devisi'] ?? '-' }}</td>
-                                                                <td class="px-4 py-3 text-center text-sm font-bold font-mono text-slate-700">{{ number_format($wiSum2, 2) }}</td>
-                                                                <td class="px-4 py-3 text-center text-sm font-bold font-mono text-slate-700">{{ number_format($qmSum2, 2) }}</td>
+                                                                <td class="px-4 py-3 text-center text-sm font-bold font-mono text-slate-700">
+                                                                    {{ number_format($wiSum2, 2) }}
+                                                                </td>
+
+                                                                <td class="px-4 py-3 text-center text-sm font-bold font-mono text-slate-700">
+                                                                    {{ number_format($confSum2, 2) }}
+                                                                </td>
+
+                                                                <td class="px-4 py-3 text-center text-sm font-bold font-mono text-slate-700">
+                                                                    {{ number_format($qmSum2, 2) }}
+                                                                </td>
                                                                 <td class="px-4 py-3 text-center">
                                                                     <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold
                                                                         {{ $kpi2 < 100 ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600' }}">
@@ -1003,6 +1022,8 @@
                                         @php
                                             $timeWi = $d['time_wi'] ?? null;
                                             $timeQm = $d['time_qm'] ?? null;
+                                            $timeConf = $d['time_conf'] ?? null;
+
 
                                             $kpiRow = $d['kpi_pct'] ?? null;
                                             if (is_null($kpiRow) && !is_null($timeWi)) {
@@ -1058,6 +1079,11 @@
                                             {{-- Time WI --}}
                                             <td class="px-4 py-2 text-sm font-bold text-center font-mono">
                                                 {{ is_null($timeWi) ? '-' : number_format((float)$timeWi, 2) }}
+                                            </td>
+
+                                            {{-- Time CONF --}}
+                                            <td class="px-4 py-2 text-sm font-bold text-center font-mono">
+                                                {{ is_null($timeConf) ? '-' : number_format((float)$timeConf, 2) }}
                                             </td>
 
                                             {{-- Time QM --}}

@@ -164,14 +164,15 @@ class WiDailyReport extends Component
     {
         [$detailJoined] = $this->buildDetailJoinedForCurrentFilters(true);
 
-        // Ambil summary per NIK, tapi hanya baris yang WC-nya termasuk wc_korlap milik korlap ini
         $rows = DB::query()
             ->fromSub($detailJoined, 'd')
             ->join('nik_korlap as nk', function ($join) {
-                $join->whereRaw("JSON_CONTAINS(nk.wc_korlap, JSON_QUOTE(d.wc))");
+                // bikin ON yang valid + filter wc_korlap match wc dari detail
+                $join->on(DB::raw('1'), '=', DB::raw('1'))
+                    ->whereRaw("JSON_CONTAINS(nk.wc_korlap, JSON_QUOTE(d.wc))");
             })
             ->where('nk.nik', $korlapNik)
-            ->whereRaw('TRIM(nk.plant) = ?', [trim($this->plant)]) // ✅ penting
+            ->whereRaw('TRIM(nk.plant) = ?', [trim($this->plant)])
             ->selectRaw("
                 d.nik as nik,
                 MAX(d.nama) as nama,
@@ -180,6 +181,7 @@ class WiDailyReport extends Component
                 MIN(d.tanggal) as min_tanggal,
                 MAX(d.tanggal) as max_tanggal,
                 COALESCE(SUM(d.time_wi),0) as time_wi_sum,
+                COALESCE(SUM(d.time_conf),0) as time_conf_sum,
                 COALESCE(SUM(d.time_qm),0) as time_qm_sum,
                 CASE
                     WHEN COALESCE(SUM(d.time_wi),0)=0 THEN 0
@@ -187,19 +189,21 @@ class WiDailyReport extends Component
                 END as kpi_pct
             ")
             ->groupBy('d.nik')
-            ->orderBy('wc', 'asc') // 1. Urutkan WC (A-Z)
-            ->orderByRaw("CAST(d.nik AS UNSIGNED) ASC") // 2. Baru urutkan NIK (Angka)
+            ->orderBy('wc', 'asc')
+            ->orderByRaw("CAST(d.nik AS UNSIGNED) ASC")
             ->get();
+
         return $rows->map(fn($r) => [
-            'nik'         => (string) $r->nik,
-            'nama'        => (string) $r->nama,
-            'wc'          => (string) $r->wc,
-            'devisi'      => (string) $r->devisi,
-            'min_tanggal' => (string) $r->min_tanggal,
-            'max_tanggal' => (string) $r->max_tanggal,
-            'time_wi_sum' => (float) $r->time_wi_sum,
-            'time_qm_sum' => (float) $r->time_qm_sum,
-            'kpi_pct'     => (float) $r->kpi_pct,
+            'nik'           => (string) $r->nik,
+            'nama'          => (string) $r->nama,
+            'wc'            => (string) $r->wc,
+            'devisi'        => (string) $r->devisi,
+            'min_tanggal'   => (string) $r->min_tanggal,
+            'max_tanggal'   => (string) $r->max_tanggal,
+            'time_wi_sum'   => (float)  $r->time_wi_sum,
+            'time_conf_sum' => (float)  $r->time_conf_sum,
+            'time_qm_sum'   => (float)  $r->time_qm_sum,
+            'kpi_pct'       => (float)  $r->kpi_pct,
         ])->all();
     }
 
@@ -354,7 +358,8 @@ class WiDailyReport extends Component
                 MAX(cname) as nama,
                 MAX(arbpl) as wc,
                 MAX(devisi) as devisi,
-                COALESCE(SUM(mintu),0) as time_qm
+                COALESCE(SUM(mintu),0) as time_qm,
+                COALESCE(SUM(mint2),0) as time_conf
             ")
             ->whereBetween('begda', [$begdaStart, $begdaEnd])
             ->whereRaw("UPPER(TRIM(role)) = 'INDUK'")
@@ -422,7 +427,7 @@ class WiDailyReport extends Component
                 $join->on('wi.nik', '=', 'qm.pernr')
                     ->on(DB::raw("DATE_FORMAT(wi.tanggal, '%Y%m%d')"), '=', 'qm.begda');
             })
-            ->selectRaw("
+           ->selectRaw("
                 wi.id as id,
                 DATE_FORMAT(STR_TO_DATE(qm.begda,'%Y%m%d'), '%Y-%m-%d') as tanggal,
                 qm.pernr as nik,
@@ -430,6 +435,7 @@ class WiDailyReport extends Component
                 qm.wc as wc,
                 qm.devisi as devisi,
                 qm.time_qm as time_qm,
+                qm.time_conf as time_conf,
                 wi.kode_laravel as kode_laravel,
                 wi.time_wi as time_wi,
                 CASE
@@ -438,6 +444,7 @@ class WiDailyReport extends Component
                     ELSE (qm.time_qm / wi.time_wi) * 100
                 END as kpi_pct
             ");
+
     }
 
     /**
@@ -625,13 +632,14 @@ class WiDailyReport extends Component
         // QM per tanggal (role INDUK)
         // =========================
         $qmQ = ReportData::query()
-            ->selectRaw("
-                begda,
-                MAX(cname) as nama,
-                MAX(arbpl) as wc,
-                MAX(devisi) as devisi,
-                COALESCE(SUM(mintu),0) as time_qm
-            ")
+        ->selectRaw("
+            begda,
+            MAX(cname) as nama,
+            MAX(arbpl) as wc,
+            MAX(devisi) as devisi,
+            COALESCE(SUM(mintu),0) as time_qm,
+            COALESCE(SUM(mint2),0) as time_conf
+        ")
             ->where('pernr', $this->selectedNik)
             ->whereBetween('begda', [$begdaStart, $begdaEnd])
             ->whereRaw("UPPER(TRIM(role)) = 'INDUK'")
@@ -724,8 +732,9 @@ class WiDailyReport extends Component
             $qm = $qmByDate->get($key);
             $wi = $wiByDate->get($key);
 
-            $timeWi = $wi ? (float) $wi->time_wi : null; // null -> Blade "-"
-            $timeQm = $qm ? (float) $qm->time_qm : null;
+            $timeWi   = $wi ? (float) $wi->time_wi : null;
+            $timeQm   = $qm ? (float) $qm->time_qm : null;
+            $timeConf = $qm ? (float) $qm->time_conf : null;
 
             $wc     = $qm->wc ?? null;
             $devisi = $qm->devisi ?? null;
@@ -739,6 +748,7 @@ class WiDailyReport extends Component
                 'wc'      => $wc,
                 'devisi'  => $devisi,
                 'time_wi' => $timeWi,
+                'time_conf' => $timeConf,
                 'time_qm' => $timeQm,
                 'kpi_pct' => is_null($timeWi) ? null : ($timeWi == 0 ? 0 : (((float)($timeQm ?? 0)) / $timeWi) * 100),
             ];
@@ -781,10 +791,9 @@ class WiDailyReport extends Component
         // =========================================
         if (($this->reportMode ?? 'wi') === 'korlap') {
 
-            // agregasi per KORLAP (SUM dari semua NIK pada WC yang ada di wc_korlap)
             $korlapQuery = DB::query()
                 ->from('nik_korlap as nk')
-                ->whereRaw('TRIM(nk.plant) = ?', [trim($this->plant)]) // ✅ FILTER PLANT DI SINI
+                ->whereRaw('TRIM(nk.plant) = ?', [trim($this->plant)])
                 ->leftJoinSub($detailJoined, 'd', function ($join) {
                     $join->on(DB::raw('1'), '=', DB::raw('1'))
                         ->whereRaw("JSON_CONTAINS(nk.wc_korlap, JSON_QUOTE(d.wc))");
@@ -795,6 +804,7 @@ class WiDailyReport extends Component
                     MAX(nk.wc_korlap) as wc_korlap,
                     COUNT(DISTINCT d.nik) as nik_count,
                     COALESCE(SUM(d.time_wi),0) as time_wi_sum,
+                    COALESCE(SUM(d.time_conf),0) as time_conf_sum,
                     COALESCE(SUM(d.time_qm),0) as time_qm_sum,
                     CASE
                         WHEN COALESCE(SUM(d.time_wi),0)=0 THEN 0
@@ -802,7 +812,7 @@ class WiDailyReport extends Component
                     END as kpi_pct
                 ")
                 ->groupBy('nk.nik', 'nk.nama');
-            // ✅ filter wiMode juga berlaku untuk korlap
+
             if ($this->wiMode === 'with') {
                 $korlapQuery->havingRaw("COALESCE(SUM(d.time_wi),0) > 0");
             } elseif ($this->wiMode === 'without') {
@@ -813,13 +823,14 @@ class WiDailyReport extends Component
                 ->orderBy('nk.nama')
                 ->get()
                 ->map(fn($r) => [
-                    'korlap_nik'  => (string)$r->korlap_nik,
-                    'korlap_nama' => (string)$r->korlap_nama,
-                    'wc_korlap'   => (json_decode($r->wc_korlap ?? '[]', true) ?: []),
-                    'nik_count'   => (int)$r->nik_count,
-                    'time_wi_sum' => (float)$r->time_wi_sum,
-                    'time_qm_sum' => (float)$r->time_qm_sum,
-                    'kpi_pct'     => (float)$r->kpi_pct,
+                    'korlap_nik'     => (string)$r->korlap_nik,
+                    'korlap_nama'    => (string)$r->korlap_nama,
+                    'wc_korlap'      => (json_decode($r->wc_korlap ?? '[]', true) ?: []),
+                    'nik_count'      => (int)$r->nik_count,
+                    'time_wi_sum'    => (float)$r->time_wi_sum,
+                    'time_conf_sum'  => (float)$r->time_conf_sum,
+                    'time_qm_sum'    => (float)$r->time_qm_sum,
+                    'kpi_pct'        => (float)$r->kpi_pct,
                 ])
                 ->all();
 
@@ -828,13 +839,25 @@ class WiDailyReport extends Component
                 'rangeStart' => $start->toDateString(),
                 'rangeEnd'   => $end->toDateString(),
 
-                // supaya blade aman walau tidak dipakai
+                // penting supaya blade konsisten
                 'reportData' => collect([]),
                 'missingNiks' => [],
+
                 'overallWi' => 0,
                 'overallQm' => 0,
                 'overallKpi' => 0,
                 'overallDevisi' => '-',
+
+                // ✅ tambahkan ini
+                'selectedNiks' => $this->selectedNiks,
+                'selectedDetailKeys' => $this->selectedDetailKeys,
+                'expandedKorlaps' => $this->expandedKorlaps,
+                'korlapNikSummaries' => $this->korlapNikSummaries,
+                'reportMode' => $this->reportMode,
+                'wiMode' => $this->wiMode,
+                'monthFilter' => $this->monthFilter,
+                'q' => $this->q,
+                'plant' => $this->plant,
             ]);
         }
 
@@ -874,6 +897,7 @@ class WiDailyReport extends Component
                 MAX(devisi) as devisi,
 
                 COALESCE(SUM(time_wi),0) as time_wi_sum,
+                COALESCE(SUM(time_conf),0) as time_conf_sum,
                 COALESCE(SUM(time_qm),0) as time_qm_sum,
 
                 MAX(CASE WHEN time_wi IS NULL THEN 0 ELSE 1 END) as has_wi,
