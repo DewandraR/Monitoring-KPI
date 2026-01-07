@@ -164,16 +164,32 @@ class WiDailyReport extends Component
     {
         [$detailJoined] = $this->buildDetailJoinedForCurrentFilters(true);
 
-        $rows = DB::query()
+        // Mulai Query
+        $q = DB::query()
             ->fromSub($detailJoined, 'd')
             ->join('nik_korlap as nk', function ($join) {
-                // bikin ON yang valid + filter wc_korlap match wc dari detail
                 $join->on(DB::raw('1'), '=', DB::raw('1'))
                     ->whereRaw("JSON_CONTAINS(nk.wc_korlap, JSON_QUOTE(d.wc))");
             })
             ->where('nk.nik', $korlapNik)
-            ->whereRaw('TRIM(nk.plant) = ?', [trim($this->plant)])
-            ->selectRaw("
+            ->whereRaw('TRIM(nk.plant) = ?', [trim($this->plant)]);
+
+        // ==================================================
+        // ✅ PERBAIKAN: Filter Mode WI (With / Without) Disini
+        // ==================================================
+        if ($this->wiMode === 'with') {
+            // Hanya ambil yang time_wi > 0
+            $q->where('d.time_wi', '>', 0);
+        } elseif ($this->wiMode === 'without') {
+            // Ambil yang time_wi 0 atau NULL
+            $q->where(function ($sub) {
+                $sub->whereNull('d.time_wi')
+                    ->orWhere('d.time_wi', '=', 0);
+            });
+        }
+
+        // Lanjut select & grouping
+        $rows = $q->selectRaw("
                 d.nik as nik,
                 MAX(d.nama) as nama,
                 CASE WHEN COUNT(DISTINCT d.wc)=1 THEN MAX(d.wc) ELSE 'MULTI' END as wc,
@@ -810,16 +826,25 @@ class WiDailyReport extends Component
                         WHEN COALESCE(SUM(d.time_wi),0)=0 THEN 0
                         ELSE (COALESCE(SUM(d.time_qm),0)/COALESCE(SUM(d.time_wi),0))*100
                     END as kpi_pct
-                ")
-                ->groupBy('nk.nik', 'nk.nama');
+                ");
 
+            // =========================================================
+            // ✅ PERBAIKAN: Ganti havingRaw dengan WHERE pada tabel 'd'
+            // =========================================================
             if ($this->wiMode === 'with') {
-                $korlapQuery->havingRaw("COALESCE(SUM(d.time_wi),0) > 0");
+                // Filter baris detail: Hanya yang punya WI > 0
+                $korlapQuery->where('d.time_wi', '>', 0);
             } elseif ($this->wiMode === 'without') {
-                $korlapQuery->havingRaw("COALESCE(SUM(d.time_wi),0) = 0");
+                // Filter baris detail: Hanya yang WI 0 atau NULL
+                $korlapQuery->where(function ($q) {
+                    $q->whereNull('d.time_wi')
+                      ->orWhere('d.time_wi', '=', 0);
+                });
             }
 
+            // Grouping dilakukan SETELAH filter where
             $korlapData = $korlapQuery
+                ->groupBy('nk.nik', 'nk.nama')
                 ->orderBy('nk.nama')
                 ->get()
                 ->map(fn($r) => [
@@ -838,17 +863,13 @@ class WiDailyReport extends Component
                 'korlapData' => $korlapData,
                 'rangeStart' => $start->toDateString(),
                 'rangeEnd'   => $end->toDateString(),
-
-                // penting supaya blade konsisten
+                // ... (sisa parameter return view sama seperti sebelumnya)
                 'reportData' => collect([]),
                 'missingNiks' => [],
-
                 'overallWi' => 0,
                 'overallQm' => 0,
                 'overallKpi' => 0,
                 'overallDevisi' => '-',
-
-                // ✅ tambahkan ini
                 'selectedNiks' => $this->selectedNiks,
                 'selectedDetailKeys' => $this->selectedDetailKeys,
                 'expandedKorlaps' => $this->expandedKorlaps,
@@ -860,7 +881,6 @@ class WiDailyReport extends Component
                 'plant' => $this->plant,
             ]);
         }
-
         // =========================================
         // ✅ 5) MODE WI (kode kamu yang lama) LANJUT
         // =========================================
