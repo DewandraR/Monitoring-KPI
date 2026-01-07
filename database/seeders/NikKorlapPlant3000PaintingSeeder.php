@@ -28,11 +28,10 @@ class NikKorlapPlant3000PaintingSeeder extends Seeder
 
             // 10004416 - Muhammad Zamakhsyari (A11, A13, B7, B8, B9, B10)
             ['wc' => 'WC442', 'nik' => '10004416', 'nama' => 'Muhammad Zamakhsyari'],
+            ['wc' => 'WC443', 'nik' => '10004416', 'nama' => 'Muhammad Zamakhsyari'],
             ['wc' => 'WC444', 'nik' => '10004416', 'nama' => 'Muhammad Zamakhsyari'],
-            ['wc' => 'WC451', 'nik' => '10004416', 'nama' => 'Muhammad Zamakhsyari'],
             ['wc' => 'WC452', 'nik' => '10004416', 'nama' => 'Muhammad Zamakhsyari'],
             ['wc' => 'WC863', 'nik' => '10004416', 'nama' => 'Muhammad Zamakhsyari'],
-            ['wc' => 'WC864', 'nik' => '10004416', 'nama' => 'Muhammad Zamakhsyari'],
 
             // 10000992 - Sugiyanto (B1-B6)
             ['wc' => 'WC445', 'nik' => '10000992', 'nama' => 'SUGIYANTO'],
