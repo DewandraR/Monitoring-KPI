@@ -123,13 +123,13 @@ class WiReportPdfController extends Controller
                 COALESCE(SUM(COALESCE(time_conf,0)),0) as time_conf_sum,
                 COALESCE(SUM(COALESCE(time_qm,0)),0) as time_qm_sum,
 
-                -- HASIL QM (QM / WI)
+                -- HASIL MENIT QM (QM / WI)
                 CASE
                     WHEN SUM(COALESCE(time_wi,0)) = 0 THEN 0
                     ELSE (SUM(COALESCE(time_qm,0)) / SUM(COALESCE(time_wi,0))) * 100
                 END as kpi_quality_pct,
 
-                -- HASIL WI (WI / CONF)
+                -- HASIL MENIT WI (WI / CONF)
                 CASE
                     WHEN SUM(COALESCE(time_wi,0)) = 0 THEN 0
                     ELSE (SUM(COALESCE(time_conf,0)) / SUM(COALESCE(time_wi,0))) * 100
@@ -164,10 +164,10 @@ class WiReportPdfController extends Controller
                 $totalConf = $myMembers->sum('time_conf_sum');
                 $totalQm   = $myMembers->sum('time_qm_sum');
                 
-                // HASIL QM (QM/WI)
+                // HASIL MENIT QM (QM/WI)
                 $kpiQualityKorlap = ($totalWi == 0) ? 0 : ($totalQm / $totalWi) * 100;
 
-                // HASIL WI (WI/CONF)
+                // HASIL MENIT WI (WI/CONF)
                 $kpiQtyKorlap = ($totalWi == 0) ? 0 : ($totalConf / $totalWi) * 100;
                 
                 // Format WC jadi string
@@ -572,13 +572,13 @@ class WiReportPdfController extends Controller
                 COALESCE(SUM(COALESCE(time_conf,0)),0) as time_conf_sum,
                 COALESCE(SUM(COALESCE(time_qm,0)),0) as time_qm_sum,
 
-                -- HASIL QM (QM / WI)
+                -- HASIL MENIT QM (QM / WI)
                 CASE
                     WHEN SUM(COALESCE(time_wi,0)) = 0 THEN 0
                     ELSE (SUM(COALESCE(time_qm,0)) / SUM(COALESCE(time_wi,0))) * 100
                 END as kpi_quality_pct,
 
-                -- HASIL WI (CONF / WI)
+                -- HASIL MENIT WI (CONF / WI)
                 CASE
                     WHEN SUM(COALESCE(time_wi,0)) = 0 THEN 0
                     ELSE (SUM(COALESCE(time_conf,0)) / SUM(COALESCE(time_wi,0))) * 100

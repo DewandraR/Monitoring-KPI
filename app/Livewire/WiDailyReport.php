@@ -240,13 +240,13 @@ class WiDailyReport extends Component
                 COALESCE(SUM(d.time_conf),0) as time_conf_sum,
                 COALESCE(SUM(d.time_qm),0) as time_qm_sum,
                 
-                -- HASIL QM (QM / WI)
+                -- HASIL MENIT QM (QM / WI)
                 CASE
                     WHEN COALESCE(SUM(d.time_wi),0)=0 THEN 0
                     ELSE (COALESCE(SUM(d.time_qm),0)/COALESCE(SUM(d.time_wi),0))*100
                 END as kpi_quality_pct,
 
-                -- HASIL WI (WI / CONF)
+                -- HASIL MENIT WI (WI / CONF)
                 CASE
                     WHEN COALESCE(SUM(d.time_wi),0)=0 THEN 0
                     ELSE (COALESCE(SUM(d.time_conf),0)/COALESCE(SUM(d.time_wi),0))*100
@@ -512,14 +512,14 @@ class WiDailyReport extends Component
                 wi.kode_laravel as kode_laravel,
                 wi.time_wi as time_wi,
                 
-                -- HASIL QM (QM / WI)
+                -- HASIL MENIT QM (QM / WI)
                 CASE
                     WHEN wi.time_wi IS NULL THEN NULL
                     WHEN wi.time_wi = 0 THEN 0
                     ELSE (qm.time_qm / wi.time_wi) * 100
                 END as kpi_quality_pct,
 
-                -- HASIL WI (WI / CONF)
+                -- HASIL MENIT WI (WI / CONF)
                 CASE
                     WHEN wi.time_wi IS NULL THEN NULL
                     WHEN wi.time_wi = 0 THEN 0
@@ -939,13 +939,13 @@ class WiDailyReport extends Component
                     COALESCE(SUM(d.time_conf),0) as time_conf_sum,
                     COALESCE(SUM(d.time_qm),0) as time_qm_sum,
                     
-                    -- HASIL QM (QM/WI)
+                    -- HASIL MENIT QM (QM/WI)
                     CASE
                         WHEN COALESCE(SUM(d.time_wi),0)=0 THEN 0
                         ELSE (COALESCE(SUM(d.time_qm),0)/COALESCE(SUM(d.time_wi),0))*100
                     END as kpi_quality_pct,
 
-                    -- HASIL WI (WI/CONF)
+                    -- HASIL MENIT WI (WI/CONF)
                     CASE
                         WHEN COALESCE(SUM(d.time_wi),0)=0 THEN 0
                         ELSE (COALESCE(SUM(d.time_conf),0)/COALESCE(SUM(d.time_wi),0))*100
@@ -1050,13 +1050,13 @@ class WiDailyReport extends Component
 
                 MAX(CASE WHEN time_wi IS NULL THEN 0 ELSE 1 END) as has_wi,
 
-                -- HASIL QM
+                -- HASIL MENIT QM
                 CASE
                     WHEN SUM(time_wi) = 0 THEN 0
                     ELSE (SUM(time_qm) / SUM(time_wi)) * 100
                 END as kpi_quality_pct,
 
-                -- HASIL WI
+                -- HASIL MENIT WI
                 CASE
                     WHEN SUM(time_wi) = 0 THEN 0
                     ELSE (SUM(time_conf) / SUM(time_wi)) * 100

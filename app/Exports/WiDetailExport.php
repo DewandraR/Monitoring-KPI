@@ -132,8 +132,8 @@ class WiDetailExport implements
             'G' => '#,##0.00', // Time WI
             'H' => '#,##0.00', // Time CONF
             'I' => '#,##0.00', // Time QM
-            'J' => '0.00',     // KPI HASIL WI (2 decimal)
-            'K' => '0.00',     // HASIL QM (2 decimal)
+            'J' => '0.00',     // KPI HASIL MENIT WI (2 decimal)
+            'K' => '0.00',     // HASIL MENIT QM (2 decimal)
         ];
     }
 

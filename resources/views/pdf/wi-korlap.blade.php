@@ -213,8 +213,8 @@
                         <th style="width:9%;">Time WI</th>
                         <th style="width:9%;">Time CONF</th>
                         <th style="width:9%;">Time QM</th>
-                        <th style="width:9%;">HASIL WI %</th>
-                        <th style="width:9%;">HASIL QM %</th>
+                        <th style="width:9%;">HASIL MENIT WI %</th>
+                        <th style="width:9%;">HASIL MENIT QM %</th>
                     </tr>
                 </thead>
                 <tbody>

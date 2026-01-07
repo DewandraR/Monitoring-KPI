@@ -617,12 +617,12 @@
                                 $confSum = (float)($row->time_conf_sum ?? 0);
                                 $qmSum   = (float)($row->time_qm_sum ?? 0);
 
-                                // HASIL WI  = WI / CONF
+                                // HASIL MENIT WI  = WI / CONF
                                 $kpiQty = isset($row->kpi_qty_pct)
                                     ? (float)$row->kpi_qty_pct
                                     : ($confSum == 0 ? 0 : (($wiSum / $confSum) * 100));
 
-                                // HASIL QM = QM / WI
+                                // HASIL MENIT QM = QM / WI
                                 $kpiQuality = isset($row->kpi_quality_pct)
                                     ? (float)$row->kpi_quality_pct
                                     : ($wiSum == 0 ? 0 : (($qmSum / $wiSum) * 100));
@@ -696,7 +696,7 @@
                                     {{ number_format($qmSum, 2) }}
                                 </td>
 
-                                {{-- HASIL WI (WI/CONF) --}}
+                                {{-- HASIL MENIT WI (WI/CONF) --}}
                                 <td class="px-6 py-4 text-center">
                                     <span class="inline-flex items-center px-2.5 py-1 rounded text-[11px] font-semibold
                                         {{ $kpiQty < 100 ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800' }}">
@@ -704,7 +704,7 @@
                                     </span>
                                 </td>
 
-                                {{-- HASIL QM (QM/WI) --}}
+                                {{-- HASIL MENIT QM (QM/WI) --}}
                                 <td class="px-6 py-4 text-center">
                                     <span class="inline-flex items-center px-2.5 py-1 rounded text-[11px] font-semibold
                                         {{ $kpiQuality < 100 ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800' }}">
@@ -837,7 +837,7 @@
                                     {{ number_format((float)($k['time_qm_sum'] ?? 0), 2) }}
                                 </td>
 
-                                {{-- HASIL WI --}}
+                                {{-- HASIL MENIT WI --}}
                                 <td wire:click="toggleKorlap({{ \Illuminate\Support\Js::from($korlapNik) }})" class="px-6 py-4 text-center">
                                     <span class="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold shadow-sm
                                         {{ $kpiQty < 100 ? 'bg-amber-100 text-amber-800 ring-1 ring-amber-200' : 'bg-blue-100 text-blue-800 ring-1 ring-blue-200' }}">
@@ -845,7 +845,7 @@
                                     </span>
                                 </td>
 
-                                {{-- HASIL QM --}}
+                                {{-- HASIL MENIT QM --}}
                                 <td wire:click="toggleKorlap({{ \Illuminate\Support\Js::from($korlapNik) }})" class="px-6 py-4 text-center">
                                     <span class="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold shadow-sm
                                         {{ $kpiQuality < 100 ? 'bg-red-100 text-red-800 ring-1 ring-red-200' : 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200' }}">
@@ -1009,9 +1009,9 @@
                                 &nbsp;|&nbsp;
                                 Total QM: <b>{{ number_format((float)($detailTotalQm ?? 0), 2) }}</b>
                                 &nbsp;|&nbsp;
-                                HASIL WI: <b>{{ number_format((float)($detailKpiQty ?? 0), 2) }}%</b>
+                                HASIL MENIT WI: <b>{{ number_format((float)($detailKpiQty ?? 0), 2) }}%</b>
                                 &nbsp;|&nbsp;
-                                HASIL QM: <b>{{ number_format((float)($detailKpiQuality ?? 0), 2) }}%</b>
+                                HASIL MENIT QM: <b>{{ number_format((float)($detailKpiQuality ?? 0), 2) }}%</b>
                             </div>
                         </div>
 
@@ -1135,7 +1135,7 @@
                                                 {{ is_null($timeQm) ? '-' : number_format((float)$timeQm, 2) }}
                                             </td>
 
-                                            {{-- HASIL WI --}}
+                                            {{-- HASIL MENIT WI --}}
                                             <td class="px-4 py-2 text-center">
                                                 <span class="inline-flex items-center px-2.5 py-1 rounded text-[11px] font-semibold
                                                     {{ is_null($kpiQtyRow) ? 'bg-slate-100 text-slate-500' : ($kpiQtyRow < 100 ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800') }}">
@@ -1143,7 +1143,7 @@
                                                 </span>
                                             </td>
 
-                                            {{-- HASIL QM --}}
+                                            {{-- HASIL MENIT QM --}}
                                             <td class="px-4 py-2 text-center">
                                                 <span class="inline-flex items-center px-2.5 py-1 rounded text-[11px] font-semibold
                                                     {{ is_null($kpiQualityRow) ? 'bg-slate-100 text-slate-500' : ($kpiQualityRow < 100 ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800') }}">

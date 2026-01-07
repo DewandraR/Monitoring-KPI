@@ -59,8 +59,8 @@ class WiKorlapExport implements
                 'TIME WI',
                 'TIME CONF',
                 'TIME QM',
-                'HASIL WI %',
-                'HASIL QM %',
+                'HASIL MENIT WI %',
+                'HASIL MENIT QM %',
             ]);
 
             // DATA KORLAP
@@ -92,8 +92,8 @@ class WiKorlapExport implements
                 'TIME WI',
                 'TIME CONF',
                 'TIME QM',
-                'HASIL WI %',
-                'HASIL QM %',
+                'HASIL MENIT WI %',
+                'HASIL MENIT QM %',
             ]);
 
             // DATA MEMBER
@@ -151,8 +151,8 @@ class WiKorlapExport implements
                 $sheet->getColumnDimension('F')->setWidth(12);  // WI
                 $sheet->getColumnDimension('G')->setWidth(12);  // Conf
                 $sheet->getColumnDimension('H')->setWidth(12);  // QM
-                $sheet->getColumnDimension('I')->setWidth(12);  // HASIL WI
-                $sheet->getColumnDimension('J')->setWidth(14);  // HASIL QM
+                $sheet->getColumnDimension('I')->setWidth(12);  // HASIL MENIT WI
+                $sheet->getColumnDimension('J')->setWidth(14);  // HASIL MENIT QM
 
                 for ($row = 1; $row <= $lastRow; $row++) {
 
@@ -200,7 +200,7 @@ class WiKorlapExport implements
                         $sheet->getStyle("I{$row}:J{$row}")
                             ->getNumberFormat()->setFormatCode('0.00');
 
-                        // Warna HASIL WI (I)
+                        // Warna HASIL MENIT WI (I)
                         $kpiQtyVal = $sheet->getCell("I{$row}")->getValue();
                         if (is_numeric($kpiQtyVal) && $kpiQtyVal < 100) {
                             $sheet->getStyle("I{$row}")->getFont()->getColor()->setARGB('FFC53030');
@@ -208,7 +208,7 @@ class WiKorlapExport implements
                             $sheet->getStyle("I{$row}")->getFont()->getColor()->setARGB('FF047857');
                         }
 
-                        // Warna HASIL QM (J)
+                        // Warna HASIL MENIT QM (J)
                         $kpiQualityVal = $sheet->getCell("J{$row}")->getValue();
                         if (is_numeric($kpiQualityVal) && $kpiQualityVal < 100) {
                             $sheet->getStyle("J{$row}")->getFont()->getColor()->setARGB('FFC53030');
@@ -268,7 +268,7 @@ class WiKorlapExport implements
                         $sheet->getStyle("I{$row}:J{$row}")
                             ->getNumberFormat()->setFormatCode('0.00');
 
-                        // HASIL WI color (I)
+                        // HASIL MENIT WI color (I)
                         $kpiQtyVal = $sheet->getCell("I{$row}")->getValue();
                         if (is_numeric($kpiQtyVal) && $kpiQtyVal < 100) {
                             $sheet->getStyle("I{$row}")->getFont()->getColor()->setARGB('FFC53030');
@@ -276,7 +276,7 @@ class WiKorlapExport implements
                             $sheet->getStyle("I{$row}")->getFont()->getColor()->setARGB('FF047857');
                         }
 
-                        // HASIL QM color (J)
+                        // HASIL MENIT QM color (J)
                         $kpiQualityVal = $sheet->getCell("J{$row}")->getValue();
                         if (is_numeric($kpiQualityVal) && $kpiQualityVal < 100) {
                             $sheet->getStyle("J{$row}")->getFont()->getColor()->setARGB('FFC53030');
