@@ -85,6 +85,194 @@ class WiReportPdfController extends Controller
         return [$start, $end];
     }
 
+    protected function getKorlapMembersData(string $plant, array $dateIso, array $dateYmd, array $selectedKorlapNiks, string $wiMode)
+    {
+        // 1. Ambil Data Master Korlap yang dipilih
+        $korlaps = DB::table('nik_korlap')
+            ->whereIn('nik', $selectedKorlapNiks)
+            ->whereRaw('TRIM(plant) = ?', [$plant])
+            ->select('nik', 'nama', 'wc_korlap')
+            ->orderBy('nama')
+            ->get();
+
+        // 2. Kumpulkan semua WC
+        $allWcs = [];
+        foreach ($korlaps as $k) {
+            $wcs = json_decode($k->wc_korlap ?? '[]', true);
+            if (is_array($wcs)) {
+                $allWcs = array_merge($allWcs, $wcs);
+            }
+        }
+        $allWcs = array_unique($allWcs);
+
+        if (empty($allWcs)) return collect([]);
+
+        // 3. Query Member Data
+        $joined = $this->joinedDayQuery($plant, $dateIso, $dateYmd, [], ''); 
+        $joined->whereIn('qm.wc', $allWcs);
+
+        $memberRows = DB::query()
+            ->fromSub($joined, 'd')
+            ->selectRaw("
+                nik,
+                MAX(nama) as nama,
+                MAX(wc) as wc,
+                MAX(devisi) as devisi,
+
+                COALESCE(SUM(COALESCE(time_wi,0)),0) as time_wi_sum,
+                COALESCE(SUM(COALESCE(time_conf,0)),0) as time_conf_sum,
+                COALESCE(SUM(COALESCE(time_qm,0)),0) as time_qm_sum,
+
+                -- KPI QUALITY (QM / WI)
+                CASE
+                    WHEN SUM(COALESCE(time_wi,0)) = 0 THEN 0
+                    ELSE (SUM(COALESCE(time_qm,0)) / SUM(COALESCE(time_wi,0))) * 100
+                END as kpi_quality_pct,
+
+                -- KPI QTY (WI / CONF)
+                CASE
+                    WHEN SUM(COALESCE(time_wi,0)) = 0 THEN 0
+                    ELSE (SUM(COALESCE(time_conf,0)) / SUM(COALESCE(time_wi,0))) * 100
+                END as kpi_qty_pct
+            ")
+            ->groupBy('nik')
+            ->get();
+
+        // 4. Mapping & Calculating Group Totals
+        $result = collect();
+
+        foreach ($korlaps as $k) {
+            $myWcs = json_decode($k->wc_korlap ?? '[]', true) ?: [];
+            
+            // Filter members milik korlap ini
+            $myMembers = $memberRows->filter(function($m) use ($myWcs) {
+                return in_array($m->wc, $myWcs);
+            });
+
+            // ✅ FILTERING: (Ada WI / Belum Ada WI)
+            if ($wiMode === 'with') {
+                $myMembers = $myMembers->filter(fn($m) => (float)$m->time_wi_sum > 0);
+            } elseif ($wiMode === 'without') {
+                $myMembers = $myMembers->filter(fn($m) => (float)$m->time_wi_sum == 0);
+            }
+
+            // ✅ JIKA ADA MEMBER SETELAH FILTER, HITUNG TOTAL ULANG UTK KORLAP
+            if ($myMembers->isNotEmpty()) {
+                
+                // Hitung Total Agregat Berdasarkan Member yg Lolos Filter
+                $totalWi   = $myMembers->sum('time_wi_sum');
+                $totalConf = $myMembers->sum('time_conf_sum');
+                $totalQm   = $myMembers->sum('time_qm_sum');
+                
+                // KPI QUALITY (QM/WI)
+                $kpiQualityKorlap = ($totalWi == 0) ? 0 : ($totalQm / $totalWi) * 100;
+
+                // KPI QTY (WI/CONF)
+                $kpiQtyKorlap = ($totalWi == 0) ? 0 : ($totalConf / $totalWi) * 100;
+                
+                // Format WC jadi string
+                sort($myWcs);
+                $wcString = implode(', ', $myWcs);
+
+                $result->push([
+                    'korlap_nik'  => $k->nik,
+                    'korlap_nama' => $k->nama,
+                    
+                    // Data Summary Korlap (Baris Induk)
+                    'summary' => [
+                        'wc_string'   => $wcString,
+                        'count_nik'   => $myMembers->count(),
+                        'total_wi'    => $totalWi,
+                        'total_conf'  => $totalConf,
+                        'total_qm'    => $totalQm,
+
+                        'kpi_quality_pct' => $kpiQualityKorlap,
+                        'kpi_qty_pct'     => $kpiQtyKorlap,
+                    ],
+
+                    'members'     => $myMembers->sortBy('nama')->values()
+                ]);
+            }
+        }
+
+        return $result;
+    }
+
+    // =========================================================
+    // ✅ BARU: ACTION ROUTE EXPORT KORLAP
+    // =========================================================
+    public function exportKorlapPdf(Request $request, string $plant)
+    {
+        $plant = strtoupper(trim($plant));
+
+        // Ambil session
+        $monthFilter = (string)$request->session()->get('wi_export_korlap.month_filter', 'this');
+        $korlaps     = (array)$request->session()->get('wi_export_korlap.korlaps', []);
+        $wiMode      = (string)$request->session()->get('wi_export_korlap.wi_mode', 'all');
+
+        $korlaps = array_values(array_filter(array_map('strval', $korlaps)));
+
+        if (empty($korlaps)) abort(404, 'Tidak ada Korlap yang dipilih.');
+
+        // Hitung Range Tanggal
+        [$start, $end] = $this->getDateRangeForMonth($monthFilter);
+        $range = $this->getRangeStrings($start, $end);
+
+        // Ambil Data
+        $data = $this->getKorlapMembersData($plant, $range['iso'], $range['ymd'], $korlaps, $wiMode);
+
+        if ($data->isEmpty()) {
+            return abort(404, 'Tidak ada data anggota tim yang sesuai kriteria filter untuk Korlap yang dipilih.');
+        }
+
+        // Hapus session
+        $request->session()->forget(['wi_export_korlap.month_filter', 'wi_export_korlap.korlaps', 'wi_export_korlap.wi_mode', 'wi_export_korlap.q']);
+
+        // Load View
+        $pdf = Pdf::loadView('pdf.wi-korlap', [
+            'data'       => $data,
+            'plant'      => $plant,
+            'rangeStart' => $range['iso'][0],
+            'rangeEnd'   => $range['iso'][1],
+            'wiMode'     => $wiMode
+        ])->setPaper('a4', 'portrait'); // Bisa landscape kalau kolom banyak
+
+        return $pdf->download("wi-korlap-report-{$plant}.pdf");
+    }
+
+    public function exportKorlapExcel(Request $request, string $plant)
+    {
+        $plant = strtoupper(trim($plant));
+
+        // 1. Ambil session (sama seperti PDF)
+        $monthFilter = (string)$request->session()->get('wi_export_korlap.month_filter', 'this');
+        $korlaps     = (array)$request->session()->get('wi_export_korlap.korlaps', []);
+        $wiMode      = (string)$request->session()->get('wi_export_korlap.wi_mode', 'all');
+
+        $korlaps = array_values(array_filter(array_map('strval', $korlaps)));
+
+        if (empty($korlaps)) abort(404, 'Tidak ada Korlap yang dipilih.');
+
+        // 2. Hitung Range Tanggal
+        [$start, $end] = $this->getDateRangeForMonth($monthFilter);
+        $range = $this->getRangeStrings($start, $end);
+        $rangeString = "{$range['iso'][0]} s.d {$range['iso'][1]}"; // String utk judul Excel
+
+        // 3. Ambil Data (Pakai helper yang sama dengan PDF)
+        $data = $this->getKorlapMembersData($plant, $range['iso'], $range['ymd'], $korlaps, $wiMode);
+
+        if ($data->isEmpty()) {
+            return abort(404, 'Tidak ada data anggota tim yang sesuai kriteria filter untuk Korlap yang dipilih.');
+        }
+
+        // 4. Hapus session
+        $request->session()->forget(['wi_export_korlap.month_filter', 'wi_export_korlap.korlaps', 'wi_export_korlap.wi_mode', 'wi_export_korlap.q']);
+
+        // 5. Download Excel
+        // Pastikan namespace App\Exports\WiKorlapExport sudah di-import di atas controller
+        return Excel::download(new \App\Exports\WiKorlapExport($data, $plant, $rangeString), "wi-korlap-report-{$plant}.xlsx");
+    }
+
 
     protected function getRangeStrings(Carbon $start, Carbon $end): array
     {
@@ -484,6 +672,9 @@ class WiReportPdfController extends Controller
 
             $timeWi = isset($r) ? ($r->time_wi !== null ? (float)$r->time_wi : null) : null;
             $timeQm = isset($r) ? ($r->time_qm !== null ? (float)$r->time_qm : null) : null;
+            
+            // ✅ TAMBAHKAN INI: Ambil Time Conf
+            $timeConf = isset($r) ? ($r->time_conf !== null ? (float)$r->time_conf : null) : null;
 
             $kpi = null;
             if (!is_null($timeWi)) {
@@ -496,7 +687,8 @@ class WiReportPdfController extends Controller
                 'tanggal' => $tgl,
                 'wc'      => $wc,
                 'devisi'  => $devisi,
-                'time_wi' => $timeWi, // NULL => view tampil "-"
+                'time_wi' => $timeWi, 
+                'time_conf' => $timeConf, // ✅ MASUKKAN KE OBJECT
                 'time_qm' => $timeQm,
                 'kpi_pct' => $kpi,
             ]);

@@ -146,7 +146,7 @@
         <!-- NAVBAR - ULTRA MODERN -->
         <nav x-data="{ open: false, scrolled: false }" @scroll.window="scrolled = window.pageYOffset > 10"
             :class="scrolled ? 'shadow-2xl' : 'shadow-md'"
-            class="bg-gradient-to-r from-emerald-800 via-emerald-700 to-emerald-800 border-b border-emerald-900 sticky top-0 z-50 transition-all duration-300">
+            class="bg-gradient-to-r from-emerald-800 via-emerald-700 to-emerald-800 border-b border-emerald-900 sticky top-0 z-[999] transition-all duration-300">
 
             <!-- Animated background shimmer -->
             <div class="absolute inset-0 shimmer-effect opacity-30 pointer-events-none"></div>
@@ -270,7 +270,7 @@
                                     x-transition:leave="transition ease-in duration-150"
                                     x-transition:leave-start="opacity-100 transform scale-100"
                                     x-transition:leave-end="opacity-0 transform scale-95"
-                                    class="absolute right-0 mt-3 w-64 rounded-2xl shadow-2xl bg-white border border-gray-100 overflow-hidden z-50 dropdown-content"
+                                    class="absolute right-0 mt-3 w-64 rounded-2xl shadow-2xl bg-white border border-gray-100 overflow-hidden z-[500] dropdown-content"
                                     style="display: none;">
 
                                     <!-- User Info Header -->

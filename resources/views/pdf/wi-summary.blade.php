@@ -35,14 +35,15 @@
         .font-mono{ font-family:'Courier New', Courier, monospace; letter-spacing:-0.2px; }
         .nowrap{ white-space:nowrap; overflow:hidden; }
 
+        /* ✅ UPDATE LEBAR KOLOM AGAR MUAT TAMBAHAN KOLOM */
         .w-no{ width:4%; }
-        .w-nik{ width:10%; }
-        .w-range{ width:16%; }
-        .w-nama{ width:20%; }
-        .w-devisi{ width:14%; }  /* ✅ kolom baru */
-        .w-wc{ width:8%; }
-        .w-num{ width:10%; }
-        .w-kpi{ width:8%; }
+        .w-nik{ width:9%; }
+        .w-range{ width:15%; }
+        .w-nama{ width:18%; }
+        .w-devisi{ width:12%; }
+        .w-wc{ width:6%; }
+        .w-num{ width:9%; } /* Untuk WI, CONF, QM */
+        .w-kpi{ width:9%; }
     </style>
 </head>
 
@@ -68,9 +69,10 @@
                 <th class="w-nik">NIK</th>
                 <th class="w-range">Rentang Tanggal</th>
                 <th class="w-nama">Nama</th>
-                <th class="w-devisi">Devisi</th> {{-- ✅ tambah --}}
+                <th class="w-devisi">Devisi</th>
                 <th class="w-wc">WC</th>
                 <th class="w-num">Time WI</th>
+                <th class="w-num">Time CONF</th> {{-- ✅ KOLOM BARU --}}
                 <th class="w-num">Time QM</th>
                 <th class="w-kpi">% KPI</th>
             </tr>
@@ -82,9 +84,10 @@
                     $minDate = !empty($row->min_tanggal) ? Carbon::parse($row->min_tanggal)->format('d/m/y') : '-';
                     $maxDate = !empty($row->max_tanggal) ? Carbon::parse($row->max_tanggal)->format('d/m/y') : '-';
 
-                    $wiSum = (float)($row->time_wi_sum ?? 0);
-                    $qmSum = (float)($row->time_qm_sum ?? 0);
-                    $kpi   = isset($row->kpi_pct) ? (float)$row->kpi_pct : ($wiSum == 0 ? 0 : ($qmSum / $wiSum) * 100);
+                    $wiSum   = (float)($row->time_wi_sum ?? 0);
+                    $confSum = (float)($row->time_conf_sum ?? 0); // ✅ DATA CONF
+                    $qmSum   = (float)($row->time_qm_sum ?? 0);
+                    $kpi     = isset($row->kpi_pct) ? (float)$row->kpi_pct : ($wiSum == 0 ? 0 : ($qmSum / $wiSum) * 100);
 
                     $devisi = (string)($row->devisi ?? '');
                     $devisiShow = $devisi !== '' ? $devisi : '-';
@@ -94,10 +97,13 @@
                     <td class="text-center font-mono nowrap">{{ $row->nik }}</td>
                     <td class="text-center font-mono nowrap">{{ $minDate }} - {{ $maxDate }}</td>
                     <td class="text-left" style="text-transform:capitalize;">{{ strtolower((string)($row->nama ?? '-')) }}</td>
-                    <td class="text-center font-mono nowrap">{{ $devisiShow }}</td> {{-- ✅ tampil devisi --}}
+                    <td class="text-center font-mono nowrap">{{ $devisiShow }}</td>
                     <td class="text-center font-mono nowrap">{{ $row->wc ?? '-' }}</td>
+                    
                     <td class="text-center font-mono nowrap">{{ number_format($wiSum, 2) }}</td>
+                    <td class="text-center font-mono nowrap">{{ number_format($confSum, 2) }}</td> {{-- ✅ TAMPILKAN CONF --}}
                     <td class="text-center font-mono nowrap">{{ number_format($qmSum, 2) }}</td>
+                    
                     <td class="text-center font-mono nowrap">{{ number_format($kpi, 0) }}%</td>
                 </tr>
             @endforeach

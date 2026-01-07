@@ -32,14 +32,15 @@
         .text-left{ text-align:left; }
         .font-mono{ font-family:'Courier New', Courier, monospace; }
 
+        /* ✅ UPDATE LEBAR KOLOM AGAR CUKUP UNTUK CONF */
         .col-no{ width:5%; }
-        .col-tgl{ width:12%; }
-        .col-nik{ width:12%; }
-        .col-nama{ width:20%; }
-        .col-devisi{ width:14%; } /* ✅ kolom baru */
-        .col-wc{ width:10%; }
-        .col-num{ width:11%; }
-        .col-kpi{ width:9%; }
+        .col-tgl{ width:11%; }
+        .col-nik{ width:11%; }
+        .col-nama{ width:18%; }
+        .col-devisi{ width:12%; }
+        .col-wc{ width:8%; }
+        .col-num{ width:9%; } /* WI, CONF, QM jadi 9% */
+        .col-kpi{ width:8%; }
 
         .group-header-row td{
             background:#e5e7eb;
@@ -75,9 +76,10 @@
                 <th class="col-tgl">Tanggal</th>
                 <th class="col-nik">NIK</th>
                 <th class="col-nama">Nama</th>
-                <th class="col-devisi">Devisi</th> {{-- ✅ tambah --}}
+                <th class="col-devisi">Devisi</th>
                 <th class="col-wc">WC</th>
                 <th class="col-num">Time WI</th>
+                <th class="col-num">Time CONF</th> {{-- ✅ KOLOM BARU --}}
                 <th class="col-num">Time QM</th>
                 <th class="col-kpi">% KPI</th>
             </tr>
@@ -103,7 +105,8 @@
                         $devisiHeaderShow = $devisiHeader !== '' ? $devisiHeader : '-';
                     @endphp
                     <tr class="group-header-row">
-                        <td colspan="9">
+                        {{-- COLSPAN JADI 10 KARENA TAMBAH 1 KOLOM --}}
+                        <td colspan="10">
                             <span class="group-header-label">Personal:</span>
                             <span class="group-header-value">{{ $r->nik }}</span>
                             &mdash;
@@ -117,9 +120,10 @@
 
                 @php
                     $rowNumberPerPerson++;
-                    $timeWi = $r->time_wi; // bisa null
-                    $timeQm = $r->time_qm; // bisa null
-                    $kpi    = $r->kpi_pct; // null kalau WI null
+                    $timeWi   = $r->time_wi;   // bisa null
+                    $timeConf = $r->time_conf; // ✅ AMBIL DATA CONF
+                    $timeQm   = $r->time_qm;   // bisa null
+                    $kpi      = $r->kpi_pct;   // null kalau WI null
 
                     $devisi = (string)($r->devisi ?? '');
                     $devisiShow = $devisi !== '' ? $devisi : '-';
@@ -130,11 +134,16 @@
                     <td class="text-center font-mono">{{ Carbon::parse($r->tanggal)->format('d/m/y') }}</td>
                     <td class="text-center font-mono">{{ $r->nik }}</td>
                     <td class="text-left" style="text-transform:capitalize;">{{ strtolower((string)$r->nama) }}</td>
-                    <td class="text-center font-mono">{{ $devisiShow }}</td> {{-- ✅ tampil devisi --}}
+                    <td class="text-center font-mono">{{ $devisiShow }}</td>
                     <td class="text-center font-mono">{{ $r->wc ?? '-' }}</td>
 
                     <td class="text-center font-mono">
                         {{ is_null($timeWi) ? '-' : number_format((float)$timeWi, 2) }}
+                    </td>
+
+                    {{-- ✅ TAMPILKAN CONF --}}
+                    <td class="text-center font-mono">
+                        {{ is_null($timeConf) ? '-' : number_format((float)$timeConf, 2) }}
                     </td>
 
                     <td class="text-center font-mono">

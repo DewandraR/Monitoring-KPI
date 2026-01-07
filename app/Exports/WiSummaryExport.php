@@ -41,10 +41,11 @@ class WiSummaryExport implements
             'Rentang Tanggal', // C
             'Nama',            // D
             'WC',              // E
-            'Devisi',          // F ✅
+            'Devisi',          // F
             'Time WI',         // G
-            'Time QM',         // H
-            '% KPI',           // I
+            'Time CONF',       // H ✅ KOLOM BARU
+            'Time QM',         // I
+            '% KPI',           // J
         ];
     }
 
@@ -59,9 +60,10 @@ class WiSummaryExport implements
             $max = !empty($row->max_tanggal) ? Carbon::parse($row->max_tanggal)->isoFormat('YY-MM-DD') : '-';
             $rentang = "{$min} - {$max}";
 
-            $wi  = (float)($row->time_wi_sum ?? 0);
-            $qm  = (float)($row->time_qm_sum ?? 0);
-            $kpi = isset($row->kpi_pct) ? (float)$row->kpi_pct : ($wi == 0.0 ? 0.0 : (($qm / $wi) * 100));
+            $wi   = (float)($row->time_wi_sum ?? 0);
+            $conf = (float)($row->time_conf_sum ?? 0); // ✅ DATA CONF
+            $qm   = (float)($row->time_qm_sum ?? 0);
+            $kpi  = isset($row->kpi_pct) ? (float)$row->kpi_pct : ($wi == 0.0 ? 0.0 : (($qm / $wi) * 100));
 
             $devisi = (string)($row->devisi ?? '');
             if (trim($devisi) === '') $devisi = '-';
@@ -72,10 +74,11 @@ class WiSummaryExport implements
                 $rentang,                    // C
                 (string)($row->nama ?? ''),  // D
                 (string)($row->wc ?? ''),    // E
-                $devisi,                     // F ✅
+                $devisi,                     // F
                 $wi,                         // G
-                $qm,                         // H
-                $kpi,                        // I
+                $conf,                       // H ✅
+                $qm,                         // I
+                $kpi,                        // J
             ];
         });
     }
@@ -105,8 +108,9 @@ class WiSummaryExport implements
     {
         return [
             'G' => '#,##0.00', // Time WI
-            'H' => '#,##0.00', // Time QM
-            'I' => '0.00',     // KPI (angka)
+            'H' => '#,##0.00', // Time CONF ✅
+            'I' => '#,##0.00', // Time QM
+            'J' => '0.00',     // KPI
         ];
     }
 
@@ -117,7 +121,7 @@ class WiSummaryExport implements
                 $sheet = $event->sheet->getDelegate();
 
                 $rowCount = $this->rows->count() + 1; // + header
-                $lastCol = 'I';
+                $lastCol = 'J'; // ✅ GESER KE J
                 $tableRange = "A1:{$lastCol}{$rowCount}";
 
                 $sheet->setAutoFilter("A1:{$lastCol}1");
@@ -130,9 +134,9 @@ class WiSummaryExport implements
 
                 $sheet->getStyle("C2:C{$rowCount}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER); // Rentang
                 $sheet->getStyle("D2:D{$rowCount}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);   // Nama
-                $sheet->getStyle("F2:F{$rowCount}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);   // Devisi ✅
+                $sheet->getStyle("F2:F{$rowCount}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);   // Devisi
 
-                $sheet->getStyle("G2:I{$rowCount}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);  // angka
+                $sheet->getStyle("G2:J{$rowCount}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);  // Angka (G, H, I, J) ✅
 
                 // Border
                 $sheet->getStyle($tableRange)->applyFromArray([

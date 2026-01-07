@@ -148,6 +148,12 @@ Route::middleware(['auth', 'verified', 'data.scope'])->group(function () {
     Route::get('/wi-daily/{plant}/export-detail-excel', [WiReportPdfController::class, 'exportDetailExcel'])
         ->name('wi.export.detail.excel');
 
+    Route::get('/wi/export/korlap/pdf/{plant}', [WiReportPdfController::class, 'exportKorlapPdf'])
+        ->name('wi.export.korlap.pdf');
+
+    Route::get('/wi/export/korlap/excel/{plant}', [WiReportPdfController::class, 'exportKorlapExcel'])
+        ->name('wi.export.korlap.excel');
+
     // WC Person (list & search all columns)
     Route::get('/wc-person', WcPersonList::class)->name('wc-person');
 

@@ -7,9 +7,8 @@
      * HEADER (SUMMARY) & DETAIL HEADERS (untuk style konsisten)
      * =========================================================
      */
-    $headersSummary = ['No','NIK','Rentang Tanggal','Nama','WC','Devisi','Time WI','Time CONF','Time QM','% KPI'];
-    $headersDetail  = ['No','NIK','Tanggal','Nama','WC','Devisi','Time WI','Time CONF','Time QM','% KPI'];
-
+    $headersSummary = ['No','NIK','Rentang Tanggal','Nama','WC','Devisi','Time WI','Time CONF','Time QM','% KPI Qty','% KPI Quality'];
+    $headersDetail  = ['No','NIK','Tanggal','Nama','WC','Devisi','Time WI','Time CONF','Time QM','% KPI Qty','% KPI Quality'];
 
     /**
      * =========================================================
@@ -28,14 +27,23 @@
         ->unique()
         ->values();
 
-    $selectedCount = (int) $selectedNiksArr->count();
+    $selectedKorlapsArr = collect($selectedKorlaps ?? [])
+        ->map(fn($v) => trim((string)$v))
+        ->filter()
+        ->unique()
+        ->values();
+
+    // Mode
+    $isKorlapMode = (($reportMode ?? 'wi') === 'korlap');
+    $isWiMode     = !$isKorlapMode;
+
+    // Badge count: Korlap -> selectedKorlaps, WI -> selectedNiks
+    $selectedCount = $isKorlapMode ? (int)$selectedKorlapsArr->count() : (int)$selectedNiksArr->count();
 
     /**
      * =========================================================
      * HITUNG BADGE EXPORT DETAIL (JUMLAH "BARIS" YANG AKAN DIPRINT)
-     * - Summary NIK: dihitung full range min..max (inklusif)
-     * - Detail modal: dihitung per tanggal unik (nik|tanggal)
-     * tapi tidak dobel jika nik sudah ikut summary
+     * (Hanya relevan di mode WI; di Korlap tetap aman karena reportData kosong)
      * =========================================================
      */
     $detailSelectedCount = 0;
@@ -95,16 +103,16 @@
     } catch (\Throwable $e) {
         $detailSelectedCount = 0;
     }
-    $isKorlapMode = (($reportMode ?? 'wi') === 'korlap');
-    $isWiMode = !$isKorlapMode;
 @endphp
 
 {{-- ROOT ELEMENT --}}
 <div id="wi-root"
+     data-report-mode="{{ $reportMode ?? 'wi' }}"
      data-month-filter="{{ $monthFilter ?? 'this' }}"
      data-range-start="{{ $rangeStart ?? '' }}"
      data-range-end="{{ $rangeEnd ?? '' }}"
      data-selected-niks='@json($selectedNiksArr->values()->all())'
+     data-selected-korlaps='@json($selectedKorlapsArr->values()->all())'
      data-selected-detail-keys='@json($selectedDetailKeysArr->values()->all())'
      class="bg-white overflow-hidden shadow-[0_25px_50px_-12px_rgba(0,0,0,0.15)] sm:rounded-xl p-8 border border-emerald-50 relative">
 
@@ -147,7 +155,6 @@
                         <button type="button"
                                 wire:click="setReportMode('korlap')"
                                 class="px-3 py-1.5 rounded-lg text-xs font-black tracking-wide transition-all
-                                    {{-- UBAH WARNA AKTIF JADI HIJAU TUA MEWAH AGAR SENADA --}}
                                     {{ $isKorlapMode ? 'bg-emerald-900 text-white shadow' : 'text-slate-600 hover:text-emerald-800' }}">
                             Per Korlap
                         </button>
@@ -156,10 +163,7 @@
                     <span class="text-xs text-gray-400 italic">
                         {{ $isKorlapMode ? '(Ringkasan per Korlap)' : '(Ringkasan per NIK)' }}
                     </span>
-
                 </div>
-
-                {{-- TOTAL (Tampil) DIHAPUS SESUAI PERMINTAAN --}}
             </div>
 
             {{-- TOGGLE BULAN --}}
@@ -179,8 +183,8 @@
                     <button type="button" wire:click="setMonthFilter('this')"
                             class="relative z-10 px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 ease-out flex items-center gap-2
                                    {{ ($monthFilter ?? 'this') === 'this'
-                                      ? 'text-emerald-700 scale-105'
-                                      : 'text-emerald-600/60 hover:text-emerald-700 hover:scale-105' }}">
+                                     ? 'text-emerald-700 scale-105'
+                                     : 'text-emerald-600/60 hover:text-emerald-700 hover:scale-105' }}">
                         <svg class="w-4 h-4 transition-all duration-300 {{ ($monthFilter ?? 'this') === 'this' ? 'rotate-0 scale-110' : 'rotate-12 scale-90 opacity-70' }}"
                              fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
@@ -199,8 +203,8 @@
                     <button type="button" wire:click="setMonthFilter('prev')"
                             class="relative z-10 px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 ease-out flex items-center gap-2
                                    {{ ($monthFilter ?? 'this') === 'prev'
-                                      ? 'text-teal-700 scale-105'
-                                      : 'text-teal-600/60 hover:text-teal-700 hover:scale-105' }}">
+                                     ? 'text-teal-700 scale-105'
+                                     : 'text-teal-600/60 hover:text-teal-700 hover:scale-105' }}">
                         <svg class="w-4 h-4 transition-all duration-300 {{ ($monthFilter ?? 'this') === 'prev' ? 'rotate-0 scale-110' : '-rotate-12 scale-90 opacity-70' }}"
                              fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
@@ -222,49 +226,48 @@
         </div>
 
         {{-- BARIS 2: BUTTONS --}}
-        @if($isWiMode)
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 {{ $isWiMode ? 'lg:grid-cols-3' : '' }} gap-3">
 
-                {{-- (1) COPY NIK (TOAST) --}}
-                <button id="wi-btn-copy-nik" type="button"
-                        class="group relative overflow-hidden rounded-xl
-                           bg-gradient-to-br from-teal-600 via-emerald-600 to-emerald-700
-                           px-5 py-4 text-sm font-bold text-white
-                           shadow-lg shadow-teal-600/30 ring-1 ring-teal-500/20
-                           transition-all duration-300 ease-out
-                           hover:shadow-2xl hover:shadow-teal-600/50 hover:-translate-y-1
-                           hover:ring-teal-400/40
-                           focus:outline-none focus:ring-2 focus:ring-teal-400 focus:ring-offset-2
-                           flex items-center justify-center gap-2.5">
+            {{-- (1) COPY NIK/KORLAP --}}
+            <button id="wi-btn-copy-nik" type="button"
+                    class="group relative overflow-hidden rounded-xl
+                       bg-gradient-to-br from-teal-600 via-emerald-600 to-emerald-700
+                       px-5 py-4 text-sm font-bold text-white
+                       shadow-lg shadow-teal-600/30 ring-1 ring-teal-500/20
+                       transition-all duration-300 ease-out
+                       hover:shadow-2xl hover:shadow-teal-600/50 hover:-translate-y-1
+                       hover:ring-teal-400/40
+                       focus:outline-none focus:ring-2 focus:ring-teal-400 focus:ring-offset-2
+                       flex items-center justify-center gap-2.5">
 
-                    <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
-                        <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
-                    </div>
+                <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                    <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+                </div>
 
-                    <svg xmlns="http://www.w3.org/2000/svg"
-                         class="h-5 w-5 relative z-10 transition-all duration-300 group-hover:scale-110"
-                         fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                        <path stroke-linecap="round" stroke-linejoin="round"
-                              d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-                    </svg>
+                <svg xmlns="http://www.w3.org/2000/svg"
+                     class="h-5 w-5 relative z-10 transition-all duration-300 group-hover:scale-110"
+                     fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                </svg>
 
-                    <span class="relative z-10 whitespace-nowrap">Copy NIK</span>
+                <span class="relative z-10 whitespace-nowrap">Copy {{ $isKorlapMode ? 'NIK Korlap' : 'NIK' }}</span>
 
-                    @if ($selectedCount > 0)
-                        <span class="flex h-6 min-w-[24px] items-center justify-center rounded-lg
+                @if ($selectedCount > 0)
+                    <span class="flex h-6 min-w-[24px] items-center justify-center rounded-lg
                                    bg-white/95 text-teal-700 text-[11px] font-black
                                    shadow-md ring-2 ring-white/50 relative z-10 px-1.5
                                    transition-transform duration-300 group-hover:scale-110">
-                            {{ $selectedCount }}
-                        </span>
-                    @endif
-                </button>
+                       {{ $selectedCount }}
+                    </span>
+                @endif
+            </button>
 
-                {{-- (2) EXPORT REPORT (SUMMARY) --}}
-                <div class="relative inline-block w-full">
+            {{-- (2) EXPORT REPORT (SUMMARY) --}}
+            <div class="relative inline-block w-full">
 
-                    <button id="wi-export-dropdown-button" type="button"
-                            class="group relative overflow-hidden rounded-xl w-full
+                <button id="wi-export-dropdown-button" type="button"
+                        class="group relative overflow-hidden rounded-xl w-full
                                bg-gradient-to-br from-emerald-700 via-emerald-800 to-teal-900
                                px-5 py-4 text-sm font-bold text-white
                                shadow-lg shadow-emerald-700/30 ring-1 ring-emerald-600/20
@@ -274,103 +277,97 @@
                                focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2
                                flex items-center justify-center gap-2.5">
 
-                        <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
-                            <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
-                        </div>
+                    <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                        <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+                    </div>
 
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 relative z-10" fill="none"
-                             viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                            <path stroke-linecap="round" stroke-linejoin="round"
-                                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-                        </svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 relative z-10" fill="none"
+                         viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                    </svg>
 
-                        <span class="relative z-10 whitespace-nowrap">Export Report</span>
+                    <span class="relative z-10 whitespace-nowrap">Export Report</span>
 
-                        {{-- COUNT DI SEBELAH TULISAN (tampil hanya jika > 0) --}}
-                        @if ($selectedCount > 0)
-                            <span class="flex h-6 min-w-[24px] items-center justify-center rounded-lg
-                                            bg-white/95 text-emerald-800 text-[11px] font-black
-                                            shadow-md ring-2 ring-white/50 relative z-10 px-1.5">
-                                {{ $selectedCount }}
-                            </span>
-                        @endif
+                    @if ($selectedCount > 0)
+                        <span class="flex h-6 min-w-[24px] items-center justify-center rounded-lg
+                                             bg-white/95 text-emerald-800 text-[11px] font-black
+                                             shadow-md ring-2 ring-white/50 relative z-10 px-1.5">
+                            {{ $selectedCount }}
+                        </span>
+                    @endif
 
-                        <svg xmlns="http://www.w3.org/2000/svg"
-                             class="h-4 w-4 relative z-10 transition-transform duration-300 group-hover:rotate-180"
-                             fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
-                        </svg>
-                    </button>
+                    <svg xmlns="http://www.w3.org/2000/svg"
+                         class="h-4 w-4 relative z-10 transition-transform duration-300 group-hover:rotate-180"
+                         fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                </button>
 
-                    <div id="wi-export-dropdown-menu"
-                         class="hidden absolute right-0 left-0 sm:left-auto sm:right-0 mt-2 sm:w-56 w-full origin-top
+                <div id="wi-export-dropdown-menu"
+                     class="hidden absolute right-0 left-0 sm:left-auto sm:right-0 mt-2 sm:w-56 w-full origin-top
                                rounded-xl bg-white shadow-2xl ring-1 ring-emerald-900/10
                                focus:outline-none z-50 overflow-hidden
                                border border-emerald-100 animate-scale-in">
 
-                        <div class="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest
+                    <div class="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest
                                    text-emerald-700 bg-gradient-to-r from-emerald-50 to-teal-50
                                    border-b border-emerald-100 flex items-center justify-between gap-2">
-                            <span>📊 Summary Report</span>
+                        <span>📊 Summary Report</span>
 
-                            @if ($selectedCount > 0)
-                                <span class="inline-flex items-center rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[10px] font-black">
-                                    {{ $selectedCount }} NIK
+                        @if ($selectedCount > 0)
+                            <span class="inline-flex items-center rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[10px] font-black">
+                                {{ $selectedCount }} {{ $isKorlapMode ? 'KORLAP' : 'NIK' }}
+                            </span>
+                        @endif
+                    </div>
+
+                    <div class="p-2 space-y-1">
+
+                        {{-- PDF --}}
+                        <button type="button" wire:click="export('pdf')"
+                                class="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5
+                                   text-sm font-semibold text-gray-700
+                                   transition-all hover:bg-red-50 hover:text-red-700 group/item">
+                            <span class="flex items-center gap-3">
+                                <span class="flex h-8 w-8 items-center justify-center rounded-lg
+                                             bg-gradient-to-br from-red-100 to-red-200 text-red-600
+                                             shadow-sm group-hover/item:shadow-md group-hover/item:scale-110 transition-all">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
+                                         viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                        <path stroke-linecap="round" stroke-linejoin="round"
+                                              d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                                    </svg>
                                 </span>
-                            @endif
-                        </div>
+                                <span>Download PDF</span>
+                            </span>
+                        </button>
 
-                        <div class="p-2 space-y-1">
-
-                            {{-- PDF --}}
-                            <button type="button" wire:click="export('pdf')"
-                                    class="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5
-                                       text-sm font-semibold text-gray-700
-                                       transition-all hover:bg-red-50 hover:text-red-700 group/item">
-
-                                <span class="flex items-center gap-3">
-                                    <span class="flex h-8 w-8 items-center justify-center rounded-lg
-                                                 bg-gradient-to-br from-red-100 to-red-200 text-red-600
-                                                 shadow-sm group-hover/item:shadow-md group-hover/item:scale-110 transition-all">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
-                                             viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                            <path stroke-linecap="round" stroke-linejoin="round"
-                                                  d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
-                                        </svg>
-                                    </span>
-
-                                    <span>Download PDF</span>
+                        {{-- EXCEL --}}
+                        <button type="button" wire:click="export('xlsx')"
+                                class="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5
+                                   text-sm font-semibold text-gray-700
+                                   transition-all hover:bg-emerald-50 hover:text-emerald-700 group/item">
+                            <span class="flex items-center gap-3">
+                                <span class="flex h-8 w-8 items-center justify-center rounded-lg
+                                             bg-gradient-to-br from-emerald-100 to-emerald-200 text-emerald-700
+                                             shadow-sm group-hover/item:shadow-md group-hover/item:scale-110 transition-all">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
+                                         viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                        <path stroke-linecap="round" stroke-linejoin="round"
+                                              d="M9 17v-2m3 2v-4m3 4v-6M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                                    </svg>
                                 </span>
-                            </button>
+                                <span>Download Excel</span>
+                            </span>
+                        </button>
 
-                            {{-- EXCEL --}}
-                            <button type="button" wire:click="export('xlsx')"
-                                    class="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5
-                                       text-sm font-semibold text-gray-700
-                                       transition-all hover:bg-emerald-50 hover:text-emerald-700 group/item">
-
-                                <span class="flex items-center gap-3">
-                                    <span class="flex h-8 w-8 items-center justify-center rounded-lg
-                                                 bg-gradient-to-br from-emerald-100 to-emerald-200 text-emerald-700
-                                                 shadow-sm group-hover/item:shadow-md group-hover/item:scale-110 transition-all">
-                                        {{-- icon "sheet" --}}
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
-                                             viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                            <path stroke-linecap="round" stroke-linejoin="round"
-                                                  d="M9 17v-2m3 2v-4m3 4v-6M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
-                                        </svg>
-                                    </span>
-
-                                    <span>Download Excel</span>
-                                </span>
-                            </button>
-
-                        </div>
                     </div>
                 </div>
+            </div>
 
-
-                {{-- (3) EXPORT DETAIL --}}
+            {{-- (3) EXPORT DETAIL (HANYA MODE WI) --}}
+            @if($isWiMode)
                 <div class="relative inline-block w-full">
 
                     <button id="wi-export-detail-dropdown-button" type="button"
@@ -396,11 +393,10 @@
 
                         <span class="relative z-10 whitespace-nowrap">Export Detail</span>
 
-                        {{-- COUNT DI SEBELAH TULISAN (tampil hanya jika > 0) --}}
                         @if ((int)$detailSelectedCount > 0)
                             <span class="flex h-6 min-w-[24px] items-center justify-center rounded-lg
-                                            bg-white/95 text-slate-800 text-[11px] font-black
-                                            shadow-md ring-2 ring-white/50 relative z-10 px-1.5">
+                                             bg-white/95 text-slate-800 text-[11px] font-black
+                                             shadow-md ring-2 ring-white/50 relative z-10 px-1.5">
                                 {{ (int)$detailSelectedCount }}
                             </span>
                         @endif
@@ -428,25 +424,24 @@
                                 </span>
                             @endif
                         </div>
+
                         <div class="p-2 space-y-1">
 
                             {{-- PDF --}}
                             <button type="button" wire:click="exportDetail('pdf')"
                                     class="flex w-full items-center justify-between gap-2.5 rounded-lg px-3 py-2.5
-                                       text-sm font-semibold text-gray-700
-                                       transition-colors hover:bg-red-50 hover:text-red-700 group/item">
-
+                                   text-sm font-semibold text-gray-700
+                                   transition-colors hover:bg-red-50 hover:text-red-700 group/item">
                                 <span class="flex items-center gap-3">
                                     <span class="flex h-8 w-8 items-center justify-center rounded-lg
-                                                 bg-red-100 text-red-600
-                                                 group-hover/item:bg-red-200 transition-colors">
+                                             bg-red-100 text-red-600
+                                             group-hover/item:bg-red-200 transition-colors">
                                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
                                              viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                                             <path stroke-linecap="round" stroke-linejoin="round"
                                                   d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
                                         </svg>
                                     </span>
-
                                     <span>Download PDF</span>
                                 </span>
                             </button>
@@ -454,20 +449,18 @@
                             {{-- EXCEL --}}
                             <button type="button" wire:click="exportDetail('xlsx')"
                                     class="flex w-full items-center justify-between gap-2.5 rounded-lg px-3 py-2.5
-                                       text-sm font-semibold text-gray-700
-                                       transition-colors hover:bg-emerald-50 hover:text-emerald-700 group/item">
-
+                                   text-sm font-semibold text-gray-700
+                                   transition-colors hover:bg-emerald-50 hover:text-emerald-700 group/item">
                                 <span class="flex items-center gap-3">
                                     <span class="flex h-8 w-8 items-center justify-center rounded-lg
-                                                 bg-emerald-100 text-emerald-700
-                                                 group-hover/item:bg-emerald-200 transition-colors">
+                                             bg-emerald-100 text-emerald-700
+                                             group-hover/item:bg-emerald-200 transition-colors">
                                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
                                              viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                                             <path stroke-linecap="round" stroke-linejoin="round"
                                                   d="M9 17v-2m3 2v-4m3 4v-6M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
                                         </svg>
                                     </span>
-
                                     <span>Download Excel</span>
                                 </span>
                             </button>
@@ -475,8 +468,8 @@
                         </div>
                     </div>
                 </div>
-            </div>
-        @endif
+            @endif
+        </div>
     </div>
 
     {{-- ========================================================= --}}
@@ -484,6 +477,7 @@
     {{-- ========================================================= --}}
     <div class="mb-8 p-6 bg-emerald-50/50 rounded-xl shadow-inner border border-emerald-100/80 backdrop-blur-sm">
         <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-4">
+
             {{-- KIRI: Judul --}}
             <p class="text-lg font-bold text-emerald-800 flex items-center gap-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -502,10 +496,7 @@
                 </span>
 
                 @php
-                    // Pastikan ada default value jika wiMode null
                     $currentMode = $wiMode ?? 'all';
-                    
-                    // Definisi opsi agar kode lebih rapi & logic warnanya konsisten
                     $options = [
                         'all'     => 'Semua',
                         'with'    => 'Ada WI',
@@ -514,10 +505,7 @@
                 @endphp
 
                 @foreach($options as $val => $label)
-                    @php
-                        $isActive = $currentMode === $val;
-                    @endphp
-                    
+                    @php $isActive = $currentMode === $val; @endphp
                     <div class="inline-flex items-center group cursor-pointer" wire:key="wi-opt-{{ $val }}">
                         <input id="wi-mode-{{ $val }}"
                                name="wiMode"
@@ -526,13 +514,10 @@
                                wire:model.live="wiMode"
                                value="{{ $val }}"
                                @checked($isActive)>
-                               
+
                         <label for="wi-mode-{{ $val }}"
                                class="ml-2 block text-sm cursor-pointer transition-colors duration-200 select-none
-                                      {{ $isActive 
-                                         ? 'text-emerald-700 font-bold' 
-                                         : 'text-slate-600 font-medium hover:text-emerald-700' 
-                                      }}">
+                                      {{ $isActive ? 'text-emerald-700 font-bold' : 'text-slate-600 font-medium hover:text-emerald-700' }}">
                             {{ $label }}
                         </label>
                     </div>
@@ -568,7 +553,8 @@
                     <span class="font-semibold text-emerald-700">NIK</span>,
                     <span class="font-semibold text-emerald-700">Nama</span>,
                     <span class="font-semibold text-emerald-700">Tanggal</span>,
-                    <span class="font-semibold text-emerald-700">WC</span>.
+                    <span class="font-semibold text-emerald-700">WC</span>,
+                    <span class="font-semibold text-emerald-700">Kode</span>.
                     <br>Gunakan tanda kutip untuk hasil tepat, contoh:
                     <code class="bg-gray-100 px-1 rounded text-emerald-700 font-mono text-xs">"yudha"</code>,
                     <code class="bg-gray-100 px-1 rounded text-emerald-700 font-mono text-xs">"2026-01-02"</code>,
@@ -585,7 +571,6 @@
     {{-- ========================================================= --}}
     {{-- BAGIAN 3: TABEL SUMMARY (WI MODE / KORLAP MODE) --}}
     {{-- ========================================================= --}}
-
     <div wire:key="wi-summary-{{ md5(($plant ?? ($werks ?? request()->route('werks'))) . '|' . ($q ?? '') . '|' . ($monthFilter ?? 'this') . '|' . ($wiMode ?? 'all') . '|' . ($reportMode ?? 'wi')) }}">
 
         {{-- ======================= --}}
@@ -631,8 +616,15 @@
                                 $wiSum   = (float)($row->time_wi_sum ?? 0);
                                 $confSum = (float)($row->time_conf_sum ?? 0);
                                 $qmSum   = (float)($row->time_qm_sum ?? 0);
-                                $kpi   = isset($row->kpi_pct)
-                                    ? (float)$row->kpi_pct
+
+                                // KPI Qty  = WI / CONF
+                                $kpiQty = isset($row->kpi_qty_pct)
+                                    ? (float)$row->kpi_qty_pct
+                                    : ($confSum == 0 ? 0 : (($wiSum / $confSum) * 100));
+
+                                // KPI Quality = QM / WI
+                                $kpiQuality = isset($row->kpi_quality_pct)
+                                    ? (float)$row->kpi_quality_pct
                                     : ($wiSum == 0 ? 0 : (($qmSum / $wiSum) * 100));
                             @endphp
 
@@ -704,11 +696,19 @@
                                     {{ number_format($qmSum, 2) }}
                                 </td>
 
-                                {{-- KPI --}}
+                                {{-- KPI Qty (WI/CONF) --}}
                                 <td class="px-6 py-4 text-center">
                                     <span class="inline-flex items-center px-2.5 py-1 rounded text-[11px] font-semibold
-                                        {{ $kpi < 100 ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800' }}">
-                                        {{ number_format($kpi, 0) }}%
+                                        {{ $kpiQty < 100 ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800' }}">
+                                        {{ number_format($kpiQty, 0) }}%
+                                    </span>
+                                </td>
+
+                                {{-- KPI Quality (QM/WI) --}}
+                                <td class="px-6 py-4 text-center">
+                                    <span class="inline-flex items-center px-2.5 py-1 rounded text-[11px] font-semibold
+                                        {{ $kpiQuality < 100 ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800' }}">
+                                        {{ number_format($kpiQuality, 0) }}%
                                     </span>
                                 </td>
                             </tr>
@@ -742,7 +742,6 @@
                 </div>
             @endif
 
-
         {{-- =========================== --}}
         {{-- ✅ MODE KORLAP (TABEL KORLAP) --}}
         {{-- =========================== --}}
@@ -751,18 +750,24 @@
             <div class="overflow-y-auto max-h-[75vh] shadow-xl sm:rounded-xl border border-gray-200/75">
                 <table class="min-w-full divide-y divide-gray-200">
 
-                    {{-- HEADER KORLAP DIUBAH MENJADI GRADIENT EMERALD MEWAH --}}
                     <thead class="sticky top-0 z-20 bg-gradient-to-r from-emerald-900 to-teal-950 text-white shadow-md">
                         <tr>
+                            {{-- CHECKBOX KORLAP (Select All) --}}
+                            <th class="sticky left-0 z-30 px-4 py-4 text-center w-10 bg-emerald-900 border-r border-emerald-800/30">
+                                <input type="checkbox" id="wi-check-all-korlap"
+                                       class="rounded border-gray-400 text-emerald-500 focus:ring-emerald-400 cursor-pointer bg-white/90 h-4 w-4">
+                            </th>
+
                             <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">No</th>
                             <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">NIK Korlap</th>
-                            <th class="px-6 py-4 text-left text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">Nama Korlap</th>
-                            <th class="px-6 py-4 text-left text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">WC Korlap</th>
+                            <th class="px-6 py-4 text-left   text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">Nama Korlap</th>
+                            <th class="px-6 py-4 text-left   text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">WC Korlap</th>
                             <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">Jumlah NIK</th>
                             <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">Time WI</th>
                             <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">Time CONF</th>
                             <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">Time QM</th>
-                            <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">% KPI</th>
+                            <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">% KPI Qty</th>
+                            <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">% KPI Quality</th>
                         </tr>
                     </thead>
 
@@ -771,81 +776,91 @@
                         @forelse(($korlapData ?? []) as $k)
                             @php
                                 $korlapNik = (string)($k['korlap_nik'] ?? '');
-                                $kpi = (float)($k['kpi_pct'] ?? 0);
+
+                                $kpiQty = (float)($k['kpi_qty_pct'] ?? 0);
+                                $kpiQuality = (float)($k['kpi_quality_pct'] ?? 0);
 
                                 $wcList = $k['wc_korlap'] ?? [];
                                 if (!is_array($wcList)) $wcList = [];
-
-                                // optional: rapikan dan hilangkan duplikat + urutkan
                                 $wcList = array_values(array_unique(array_map('trim', $wcList)));
                                 sort($wcList);
-
                                 $wcPreview = implode(', ', $wcList);
 
                                 $isExpanded = in_array($korlapNik, ($expandedKorlaps ?? []), true);
                                 $childRows = $korlapNikSummaries[$korlapNik] ?? [];
                             @endphp
 
-                            {{-- ✅ ROW KORLAP (klik untuk expand) --}}
+                            {{-- ROW KORLAP --}}
                             <tr wire:key="korlap-row-{{ $korlapNik }}"
-                                wire:click="toggleKorlap({{ \Illuminate\Support\Js::from($korlapNik) }})"
                                 class="cursor-pointer group/korlap hover:bg-emerald-50/60 transition-all border-l-4 border-transparent {{ $isExpanded ? 'border-emerald-600 bg-emerald-50/80' : 'hover:border-emerald-300' }}">
 
-                                <td class="px-6 py-4 text-center font-bold text-slate-700">
-                                    <div class="flex items-center justify-center gap-2">
-                                        <div class="w-6 h-6 rounded-full flex items-center justify-center transition-all duration-300 {{ $isExpanded ? 'bg-emerald-200 text-emerald-800 rotate-90' : 'bg-slate-100 text-slate-400 group-hover/korlap:bg-emerald-100 group-hover/korlap:text-emerald-600' }}">
-                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 5l7 7-7 7"/>
-                                            </svg>
-                                        </div>
-                                        <span>{{ $loop->iteration }}</span>
-                                    </div>
+                                {{-- CHECKBOX KORLAP (Sticky Left) --}}
+                                <td class="sticky left-0 z-10 px-4 py-4 text-center bg-white group-hover/korlap:bg-emerald-50/60 border-r border-emerald-100/50"
+                                    onclick="event.stopPropagation()">
+                                    <input type="checkbox"
+                                           wire:model.live="selectedKorlaps"
+                                           value="{{ $korlapNik }}"
+                                           class="wi-korlap-check rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer h-5 w-5 shadow-sm transition-all hover:scale-110">
                                 </td>
 
-                                <td class="px-6 py-4 text-center font-mono font-semibold text-emerald-900/80">{{ $korlapNik ?: '-' }}</td>
+                                <td wire:click="toggleKorlap({{ \Illuminate\Support\Js::from($korlapNik) }})" class="px-6 py-4 text-center font-bold text-slate-700">
+                                    <span>{{ $loop->iteration }}</span>
+                                </td>
 
-                                <td class="px-6 py-4 text-left font-bold text-emerald-900 capitalize">
+                                <td wire:click="toggleKorlap({{ \Illuminate\Support\Js::from($korlapNik) }})" class="px-6 py-4 text-center font-mono font-semibold text-emerald-900/80">
+                                    {{ $korlapNik ?: '-' }}
+                                </td>
+
+                                <td wire:click="toggleKorlap({{ \Illuminate\Support\Js::from($korlapNik) }})" class="px-6 py-4 text-left font-bold text-emerald-900 capitalize">
                                     {{ strtolower((string)($k['korlap_nama'] ?? '-')) }}
                                 </td>
 
-                                <td class="px-6 py-4 text-left text-sm font-mono text-slate-600 whitespace-normal break-words">
+                                <td wire:click="toggleKorlap({{ \Illuminate\Support\Js::from($korlapNik) }})" class="px-6 py-4 text-left text-sm font-mono text-slate-600 whitespace-normal break-words">
                                     {{ $wcPreview ?: '-' }}
                                 </td>
 
-                                <td class="px-6 py-4 text-center font-extrabold text-slate-800">
+                                <td wire:click="toggleKorlap({{ \Illuminate\Support\Js::from($korlapNik) }})" class="px-6 py-4 text-center font-extrabold text-slate-800">
                                     <span class="inline-flex items-center justify-center px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs">
                                         {{ (int)($k['nik_count'] ?? 0) }} Orang
                                     </span>
                                 </td>
 
-                                <td class="px-6 py-4 text-center font-semibold text-slate-700">
+                                <td wire:click="toggleKorlap({{ \Illuminate\Support\Js::from($korlapNik) }})" class="px-6 py-4 text-center font-semibold text-slate-700">
                                     {{ number_format((float)($k['time_wi_sum'] ?? 0), 2) }}
                                 </td>
 
-                                <td class="px-6 py-4 text-center font-semibold text-slate-700">
+                                <td wire:click="toggleKorlap({{ \Illuminate\Support\Js::from($korlapNik) }})" class="px-6 py-4 text-center font-semibold text-slate-700">
                                     {{ number_format((float)($k['time_conf_sum'] ?? 0), 2) }}
                                 </td>
 
-                                <td class="px-6 py-4 text-center font-semibold text-slate-700">
+                                <td wire:click="toggleKorlap({{ \Illuminate\Support\Js::from($korlapNik) }})" class="px-6 py-4 text-center font-semibold text-slate-700">
                                     {{ number_format((float)($k['time_qm_sum'] ?? 0), 2) }}
                                 </td>
 
-
-                                <td class="px-6 py-4 text-center">
+                                {{-- KPI Qty --}}
+                                <td wire:click="toggleKorlap({{ \Illuminate\Support\Js::from($korlapNik) }})" class="px-6 py-4 text-center">
                                     <span class="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold shadow-sm
-                                        {{ $kpi < 100 ? 'bg-red-100 text-red-800 ring-1 ring-red-200' : 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200' }}">
-                                        {{ number_format($kpi, 0) }}%
+                                        {{ $kpiQty < 100 ? 'bg-amber-100 text-amber-800 ring-1 ring-amber-200' : 'bg-blue-100 text-blue-800 ring-1 ring-blue-200' }}">
+                                        {{ number_format($kpiQty, 0) }}%
+                                    </span>
+                                </td>
+
+                                {{-- KPI Quality --}}
+                                <td wire:click="toggleKorlap({{ \Illuminate\Support\Js::from($korlapNik) }})" class="px-6 py-4 text-center">
+                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold shadow-sm
+                                        {{ $kpiQuality < 100 ? 'bg-red-100 text-red-800 ring-1 ring-red-200' : 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200' }}">
+                                        {{ number_format($kpiQuality, 0) }}%
                                     </span>
                                 </td>
                             </tr>
 
-                            {{-- ✅ EXPAND AREA: LIST NIK SUMMARY --}}
+                            {{-- EXPAND AREA: LIST NIK SUMMARY --}}
                             @if($isExpanded)
                                 <tr wire:key="korlap-expand-{{ $korlapNik }}">
-                                    <td colspan="9" class="p-0 border-b border-emerald-100/50">
-                                        {{-- Container Gradient Halus --}}
+                                    {{-- COLSPAN 11 (checkbox + 10 kolom) --}}
+                                    <td colspan="11" class="p-0 border-b border-emerald-100/50">
+
                                         <div class="px-6 py-6 bg-gradient-to-b from-emerald-50/50 to-white shadow-inner">
-                                            
                                             <div class="flex items-center justify-between mb-4 px-1">
                                                 <div class="flex items-center gap-2">
                                                     <div class="w-1 h-8 bg-emerald-500 rounded-full"></div>
@@ -862,6 +877,7 @@
 
                                             <div class="overflow-hidden rounded-xl border border-emerald-100 shadow-lg shadow-emerald-100/50 bg-white">
                                                 <table class="min-w-full divide-y divide-emerald-50">
+
                                                     <thead class="bg-emerald-50/50">
                                                         <tr>
                                                             <th class="px-4 py-3 text-center text-xs font-black text-emerald-800/70 uppercase">No</th>
@@ -872,18 +888,20 @@
                                                             <th class="px-4 py-3 text-center text-xs font-black text-emerald-800/70 uppercase">Time WI</th>
                                                             <th class="px-4 py-3 text-center text-xs font-black text-emerald-800/70 uppercase">Time CONF</th>
                                                             <th class="px-4 py-3 text-center text-xs font-black text-emerald-800/70 uppercase">Time QM</th>
-                                                            <th class="px-4 py-3 text-center text-xs font-black text-emerald-800/70 uppercase">% KPI</th>
+                                                            <th class="px-4 py-3 text-center text-xs font-black text-emerald-800/70 uppercase">% KPI Qty</th>
+                                                            <th class="px-4 py-3 text-center text-xs font-black text-emerald-800/70 uppercase">% KPI Quality</th>
                                                         </tr>
                                                     </thead>
 
                                                     <tbody class="divide-y divide-emerald-50/50">
                                                         @forelse($childRows as $idx => $r)
                                                             @php
-                                                                $nikChild = (string)($r['nik'] ?? '');
-                                                                $wiSum2 = (float)($r['time_wi_sum'] ?? 0);
-                                                                $confSum2 = (float)($r['time_conf_sum'] ?? 0);
-                                                                $qmSum2 = (float)($r['time_qm_sum'] ?? 0);
-                                                                $kpi2 = (float)($r['kpi_pct'] ?? 0);
+                                                                $nikChild  = (string)($r['nik'] ?? '');
+                                                                $wiSum2    = (float)($r['time_wi_sum'] ?? 0);
+                                                                $confSum2  = (float)($r['time_conf_sum'] ?? 0);
+                                                                $qmSum2    = (float)($r['time_qm_sum'] ?? 0);
+                                                                $kpiQty2     = (float)($r['kpi_qty_pct'] ?? 0);
+                                                                $kpiQuality2 = (float)($r['kpi_quality_pct'] ?? 0);
                                                             @endphp
 
                                                             <tr class="hover:bg-emerald-50 transition-colors cursor-pointer group/child"
@@ -893,6 +911,7 @@
                                                                 <td class="px-4 py-3 text-left text-sm font-semibold text-slate-700 capitalize group-hover/child:text-emerald-900">{{ strtolower((string)($r['nama'] ?? '-')) }}</td>
                                                                 <td class="px-4 py-3 text-center text-sm font-mono text-slate-500">{{ $r['wc'] ?? '-' }}</td>
                                                                 <td class="px-4 py-3 text-left text-sm font-medium text-slate-600">{{ $r['devisi'] ?? '-' }}</td>
+
                                                                 <td class="px-4 py-3 text-center text-sm font-bold font-mono text-slate-700">
                                                                     {{ number_format($wiSum2, 2) }}
                                                                 </td>
@@ -904,31 +923,41 @@
                                                                 <td class="px-4 py-3 text-center text-sm font-bold font-mono text-slate-700">
                                                                     {{ number_format($qmSum2, 2) }}
                                                                 </td>
+
                                                                 <td class="px-4 py-3 text-center">
                                                                     <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold
-                                                                        {{ $kpi2 < 100 ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600' }}">
-                                                                        {{ number_format($kpi2, 0) }}%
+                                                                        {{ $kpiQty2 < 100 ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700' }}">
+                                                                        {{ number_format($kpiQty2, 0) }}%
+                                                                    </span>
+                                                                </td>
+
+                                                                <td class="px-4 py-3 text-center">
+                                                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold
+                                                                        {{ $kpiQuality2 < 100 ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600' }}">
+                                                                        {{ number_format($kpiQuality2, 0) }}%
                                                                     </span>
                                                                 </td>
                                                             </tr>
                                                         @empty
                                                             <tr>
-                                                                <td colspan="8" class="px-4 py-8 text-center text-slate-400 italic">
+                                                                <td colspan="10" class="px-4 py-8 text-center text-slate-400 italic">
                                                                     Tidak ada NIK yang match untuk WC korlap ini.
                                                                 </td>
                                                             </tr>
                                                         @endforelse
                                                     </tbody>
+
                                                 </table>
                                             </div>
                                         </div>
+
                                     </td>
                                 </tr>
                             @endif
 
                         @empty
                             <tr>
-                                <td colspan="8" class="px-6 py-16 text-center text-slate-500">
+                                <td colspan="11" class="px-6 py-16 text-center text-slate-500">
                                     <div class="flex flex-col items-center">
                                         <span class="text-lg font-medium text-slate-400">Tidak ada data Korlap untuk filter saat ini.</span>
                                     </div>
@@ -942,7 +971,6 @@
 
         @endif
     </div>
-
 
     {{-- ========================================================= --}}
     {{-- BAGIAN 4: MODAL DETAIL --}}
@@ -973,13 +1001,17 @@
                                 <span class="text-emerald-200 font-mono bg-white/10 px-2 rounded ml-1 text-lg">{{ $selectedNik ?? '-' }}</span>
                             </h3>
 
-                            {{-- TOTAL DI MODAL (tetap) --}}
+                            {{-- TOTAL DI MODAL --}}
                             <div class="text-xs text-emerald-100 mt-1">
                                 Total WI: <b>{{ number_format((float)($detailTotalWi ?? 0), 2) }}</b>
                                 &nbsp;|&nbsp;
+                                Total CONF: <b>{{ number_format((float)($detailTotalConf ?? 0), 2) }}</b>
+                                &nbsp;|&nbsp;
                                 Total QM: <b>{{ number_format((float)($detailTotalQm ?? 0), 2) }}</b>
                                 &nbsp;|&nbsp;
-                                KPI: <b>{{ number_format((float)($detailKpi ?? 0), 0) }}%</b>
+                                KPI Qty: <b>{{ number_format((float)($detailKpiQty ?? 0), 0) }}%</b>
+                                &nbsp;|&nbsp;
+                                KPI Quality: <b>{{ number_format((float)($detailKpiQuality ?? 0), 0) }}%</b>
                             </div>
                         </div>
 
@@ -1020,19 +1052,31 @@
                                 <tbody class="bg-white divide-y divide-gray-100">
                                     @foreach(($detailData ?? []) as $d)
                                         @php
-                                            $timeWi = $d['time_wi'] ?? null;
-                                            $timeQm = $d['time_qm'] ?? null;
+                                            $timeWi   = $d['time_wi'] ?? null;
                                             $timeConf = $d['time_conf'] ?? null;
-
-
-                                            $kpiRow = $d['kpi_pct'] ?? null;
-                                            if (is_null($kpiRow) && !is_null($timeWi)) {
-                                                $kpiRow = ((float)$timeWi == 0) ? 0 : (((float)($timeQm ?? 0) / (float)$timeWi) * 100);
-                                            }
+                                            $timeQm   = $d['time_qm'] ?? null;
 
                                             $tanggalVal = (string)($d['tanggal'] ?? '');
                                             $nikVal = (string)($d['nik'] ?? ($selectedNik ?? ''));
                                             $detailKey = $nikVal . '|' . $tanggalVal;
+
+                                            $kpiQtyRow = $d['kpi_qty_pct'] ?? null;
+                                            $kpiQualityRow = $d['kpi_quality_pct'] ?? null;
+
+                                            // Kalau WI null => KPI ditampilkan "-"
+                                            if (is_null($timeWi)) {
+                                                $kpiQtyRow = null;
+                                                $kpiQualityRow = null;
+                                            } else {
+                                                // fallback kalau tidak ada
+                                                if (is_null($kpiQualityRow)) {
+                                                    $kpiQualityRow = ((float)$timeWi == 0) ? 0 : (((float)($timeQm ?? 0) / (float)$timeWi) * 100);
+                                                }
+                                                if (is_null($kpiQtyRow)) {
+                                                    $confBase = (float)($timeConf ?? 0);
+                                                    $kpiQtyRow = ($confBase == 0) ? 0 : (((float)($timeWi ?? 0) / $confBase) * 100);
+                                                }
+                                            }
                                         @endphp
 
                                         <tr class="group/detail hover:bg-emerald-50/50 transition-colors"
@@ -1091,16 +1135,20 @@
                                                 {{ is_null($timeQm) ? '-' : number_format((float)$timeQm, 2) }}
                                             </td>
 
-                                            {{-- KPI --}}
+                                            {{-- KPI Qty --}}
                                             <td class="px-4 py-2 text-center">
-                                                @if(is_null($timeWi))
-                                                    -
-                                                @else
-                                                    <span class="inline-flex items-center px-2.5 py-1 rounded text-[11px] font-semibold
-                                                        {{ ((float)($kpiRow ?? 0)) < 100 ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800' }}">
-                                                        {{ number_format((float)($kpiRow ?? 0), 0) }}%
-                                                    </span>
-                                                @endif
+                                                <span class="inline-flex items-center px-2.5 py-1 rounded text-[11px] font-semibold
+                                                    {{ is_null($kpiQtyRow) ? 'bg-slate-100 text-slate-500' : ($kpiQtyRow < 100 ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800') }}">
+                                                    {{ is_null($kpiQtyRow) ? '-' : (number_format((float)$kpiQtyRow, 0) . '%') }}
+                                                </span>
+                                            </td>
+
+                                            {{-- KPI Quality --}}
+                                            <td class="px-4 py-2 text-center">
+                                                <span class="inline-flex items-center px-2.5 py-1 rounded text-[11px] font-semibold
+                                                    {{ is_null($kpiQualityRow) ? 'bg-slate-100 text-slate-500' : ($kpiQualityRow < 100 ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800') }}">
+                                                    {{ is_null($kpiQualityRow) ? '-' : (number_format((float)$kpiQualityRow, 0) . '%') }}
+                                                </span>
                                             </td>
 
                                         </tr>
@@ -1133,71 +1181,84 @@
 </div>
 
 {{-- ========================================================= --}}
-{{-- SCRIPT (Dropdown + Toast + Copy NIK + Check All) --}}
+{{-- SCRIPT (Dropdown + Toast + Copy + Check All) --}}
 {{-- ========================================================= --}}
 @once
     @push('scripts')
         <script>
             (function () {
-            if (window.__wiBound) return;
-            window.__wiBound = true;
+              if (window.__wiBound) return;
+              window.__wiBound = true;
 
-            const $  = (sel, root = document) => root.querySelector(sel);
-            const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+              const $  = (sel, root = document) => root.querySelector(sel);
+              const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
-            function showToast(message, type = 'success') {
+              function showToast(message, type = 'success') {
                 const container = $('#wi-toast-container');
                 if (!container) return;
 
                 const colors = {
-                success: 'bg-emerald-600',
-                warning: 'bg-amber-600',
-                error:   'bg-rose-600',
-                info:    'bg-slate-700',
+                  success: 'bg-emerald-600',
+                  warning: 'bg-amber-600',
+                  error:   'bg-rose-600',
+                  info:    'bg-slate-700',
                 };
 
                 const el = document.createElement('div');
                 el.className = `text-white ${colors[type] || colors.info} shadow-2xl rounded-xl px-4 py-3 text-sm font-semibold flex items-start gap-3 max-w-[360px]`;
                 el.innerHTML = `
-                <div class="mt-0.5">
+                  <div class="mt-0.5">
                     <svg class="w-5 h-5 opacity-95" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M12 9v2m0 4h.01M12 5.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13z"/>
                     </svg>
-                </div>
-                <div class="flex-1 leading-snug">${String(message || '')}</div>
-                <button type="button" class="ml-2 opacity-80 hover:opacity-100">✕</button>
+                  </div>
+                  <div class="flex-1 leading-snug">${String(message || '')}</div>
+                  <button type="button" class="ml-2 opacity-80 hover:opacity-100">✕</button>
                 `;
 
                 el.querySelector('button')?.addEventListener('click', () => el.remove());
                 container.appendChild(el);
 
                 setTimeout(() => {
-                el.style.transition = 'all 300ms ease';
-                el.style.opacity = '0';
-                el.style.transform = 'translateY(-6px)';
-                setTimeout(() => el.remove(), 320);
+                  el.style.transition = 'all 300ms ease';
+                  el.style.opacity = '0';
+                  el.style.transform = 'translateY(-6px)';
+                  setTimeout(() => el.remove(), 320);
                 }, 3000);
-            }
+              }
 
-            function getSelectedNiks() {
+              function getSelectedForCopy() {
                 const root = $('#wi-root');
                 if (!root) return [];
-                try { return JSON.parse(root.dataset.selectedNiks || '[]') || []; }
-                catch { return []; }
-            }
 
-            async function copySelectedNiks() {
-                const niks = getSelectedNiks().map(v => String(v || '').trim()).filter(Boolean);
-                if (!niks.length) {
-                showToast('Belum ada NIK yang dipilih di tabel ringkasan.', 'warning');
-                return;
+                const mode = String(root.dataset.reportMode || 'wi').trim();
+                const key  = mode === 'korlap' ? 'selectedKorlaps' : 'selectedNiks';
+
+                try { return JSON.parse(root.dataset[key] || '[]') || []; }
+                catch { return []; }
+              }
+
+              async function copySelected() {
+                const root = $('#wi-root');
+                const mode = String(root?.dataset?.reportMode || 'wi').trim();
+
+                const arr = getSelectedForCopy().map(v => String(v || '').trim()).filter(Boolean);
+
+                if (!arr.length) {
+                  showToast(mode === 'korlap'
+                    ? 'Belum ada NIK Korlap yang dipilih di tabel ringkasan.'
+                    : 'Belum ada NIK yang dipilih di tabel ringkasan.'
+                  , 'warning');
+                  return;
                 }
-                const text = niks.join(' ');
+
+                const text = arr.join(' ');
+
                 try {
-                if (navigator.clipboard && navigator.clipboard.writeText) {
+                  if (navigator.clipboard && navigator.clipboard.writeText) {
                     await navigator.clipboard.writeText(text);
-                } else {
+                  } else {
                     const ta = document.createElement('textarea');
                     ta.value = text;
                     ta.style.position = 'fixed';
@@ -1206,15 +1267,15 @@
                     ta.select();
                     document.execCommand('copy');
                     document.body.removeChild(ta);
-                }
-                showToast(`Berhasil copy ${niks.length} NIK.`, 'success');
+                  }
+                  showToast(`Berhasil copy ${arr.length} data.`, 'success');
                 } catch {
-                showToast('Gagal menyalin. Silakan copy manual dari pilihan NIK.', 'error');
+                  showToast('Gagal menyalin. Silakan copy manual dari pilihan.', 'error');
                 }
-            }
+              }
 
-            // ✅ CLICK HANDLER (delegation) - aman meski Livewire re-render
-            document.addEventListener('click', (e) => {
+              // CLICK HANDLER (delegation)
+              document.addEventListener('click', (e) => {
                 const exportBtn       = e.target.closest('#wi-export-dropdown-button');
                 const exportDetailBtn = e.target.closest('#wi-export-detail-dropdown-button');
                 const copyBtn         = e.target.closest('#wi-btn-copy-nik');
@@ -1223,65 +1284,75 @@
                 const exportDetailMenu = $('#wi-export-detail-dropdown-menu');
 
                 if (exportBtn) {
-                e.preventDefault(); e.stopPropagation();
-                exportMenu?.classList.toggle('hidden');
-                exportDetailMenu?.classList.add('hidden');
-                return;
+                  e.preventDefault(); e.stopPropagation();
+                  exportMenu?.classList.toggle('hidden');
+                  exportDetailMenu?.classList.add('hidden');
+                  return;
                 }
 
                 if (exportDetailBtn) {
-                e.preventDefault(); e.stopPropagation();
-                exportDetailMenu?.classList.toggle('hidden');
-                exportMenu?.classList.add('hidden');
-                return;
+                  e.preventDefault(); e.stopPropagation();
+                  exportDetailMenu?.classList.toggle('hidden');
+                  exportMenu?.classList.add('hidden');
+                  return;
                 }
 
                 if (copyBtn) {
-                e.preventDefault(); e.stopPropagation();
-                copySelectedNiks();
-                return;
+                  e.preventDefault(); e.stopPropagation();
+                  copySelected();
+                  return;
                 }
 
                 // klik di luar -> tutup dropdown
                 if (exportMenu && !exportMenu.classList.contains('hidden') && !exportMenu.contains(e.target)) {
-                exportMenu.classList.add('hidden');
+                  exportMenu.classList.add('hidden');
                 }
                 if (exportDetailMenu && !exportDetailMenu.classList.contains('hidden') && !exportDetailMenu.contains(e.target)) {
-                exportDetailMenu.classList.add('hidden');
+                  exportDetailMenu.classList.add('hidden');
                 }
-            });
+              });
 
-            // ✅ CHECK ALL (delegation) - ini udah benar, tetap dipakai
-            document.addEventListener('change', (e) => {
+              // CHECK ALL (delegation)
+              document.addEventListener('change', (e) => {
+                // 1. Check All NIK Summary
                 if (e.target && e.target.id === 'wi-check-all-summary') {
-                $$('.wi-summary-check').forEach(cb => {
+                  $$('.wi-summary-check').forEach(cb => {
                     cb.checked = e.target.checked;
                     cb.dispatchEvent(new Event('change', { bubbles: true }));
                     cb.dispatchEvent(new Event('input', { bubbles: true }));
-                });
+                  });
                 }
 
+                // 2. Check All Detail Modal
                 if (e.target && e.target.id === 'wi-check-all-detail') {
-                const modal = $('#wi-modal') || document;
-                $$('.wi-detail-check', modal).forEach(cb => {
+                  const modal = $('#wi-modal') || document;
+                  $$('.wi-detail-check', modal).forEach(cb => {
                     cb.checked = e.target.checked;
                     cb.dispatchEvent(new Event('change', { bubbles: true }));
                     cb.dispatchEvent(new Event('input', { bubbles: true }));
-                });
+                  });
                 }
-            });
 
-            // ✅ Livewire browser events
-            document.addEventListener('wi-open-url', (e) => {
+                // 3. Check All Korlap
+                if (e.target && e.target.id === 'wi-check-all-korlap') {
+                  $$('.wi-korlap-check').forEach(cb => {
+                    cb.checked = e.target.checked;
+                    cb.dispatchEvent(new Event('change', { bubbles: true }));
+                    cb.dispatchEvent(new Event('input', { bubbles: true }));
+                  });
+                }
+              });
+
+              // Livewire browser events
+              document.addEventListener('wi-open-url', (e) => {
                 const url = e?.detail?.url;
                 if (url) window.open(url, '_blank');
-            });
+              });
 
-            document.addEventListener('wi-toast', (e) => {
+              document.addEventListener('wi-toast', (e) => {
                 showToast(e?.detail?.message || '', e?.detail?.type || 'info');
-            });
-
+              });
             })();
-            </script>
+        </script>
     @endpush
 @endonce

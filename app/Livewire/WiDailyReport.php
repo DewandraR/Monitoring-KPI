@@ -25,7 +25,9 @@ class WiDailyReport extends Component
     // total modal
     public ?float $detailTotalWi = null;
     public ?float $detailTotalQm = null;
-    public ?float $detailKpi = null;
+    public ?float $detailTotalConf = null; // ✅ Tambah ini
+    public ?float $detailKpiQuality = null; // ✅ Rename
+    public ?float $detailKpiQty = null;     // ✅ New
 
     // devisi ringkas modal (unik/MULTI/-)
     public ?string $detailDevisi = null;
@@ -40,6 +42,8 @@ class WiDailyReport extends Component
 
     // cache list NIK summary per korlap (agar expand cepat)
     public array $korlapNikSummaries = []; // ['10000471' => [..rows..], ...]
+    public array $korlapNikSummariesSig = [];
+    public array $selectedKorlaps = [];
 
     public string $dataVisibleFrom = '2026-01-01'; 
 
@@ -71,6 +75,35 @@ class WiDailyReport extends Component
         ))));
 
         return [$all, $dev, $arbpl, $niks];
+    }
+
+    protected function korlapCacheSignature(): string
+    {
+        // Semua yang mempengaruhi hasil daftar NIK saat expand
+        return md5(json_encode([
+            'plant' => trim((string)$this->plant),
+            'monthFilter' => (string)$this->monthFilter,
+            'wiMode' => (string)$this->wiMode,
+            'q' => trim((string)$this->q),
+            'dataVisibleFrom' => trim((string)$this->dataVisibleFrom),
+            'reportMode' => (string)$this->reportMode,
+        ]));
+    }
+
+    protected function refreshExpandedKorlapSummaries(): void
+    {
+        if (($this->reportMode ?? 'wi') !== 'korlap') return;
+
+        $sig = $this->korlapCacheSignature();
+
+        foreach ($this->expandedKorlaps as $korlapNik) {
+            $korlapNik = trim((string)$korlapNik);
+            if ($korlapNik === '') continue;
+
+            // Refresh selalu ketika filter berubah
+            $this->korlapNikSummaries[$korlapNik] = $this->queryKorlapNikSummaries($korlapNik);
+            $this->korlapNikSummariesSig[$korlapNik] = $sig;
+        }
     }
 
     protected function dataVisibleFromDate(): ?Carbon
@@ -114,9 +147,11 @@ class WiDailyReport extends Component
         // reset state biar tidak nyangkut dari mode lain
         $this->selectedNiks = [];
         $this->selectedDetailKeys = [];
+        $this->selectedKorlaps = []; // ✅ Reset
 
         $this->expandedKorlaps = [];
         $this->korlapNikSummaries = [];
+        $this->korlapNikSummariesSig = [];
 
         $this->closeDetailModal();
     }
@@ -154,9 +189,17 @@ class WiDailyReport extends Component
         // expand
         $this->expandedKorlaps[] = $korlapNik;
 
-        // lazy load daftar NIK di bawah korlap (sekali saja)
-        if (!array_key_exists($korlapNik, $this->korlapNikSummaries)) {
+        // ✅ cek signature, kalau beda filter -> query ulang
+        $sig = $this->korlapCacheSignature();
+
+        $needRefresh =
+            !array_key_exists($korlapNik, $this->korlapNikSummaries)
+            || !isset($this->korlapNikSummariesSig[$korlapNik])
+            || $this->korlapNikSummariesSig[$korlapNik] !== $sig;
+
+        if ($needRefresh) {
             $this->korlapNikSummaries[$korlapNik] = $this->queryKorlapNikSummaries($korlapNik);
+            $this->korlapNikSummariesSig[$korlapNik] = $sig;
         }
     }
 
@@ -174,9 +217,6 @@ class WiDailyReport extends Component
             ->where('nk.nik', $korlapNik)
             ->whereRaw('TRIM(nk.plant) = ?', [trim($this->plant)]);
 
-        // ==================================================
-        // ✅ PERBAIKAN: Filter Mode WI (With / Without) Disini
-        // ==================================================
         if ($this->wiMode === 'with') {
             // Hanya ambil yang time_wi > 0
             $q->where('d.time_wi', '>', 0);
@@ -199,10 +239,18 @@ class WiDailyReport extends Component
                 COALESCE(SUM(d.time_wi),0) as time_wi_sum,
                 COALESCE(SUM(d.time_conf),0) as time_conf_sum,
                 COALESCE(SUM(d.time_qm),0) as time_qm_sum,
+                
+                -- KPI Quality (QM / WI)
                 CASE
                     WHEN COALESCE(SUM(d.time_wi),0)=0 THEN 0
                     ELSE (COALESCE(SUM(d.time_qm),0)/COALESCE(SUM(d.time_wi),0))*100
-                END as kpi_pct
+                END as kpi_quality_pct,
+
+                -- KPI Qty (WI / CONF)
+                CASE
+                    WHEN COALESCE(SUM(d.time_wi),0)=0 THEN 0
+                    ELSE (COALESCE(SUM(d.time_conf),0)/COALESCE(SUM(d.time_wi),0))*100
+                END as kpi_qty_pct
             ")
             ->groupBy('d.nik')
             ->orderBy('wc', 'asc')
@@ -219,7 +267,8 @@ class WiDailyReport extends Component
             'time_wi_sum'   => (float)  $r->time_wi_sum,
             'time_conf_sum' => (float)  $r->time_conf_sum,
             'time_qm_sum'   => (float)  $r->time_qm_sum,
-            'kpi_pct'       => (float)  $r->kpi_pct,
+            'kpi_quality_pct' => (float) $r->kpi_quality_pct, // ✅
+            'kpi_qty_pct'     => (float) $r->kpi_qty_pct,     // ✅
         ])->all();
     }
 
@@ -280,7 +329,11 @@ class WiDailyReport extends Component
 
         session(['wi_daily.month_filter' => $this->monthFilter]);
         $this->closeDetailModal();
+
+        // ✅ refresh expand korlap (kalau lagi mode korlap)
+        $this->refreshExpandedKorlapSummaries();
     }
+
 
     public function updatedWiMode($value): void
     {
@@ -297,6 +350,8 @@ class WiDailyReport extends Component
         $this->selectedNiks = [];
         $this->selectedDetailKeys = [];
         $this->closeDetailModal();
+
+        $this->refreshExpandedKorlapSummaries();
     }
 
 
@@ -454,11 +509,21 @@ class WiDailyReport extends Component
                 qm.time_conf as time_conf,
                 wi.kode_laravel as kode_laravel,
                 wi.time_wi as time_wi,
+                
+                -- KPI Quality (QM / WI)
                 CASE
                     WHEN wi.time_wi IS NULL THEN NULL
                     WHEN wi.time_wi = 0 THEN 0
                     ELSE (qm.time_qm / wi.time_wi) * 100
-                END as kpi_pct
+                END as kpi_quality_pct,
+
+                -- KPI Qty (WI / CONF)
+                CASE
+                    WHEN wi.time_wi IS NULL THEN NULL
+                    WHEN wi.time_wi = 0 THEN 0
+                    WHEN qm.time_conf = 0 THEN 0
+                    ELSE (qm.time_conf / wi.time_wi) * 100
+                END as kpi_qty_pct
             ");
 
     }
@@ -561,29 +626,64 @@ class WiDailyReport extends Component
         $format = strtolower(trim($format));
         if (!in_array($format, ['pdf', 'xlsx', 'excel'], true)) $format = 'pdf';
 
-        $niks = collect($this->selectedNiks)
-            ->map(fn($v) => trim((string)$v))
-            ->filter()
-            ->unique()
-            ->values()
-            ->all();
+        if ($this->reportMode === 'korlap') {
+            // --- LOGIKA EXPORT KORLAP ---
+            
+            $korlaps = collect($this->selectedKorlaps)
+                ->map(fn($v) => trim((string)$v))
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
 
-        if (empty($niks)) {
-            $this->dispatch('wi-toast', type: 'warning', message: 'Pilih minimal 1 NIK untuk Export Report.');
-            return;
+            if (empty($korlaps)) {
+                $this->dispatch('wi-toast', type: 'warning', message: 'Pilih minimal 1 Korlap untuk Export.');
+                return;
+            }
+
+            // Simpan state ke session khusus Korlap
+            session([
+                'wi_export_korlap.month_filter' => $this->monthFilter,
+                'wi_export_korlap.q'            => $this->q,
+                'wi_export_korlap.korlaps'      => $korlaps,
+                'wi_export_korlap.wi_mode'      => $this->wiMode, 
+            ]);
+
+            if ($format === 'pdf') {
+                $url = route('wi.export.korlap.pdf', ['plant' => $this->plant]);
+                $this->dispatch('wi-open-url', url: $url);
+            } else {
+                $url = route('wi.export.korlap.excel', ['plant' => $this->plant]);
+                $this->dispatch('wi-open-url', url: $url);
+            }
+
+        } else {
+            // --- LOGIKA EXPORT NIK (EXISTING) ---
+            
+            $niks = collect($this->selectedNiks)
+                ->map(fn($v) => trim((string)$v))
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+
+            if (empty($niks)) {
+                $this->dispatch('wi-toast', type: 'warning', message: 'Pilih minimal 1 NIK untuk Export Report.');
+                return;
+            }
+
+            session([
+                'wi_export.month_filter' => $this->monthFilter,
+                'wi_export.q'            => $this->q,
+                'wi_export.niks'         => $niks,
+            ]);
+
+            $url = $format === 'pdf'
+                ? route('wi.export.summary.pdf', ['plant' => $this->plant])
+                : route('wi.export.summary.excel', ['plant' => $this->plant]);
+
+            $this->dispatch('wi-open-url', url: $url);
         }
-
-        session([
-            'wi_export.month_filter' => $this->monthFilter,
-            'wi_export.q'           => $this->q,
-            'wi_export.niks'        => $niks,
-        ]);
-
-        $url = $format === 'pdf'
-            ? route('wi.export.summary.pdf', ['plant' => $this->plant])
-            : route('wi.export.summary.excel', ['plant' => $this->plant]);
-
-        $this->dispatch('wi-open-url', url: $url);
     }
 
     /**
@@ -615,9 +715,9 @@ class WiDailyReport extends Component
 
         session([
             'wi_export_detail.month_filter' => $this->monthFilter,
-            'wi_export_detail.q'           => $this->q,
-            'wi_export_detail.niks'        => $summaryNiks,
-            'wi_export_detail.keys'        => $detailKeys,
+            'wi_export_detail.q'            => $this->q,
+            'wi_export_detail.niks'         => $summaryNiks,
+            'wi_export_detail.keys'         => $detailKeys,
         ]);
 
         $url = $format === 'pdf'
@@ -718,11 +818,16 @@ class WiDailyReport extends Component
         // =========================
         $sumWi = (float) $wiRows->sum('time_wi');
         $sumQm = (float) $qmRows->sum('time_qm');
-        $kpi   = $sumWi == 0 ? 0 : ($sumQm / $sumWi) * 100;
+        $sumConf = (float) $qmRows->sum('time_conf'); // ✅ New
+
+        $kpiQuality = $sumWi == 0 ? 0 : ($sumQm / $sumWi) * 100;
+        $kpiQty     = $sumWi == 0 ? 0 : ($sumConf / $sumWi) * 100;
 
         $this->detailTotalWi = $sumWi;
         $this->detailTotalQm = $sumQm;
-        $this->detailKpi     = $kpi;
+        $this->detailTotalConf = $sumConf; // ✅ New
+        $this->detailKpiQuality = $kpiQuality; // ✅ Rename
+        $this->detailKpiQty     = $kpiQty;     // ✅ New
 
         // devisi ringkas modal
         $devs = collect($qmRows)
@@ -755,6 +860,12 @@ class WiDailyReport extends Component
             $wc     = $qm->wc ?? null;
             $devisi = $qm->devisi ?? null;
             $namaRow = $qm->nama ?? $name;
+            
+            // Calculate row KPI
+            $kpiQ = is_null($timeWi) ? null : ($timeWi == 0 ? 0 : (((float)($timeQm ?? 0)) / $timeWi) * 100);
+            $kpiQty = is_null($timeWi)
+                ? null
+                : ($timeWi == 0 ? 0 : (((float)($timeConf ?? 0)) / $timeWi) * 100);
 
             $detail[] = [
                 'id'      => null,
@@ -766,7 +877,8 @@ class WiDailyReport extends Component
                 'time_wi' => $timeWi,
                 'time_conf' => $timeConf,
                 'time_qm' => $timeQm,
-                'kpi_pct' => is_null($timeWi) ? null : ($timeWi == 0 ? 0 : (((float)($timeQm ?? 0)) / $timeWi) * 100),
+                'kpi_quality_pct' => $kpiQ,
+                'kpi_qty_pct' => $kpiQty, // ✅ New
             ];
 
             $cursor->addDay();
@@ -785,7 +897,9 @@ class WiDailyReport extends Component
 
         $this->detailTotalWi = null;
         $this->detailTotalQm = null;
-        $this->detailKpi = null;
+        $this->detailTotalConf = null;
+        $this->detailKpiQuality = null;
+        $this->detailKpiQty = null;
         $this->detailDevisi = null;
     }
 
@@ -822,10 +936,18 @@ class WiDailyReport extends Component
                     COALESCE(SUM(d.time_wi),0) as time_wi_sum,
                     COALESCE(SUM(d.time_conf),0) as time_conf_sum,
                     COALESCE(SUM(d.time_qm),0) as time_qm_sum,
+                    
+                    -- KPI Quality (QM/WI)
                     CASE
                         WHEN COALESCE(SUM(d.time_wi),0)=0 THEN 0
                         ELSE (COALESCE(SUM(d.time_qm),0)/COALESCE(SUM(d.time_wi),0))*100
-                    END as kpi_pct
+                    END as kpi_quality_pct,
+
+                    -- KPI Qty (WI/CONF)
+                    CASE
+                        WHEN COALESCE(SUM(d.time_wi),0)=0 THEN 0
+                        ELSE (COALESCE(SUM(d.time_conf),0)/COALESCE(SUM(d.time_wi),0))*100
+                    END as kpi_qty_pct
                 ");
 
             // =========================================================
@@ -855,7 +977,8 @@ class WiDailyReport extends Component
                     'time_wi_sum'    => (float)$r->time_wi_sum,
                     'time_conf_sum'  => (float)$r->time_conf_sum,
                     'time_qm_sum'    => (float)$r->time_qm_sum,
-                    'kpi_pct'        => (float)$r->kpi_pct,
+                    'kpi_quality_pct' => (float)$r->kpi_quality_pct, // Rename
+                    'kpi_qty_pct'     => (float)$r->kpi_qty_pct,     // New
                 ])
                 ->all();
 
@@ -863,12 +986,13 @@ class WiDailyReport extends Component
                 'korlapData' => $korlapData,
                 'rangeStart' => $start->toDateString(),
                 'rangeEnd'   => $end->toDateString(),
-                // ... (sisa parameter return view sama seperti sebelumnya)
                 'reportData' => collect([]),
                 'missingNiks' => [],
                 'overallWi' => 0,
                 'overallQm' => 0,
-                'overallKpi' => 0,
+                'overallConf' => 0,
+                'overallKpiQuality' => 0,
+                'overallKpiQty' => 0,
                 'overallDevisi' => '-',
                 'selectedNiks' => $this->selectedNiks,
                 'selectedDetailKeys' => $this->selectedDetailKeys,
@@ -879,8 +1003,10 @@ class WiDailyReport extends Component
                 'monthFilter' => $this->monthFilter,
                 'q' => $this->q,
                 'plant' => $this->plant,
+                'selectedKorlaps' => $this->selectedKorlaps, // ✅ Pass ini
             ]);
         }
+
         // =========================================
         // ✅ 5) MODE WI (kode kamu yang lama) LANJUT
         // =========================================
@@ -922,10 +1048,17 @@ class WiDailyReport extends Component
 
                 MAX(CASE WHEN time_wi IS NULL THEN 0 ELSE 1 END) as has_wi,
 
+                -- KPI Quality
                 CASE
                     WHEN SUM(time_wi) = 0 THEN 0
                     ELSE (SUM(time_qm) / SUM(time_wi)) * 100
-                END as kpi_pct
+                END as kpi_quality_pct,
+
+                -- KPI Qty
+                CASE
+                    WHEN SUM(time_wi) = 0 THEN 0
+                    ELSE (SUM(time_conf) / SUM(time_wi)) * 100
+                END as kpi_qty_pct
             ")
             ->groupBy('nik');
 
@@ -944,13 +1077,16 @@ class WiDailyReport extends Component
         // TOTAL keseluruhan
         $overallWi = 0.0;
         $overallQm = 0.0;
+        $overallConf = 0.0;
 
         foreach ($reportData as $r) {
             $overallWi += (float) ($r->time_wi_sum ?? 0);
             $overallQm += (float) ($r->time_qm_sum ?? 0);
+            $overallConf += (float) ($r->time_conf_sum ?? 0);
         }
 
-        $overallKpi = $overallWi == 0 ? 0 : ($overallQm / $overallWi) * 100;
+        $overallKpiQuality = $overallWi == 0 ? 0 : ($overallQm / $overallWi) * 100;
+        $overallKpiQty     = $overallWi == 0 ? 0 : ($overallConf / $overallWi) * 100;
 
         // overall devisi ringkas
         $overallDevisiList = collect($reportData)
@@ -969,15 +1105,18 @@ class WiDailyReport extends Component
             'rangeStart' => $start->toDateString(),
             'rangeEnd'   => $end->toDateString(),
 
-            'overallWi'  => $overallWi,
-            'overallQm'  => $overallQm,
-            'overallKpi' => $overallKpi,
+            'overallWi'   => $overallWi,
+            'overallQm'   => $overallQm,
+            'overallConf' => $overallConf,
+            'overallKpiQuality' => $overallKpiQuality,
+            'overallKpiQty' => $overallKpiQty,
 
             'overallDevisi' => $overallDevisi,
             'missingNiks' => $missingNiks,
 
             // korlapData tidak dipakai di mode wi (biar blade aman kalau dicek)
             'korlapData' => [],
+            'selectedKorlaps' => [],
         ]);
     }
 }
