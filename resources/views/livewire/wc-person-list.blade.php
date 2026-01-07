@@ -57,7 +57,7 @@
     {{-- ======================================================================== --}}
     {{-- BAGIAN TAMBAHAN: SYNC WORK CENTER MANUAL --}}
     {{-- ======================================================================== --}}
-    <div class="mb-8 relative z-20 overflow-visible">
+    <div class="mb-8 relative z-[100] overflow-visible">
 
         {{-- OUTER WRAPPER DENGAN AURORA BORDER --}}
         <div
@@ -308,7 +308,7 @@
     {{-- ======================================================================== --}}
     {{-- BAGIAN 1: HEADER MEWAH & TOMBOL EXPORT --}}
     {{-- ======================================================================== --}}
-    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6 relative z-[200]">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6 relative z-[50]">
         {{-- JUDUL HALAMAN --}}
         <div>
             <h3
@@ -406,7 +406,7 @@
     {{-- BAGIAN 2: FILTER PENCARIAN --}}
     {{-- ======================================================================== --}}
     <div
-        class="mb-6 p-4 sm:p-5 bg-emerald-50/60 rounded-2xl shadow-[inset_0_0_0_1px_rgba(16,185,129,0.15)] border border-emerald-100/80 backdrop-blur-sm relative z-10 overflow-hidden">
+        class="mb-6 p-4 sm:p-5 bg-emerald-50/60 rounded-2xl shadow-[inset_0_0_0_1px_rgba(16,185,129,0.15)] border border-emerald-100/80 backdrop-blur-sm relative z-[10] overflow-hidden">
         <div class="pointer-events-none absolute -right-10 -top-6 h-24 w-24 rounded-full bg-white/50 blur-3xl"></div>
 
         {{-- Header Filter & Radio Buttons --}}
