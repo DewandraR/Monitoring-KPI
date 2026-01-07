@@ -165,12 +165,12 @@
                         <th style="width:9%">NIK Korlap</th>
                         <th style="width:18%">Nama Korlap</th>
                         <th style="width:16%">WC Anggota</th>
-                        <th style="width:6%">Jml NIK WI</th>
+                        <th style="width:6%">Jml NIK INDUK WI</th>
                         <th style="width:9%">Time WI</th>
                         <th style="width:9%">Time CONF</th>
                         <th style="width:9%">Time QM</th>
-                        <th style="width:10%">% KPI QTY</th>
-                        <th style="width:10%">% KPI QUALITY</th>
+                        <th style="width:10%">% HASIL WI</th>
+                        <th style="width:10%">% HASIL QM</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -213,8 +213,8 @@
                         <th style="width:9%;">Time WI</th>
                         <th style="width:9%;">Time CONF</th>
                         <th style="width:9%;">Time QM</th>
-                        <th style="width:9%;">KPI QTY %</th>
-                        <th style="width:9%;">KPI QUALITY %</th>
+                        <th style="width:9%;">HASIL WI %</th>
+                        <th style="width:9%;">HASIL QM %</th>
                     </tr>
                 </thead>
                 <tbody>

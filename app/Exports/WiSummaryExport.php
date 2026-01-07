@@ -45,8 +45,8 @@ class WiSummaryExport implements
             'Time WI',         // G
             'Time CONF',       // H
             'Time QM',         // I
-            '% KPI Qty',       // J
-            '% KPI Quality',   // K
+            '% HASIL WI',       // J
+            '% HASIL QM',   // K
         ];
     }
 
@@ -65,12 +65,12 @@ class WiSummaryExport implements
             $conf = (float)($row->time_conf_sum ?? 0);
             $qm   = (float)($row->time_qm_sum ?? 0);
 
-            // KPI Qty  = WI / CONF
+            // HASIL WI  = WI / CONF
             $kpiQty = isset($row->kpi_qty_pct)
                 ? (float)$row->kpi_qty_pct
                 : ($wi == 0.0 ? 0.0 : (($conf / $wi) * 100));
 
-            // KPI Quality = QM / WI
+            // HASIL QM = QM / WI
             $kpiQuality = isset($row->kpi_quality_pct)
                 ? (float)$row->kpi_quality_pct
                 : ($wi == 0.0 ? 0.0 : (($qm / $wi) * 100));
@@ -121,8 +121,8 @@ class WiSummaryExport implements
             'G' => '#,##0.00', // Time WI
             'H' => '#,##0.00', // Time CONF
             'I' => '#,##0.00', // Time QM
-            'J' => '0.00',     // KPI Qty (2 decimal)
-            'K' => '0.00',     // KPI Quality (2 decimal)
+            'J' => '0.00',     // HASIL WI (2 decimal)
+            'K' => '0.00',     // HASIL QM (2 decimal)
         ];
     }
 
