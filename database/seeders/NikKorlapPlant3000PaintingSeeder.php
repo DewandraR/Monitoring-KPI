@@ -24,6 +24,13 @@ class NikKorlapPlant3000PaintingSeeder extends Seeder
             ['wc' => 'WC268', 'nik' => '10001035', 'nama' => 'NURKHOLIS'],
             ['wc' => 'WC269', 'nik' => '10001035', 'nama' => 'NURKHOLIS'],
             ['wc' => 'WC270', 'nik' => '10001035', 'nama' => 'NURKHOLIS'],
+            
+            ['wc' => 'WC442', 'nik' => '10004416', 'nama' => 'Muhammad Zamakhsyari'],
+            ['wc' => 'WC444', 'nik' => '10004416', 'nama' => 'Muhammad Zamakhsyari'],
+            ['wc' => 'WC451', 'nik' => '10004416', 'nama' => 'Muhammad Zamakhsyari'],
+            ['wc' => 'WC452', 'nik' => '10004416', 'nama' => 'Muhammad Zamakhsyari'],
+            ['wc' => 'WC863', 'nik' => '10004416', 'nama' => 'Muhammad Zamakhsyari'],
+            ['wc' => 'WC864', 'nik' => '10004416', 'nama' => 'Muhammad Zamakhsyari'],
         ];
 
         $plant = '3000';
