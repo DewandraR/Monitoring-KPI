@@ -74,7 +74,8 @@
                 <th class="w-num">Time WI</th>
                 <th class="w-num">Time CONF</th> {{-- ✅ KOLOM BARU --}}
                 <th class="w-num">Time QM</th>
-                <th class="w-kpi">% KPI</th>
+                <th class="w-kpi">% KPI Qty</th>
+                <th class="w-kpi">% KPI Quality</th>
             </tr>
         </thead>
 
@@ -87,7 +88,13 @@
                     $wiSum   = (float)($row->time_wi_sum ?? 0);
                     $confSum = (float)($row->time_conf_sum ?? 0); // ✅ DATA CONF
                     $qmSum   = (float)($row->time_qm_sum ?? 0);
-                    $kpi     = isset($row->kpi_pct) ? (float)$row->kpi_pct : ($wiSum == 0 ? 0 : ($qmSum / $wiSum) * 100);
+                    $kpiQty = isset($row->kpi_qty_pct)
+                        ? (float)$row->kpi_qty_pct
+                        : ($confSum == 0 ? 0 : (($wiSum / $confSum) * 100));
+
+                    $kpiQuality = isset($row->kpi_quality_pct)
+                        ? (float)$row->kpi_quality_pct
+                        : ($wiSum == 0 ? 0 : (($qmSum / $wiSum) * 100));
 
                     $devisi = (string)($row->devisi ?? '');
                     $devisiShow = $devisi !== '' ? $devisi : '-';
@@ -104,7 +111,8 @@
                     <td class="text-center font-mono nowrap">{{ number_format($confSum, 2) }}</td> {{-- ✅ TAMPILKAN CONF --}}
                     <td class="text-center font-mono nowrap">{{ number_format($qmSum, 2) }}</td>
                     
-                    <td class="text-center font-mono nowrap">{{ number_format($kpi, 0) }}%</td>
+                    <td class="text-center font-mono nowrap">{{ number_format($kpiQty, 2) }}%</td>
+                    <td class="text-center font-mono nowrap">{{ number_format($kpiQuality, 2) }}%</td>
                 </tr>
             @endforeach
         </tbody>

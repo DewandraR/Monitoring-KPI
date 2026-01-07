@@ -81,7 +81,8 @@
                 <th class="col-num">Time WI</th>
                 <th class="col-num">Time CONF</th> {{-- ✅ KOLOM BARU --}}
                 <th class="col-num">Time QM</th>
-                <th class="col-kpi">% KPI</th>
+                <th class="col-kpi">% KPI Qty</th>
+                <th class="col-kpi">% KPI Quality</th>
             </tr>
         </thead>
 
@@ -105,8 +106,8 @@
                         $devisiHeaderShow = $devisiHeader !== '' ? $devisiHeader : '-';
                     @endphp
                     <tr class="group-header-row">
-                        {{-- COLSPAN JADI 10 KARENA TAMBAH 1 KOLOM --}}
-                        <td colspan="10">
+                        {{-- COLSPAN JADI 11 KARENA TAMBAH 1 KOLOM --}}
+                        <td colspan="11">
                             <span class="group-header-label">Personal:</span>
                             <span class="group-header-value">{{ $r->nik }}</span>
                             &mdash;
@@ -123,7 +124,9 @@
                     $timeWi   = $r->time_wi;   // bisa null
                     $timeConf = $r->time_conf; // ✅ AMBIL DATA CONF
                     $timeQm   = $r->time_qm;   // bisa null
-                    $kpi      = $r->kpi_pct;   // null kalau WI null
+                    $kpiQty     = $r->kpi_qty_pct;      // null kalau WI null
+                    $kpiQuality = $r->kpi_quality_pct;  // null kalau WI null
+
 
                     $devisi = (string)($r->devisi ?? '');
                     $devisiShow = $devisi !== '' ? $devisi : '-';
@@ -151,7 +154,11 @@
                     </td>
 
                     <td class="text-center font-mono">
-                        {{ is_null($timeWi) ? '-' : number_format((float)($kpi ?? 0), 0) . '%' }}
+                        {{ is_null($timeWi) ? '-' : number_format((float)($kpiQty ?? 0), 2) . '%' }}
+                    </td>
+
+                    <td class="text-center font-mono">
+                        {{ is_null($timeWi) ? '-' : number_format((float)($kpiQuality ?? 0), 2) . '%' }}
                     </td>
                 </tr>
             @endforeach

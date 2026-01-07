@@ -36,16 +36,17 @@ class WiDetailExport implements
     public function headings(): array
     {
         return [
-            'No',       // A
-            'NIK',      // B
-            'Tanggal',  // C
-            'Nama',     // D
-            'Devisi',   // E
-            'WC',       // F
-            'Time WI',  // G
-            'Time CONF',// H ✅ KOLOM BARU
-            'Time QM',  // I
-            '% KPI',    // J
+            'No',            // A
+            'NIK',           // B
+            'Tanggal',       // C
+            'Nama',          // D
+            'Devisi',        // E
+            'WC',            // F
+            'Time WI',       // G
+            'Time CONF',     // H
+            'Time QM',       // I
+            '% KPI Qty',     // J
+            '% KPI Quality', // K
         ];
     }
 
@@ -59,12 +60,30 @@ class WiDetailExport implements
             $tgl = !empty($row->tanggal) ? Carbon::parse($row->tanggal)->isoFormat('YY-MM-DD') : '';
 
             $timeWi   = isset($row->time_wi) ? (is_null($row->time_wi) ? null : (float)$row->time_wi) : null;
-            $timeConf = isset($row->time_conf) ? (is_null($row->time_conf) ? null : (float)$row->time_conf) : null; // ✅ DATA CONF
+            $timeConf = isset($row->time_conf) ? (is_null($row->time_conf) ? null : (float)$row->time_conf) : null;
             $timeQm   = isset($row->time_qm) ? (is_null($row->time_qm) ? null : (float)$row->time_qm) : null;
 
-            $kpi = null;
+            // KPI hanya valid kalau WI tidak null (sesuai UI kamu)
+            $kpiQty = null;
+            $kpiQuality = null;
+
             if (!is_null($timeWi)) {
-                $kpi = ($timeWi == 0.0) ? 0.0 : (((float)($timeQm ?? 0) / $timeWi) * 100);
+                // Qty = WI / CONF
+                $wiBase = (float)($timeWi ?? 0);
+                $kpiQty = ($wiBase == 0.0) ? 0.0 : (((float)($timeConf ?? 0) / $wiBase) * 100);
+
+                // Quality = QM / WI
+                $kpiQuality = ($timeWi == 0.0) ? 0.0 : (((float)($timeQm ?? 0) / (float)$timeWi) * 100);
+            }
+
+            // fallback kalau controller sudah kirim
+            if (!is_null($timeWi)) {
+                if (isset($row->kpi_qty_pct)) {
+                    $kpiQty = (float)$row->kpi_qty_pct;
+                }
+                if (isset($row->kpi_quality_pct)) {
+                    $kpiQuality = (float)$row->kpi_quality_pct;
+                }
             }
 
             $devisi = (string)($row->devisi ?? '');
@@ -78,9 +97,10 @@ class WiDetailExport implements
                 $devisi,                     // E
                 (string)($row->wc ?? ''),    // F
                 $timeWi,                     // G
-                $timeConf,                   // H ✅
+                $timeConf,                   // H
                 $timeQm,                     // I
-                $kpi,                        // J
+                $kpiQty,                     // J
+                $kpiQuality,                 // K
             ];
         });
     }
@@ -110,9 +130,10 @@ class WiDetailExport implements
     {
         return [
             'G' => '#,##0.00', // Time WI
-            'H' => '#,##0.00', // Time CONF ✅
+            'H' => '#,##0.00', // Time CONF
             'I' => '#,##0.00', // Time QM
-            'J' => '0.00',     // KPI
+            'J' => '0.00',     // KPI Qty (2 decimal)
+            'K' => '0.00',     // KPI Quality (2 decimal)
         ];
     }
 
@@ -123,7 +144,7 @@ class WiDetailExport implements
                 $sheet = $event->sheet->getDelegate();
 
                 $rowCount = $this->rows->count() + 1; // + header
-                $lastCol = 'J'; // ✅ GESER KE J
+                $lastCol = 'K';
                 $tableRange = "A1:{$lastCol}{$rowCount}";
 
                 $sheet->setAutoFilter("A1:{$lastCol}1");
@@ -134,8 +155,8 @@ class WiDetailExport implements
                 $sheet->getStyle("F2:F{$rowCount}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER); // WC
                 $sheet->getStyle("D2:D{$rowCount}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);   // Nama
                 $sheet->getStyle("E2:E{$rowCount}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);   // Devisi
-                
-                $sheet->getStyle("G2:J{$rowCount}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);  // Angka (G, H, I, J) ✅
+
+                $sheet->getStyle("G2:K{$rowCount}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);  // Angka
 
                 // Border
                 $sheet->getStyle($tableRange)->applyFromArray([

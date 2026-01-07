@@ -567,9 +567,24 @@ class WiReportPdfController extends Controller
                 MAX(tanggal) as max_tanggal,
                 MAX(wc) as wc,
                 MAX(devisi) as devisi,
+
                 COALESCE(SUM(COALESCE(time_wi,0)),0) as time_wi_sum,
                 COALESCE(SUM(COALESCE(time_conf,0)),0) as time_conf_sum,
                 COALESCE(SUM(COALESCE(time_qm,0)),0) as time_qm_sum,
+
+                -- KPI QUALITY (QM / WI)
+                CASE
+                    WHEN SUM(COALESCE(time_wi,0)) = 0 THEN 0
+                    ELSE (SUM(COALESCE(time_qm,0)) / SUM(COALESCE(time_wi,0))) * 100
+                END as kpi_quality_pct,
+
+                -- KPI QTY (CONF / WI)
+                CASE
+                    WHEN SUM(COALESCE(time_wi,0)) = 0 THEN 0
+                    ELSE (SUM(COALESCE(time_conf,0)) / SUM(COALESCE(time_wi,0))) * 100
+                END as kpi_qty_pct,
+
+                -- (optional backward compat)
                 CASE
                     WHEN SUM(COALESCE(time_wi,0)) = 0 THEN 0
                     ELSE (SUM(COALESCE(time_qm,0)) / SUM(COALESCE(time_wi,0))) * 100
@@ -676,9 +691,16 @@ class WiReportPdfController extends Controller
             // ✅ TAMBAHKAN INI: Ambil Time Conf
             $timeConf = isset($r) ? ($r->time_conf !== null ? (float)$r->time_conf : null) : null;
 
-            $kpi = null;
+            $kpiQuality = null;
+            $kpiQty     = null;
+
             if (!is_null($timeWi)) {
-                $kpi = ($timeWi == 0.0) ? 0.0 : (((float)($timeQm ?? 0) / $timeWi) * 100);
+                // Quality = QM / WI
+                $kpiQuality = ($timeWi == 0.0) ? 0.0 : (((float)($timeQm ?? 0) / $timeWi) * 100);
+
+                // Qty = CONF / WI
+                $wiBase = (float)($timeWi ?? 0);
+                $kpiQty = ($wiBase == 0.0) ? 0.0 : (((float)($timeConf ?? 0) / $wiBase) * 100);
             }
 
             $out->push((object)[
@@ -687,10 +709,17 @@ class WiReportPdfController extends Controller
                 'tanggal' => $tgl,
                 'wc'      => $wc,
                 'devisi'  => $devisi,
-                'time_wi' => $timeWi, 
-                'time_conf' => $timeConf, // ✅ MASUKKAN KE OBJECT
-                'time_qm' => $timeQm,
-                'kpi_pct' => $kpi,
+
+                'time_wi'   => $timeWi,
+                'time_conf' => $timeConf,
+                'time_qm'   => $timeQm,
+
+                // baru
+                'kpi_qty_pct'     => $kpiQty,
+                'kpi_quality_pct' => $kpiQuality,
+
+                // optional backward compat (kalau masih dipakai di tempat lain)
+                'kpi_pct' => $kpiQuality,
             ]);
         };
 

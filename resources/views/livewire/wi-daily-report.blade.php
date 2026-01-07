@@ -496,7 +496,7 @@
                 </span>
 
                 @php
-                    $currentMode = $wiMode ?? 'all';
+                    $currentMode = $wiMode ?? 'with';
                     $options = [
                         'all'     => 'Semua',
                         'with'    => 'Ada WI',
@@ -700,7 +700,7 @@
                                 <td class="px-6 py-4 text-center">
                                     <span class="inline-flex items-center px-2.5 py-1 rounded text-[11px] font-semibold
                                         {{ $kpiQty < 100 ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800' }}">
-                                        {{ number_format($kpiQty, 0) }}%
+                                        {{ number_format($kpiQty, 2) }}%
                                     </span>
                                 </td>
 
@@ -708,7 +708,7 @@
                                 <td class="px-6 py-4 text-center">
                                     <span class="inline-flex items-center px-2.5 py-1 rounded text-[11px] font-semibold
                                         {{ $kpiQuality < 100 ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800' }}">
-                                        {{ number_format($kpiQuality, 0) }}%
+                                        {{ number_format($kpiQuality, 2) }}%
                                     </span>
                                 </td>
                             </tr>
@@ -762,7 +762,7 @@
                             <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">NIK Korlap</th>
                             <th class="px-6 py-4 text-left   text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">Nama Korlap</th>
                             <th class="px-6 py-4 text-left   text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">WC Korlap</th>
-                            <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">Jumlah NIK</th>
+                            <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">Jumlah NIK WI</th>
                             <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">Time WI</th>
                             <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">Time CONF</th>
                             <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">Time QM</th>
@@ -841,7 +841,7 @@
                                 <td wire:click="toggleKorlap({{ \Illuminate\Support\Js::from($korlapNik) }})" class="px-6 py-4 text-center">
                                     <span class="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold shadow-sm
                                         {{ $kpiQty < 100 ? 'bg-amber-100 text-amber-800 ring-1 ring-amber-200' : 'bg-blue-100 text-blue-800 ring-1 ring-blue-200' }}">
-                                        {{ number_format($kpiQty, 0) }}%
+                                        {{ number_format($kpiQty, 2) }}%
                                     </span>
                                 </td>
 
@@ -849,7 +849,7 @@
                                 <td wire:click="toggleKorlap({{ \Illuminate\Support\Js::from($korlapNik) }})" class="px-6 py-4 text-center">
                                     <span class="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold shadow-sm
                                         {{ $kpiQuality < 100 ? 'bg-red-100 text-red-800 ring-1 ring-red-200' : 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200' }}">
-                                        {{ number_format($kpiQuality, 0) }}%
+                                        {{ number_format($kpiQuality, 2) }}%
                                     </span>
                                 </td>
                             </tr>
@@ -927,14 +927,14 @@
                                                                 <td class="px-4 py-3 text-center">
                                                                     <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold
                                                                         {{ $kpiQty2 < 100 ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700' }}">
-                                                                        {{ number_format($kpiQty2, 0) }}%
+                                                                        {{ number_format($kpiQty2, 2) }}%
                                                                     </span>
                                                                 </td>
 
                                                                 <td class="px-4 py-3 text-center">
                                                                     <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold
                                                                         {{ $kpiQuality2 < 100 ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600' }}">
-                                                                        {{ number_format($kpiQuality2, 0) }}%
+                                                                        {{ number_format($kpiQuality2, 2) }}%
                                                                     </span>
                                                                 </td>
                                                             </tr>
@@ -1009,9 +1009,9 @@
                                 &nbsp;|&nbsp;
                                 Total QM: <b>{{ number_format((float)($detailTotalQm ?? 0), 2) }}</b>
                                 &nbsp;|&nbsp;
-                                KPI Qty: <b>{{ number_format((float)($detailKpiQty ?? 0), 0) }}%</b>
+                                KPI Qty: <b>{{ number_format((float)($detailKpiQty ?? 0), 2) }}%</b>
                                 &nbsp;|&nbsp;
-                                KPI Quality: <b>{{ number_format((float)($detailKpiQuality ?? 0), 0) }}%</b>
+                                KPI Quality: <b>{{ number_format((float)($detailKpiQuality ?? 0), 2) }}%</b>
                             </div>
                         </div>
 
@@ -1139,7 +1139,7 @@
                                             <td class="px-4 py-2 text-center">
                                                 <span class="inline-flex items-center px-2.5 py-1 rounded text-[11px] font-semibold
                                                     {{ is_null($kpiQtyRow) ? 'bg-slate-100 text-slate-500' : ($kpiQtyRow < 100 ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800') }}">
-                                                    {{ is_null($kpiQtyRow) ? '-' : (number_format((float)$kpiQtyRow, 0) . '%') }}
+                                                    {{ is_null($kpiQtyRow) ? '-' : (number_format((float)$kpiQtyRow, 2) . '%') }}
                                                 </span>
                                             </td>
 
@@ -1147,7 +1147,7 @@
                                             <td class="px-4 py-2 text-center">
                                                 <span class="inline-flex items-center px-2.5 py-1 rounded text-[11px] font-semibold
                                                     {{ is_null($kpiQualityRow) ? 'bg-slate-100 text-slate-500' : ($kpiQualityRow < 100 ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800') }}">
-                                                    {{ is_null($kpiQualityRow) ? '-' : (number_format((float)$kpiQualityRow, 0) . '%') }}
+                                                    {{ is_null($kpiQualityRow) ? '-' : (number_format((float)$kpiQualityRow, 2) . '%') }}
                                                 </span>
                                             </td>
 

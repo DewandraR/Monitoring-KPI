@@ -311,7 +311,7 @@ class WiDailyReport extends Component
         $this->monthFilter = $saved === 'prev' ? 'prev' : 'this';
 
         // ✅ NEW: load WI mode
-        $m = (string) session('wi_daily.wi_mode', 'all');
+        $m = (string) session('wi_daily.wi_mode', 'with'); // default: Ada WI
         if ($m === 'has')  $m = 'with';
         if ($m === 'none') $m = 'without';
 
@@ -319,7 +319,9 @@ class WiDailyReport extends Component
 
         $rm = (string) session('wi_daily.report_mode', 'wi');
         $this->reportMode = in_array($rm, ['wi','korlap'], true) ? $rm : 'wi';
-
+        //MARK KALO MAU GAK NGABAIKAN SESION
+        $this->wiMode = 'with'; 
+        session(['wi_daily.wi_mode' => 'with']);
     }
 
     public function setMonthFilter(string $mode): void

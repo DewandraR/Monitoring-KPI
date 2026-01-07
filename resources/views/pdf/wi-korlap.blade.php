@@ -212,11 +212,11 @@
                         <td class="text-center">{{ number_format((float)$group['summary']['total_qm'], 2) }}</td>
 
                         <td class="text-center" style="font-weight:bold; {{ $kpiQtyKorlap < 100 ? 'color:#c53030;' : 'color:#047857;' }}">
-                            {{ number_format($kpiQtyKorlap, 0) }}%
+                            {{ number_format($kpiQtyKorlap, 2) }}%
                         </td>
 
                         <td class="text-center" style="font-weight:bold; {{ $kpiQualityKorlap < 100 ? 'color:#c53030;' : 'color:#047857;' }}">
-                            {{ number_format($kpiQualityKorlap, 0) }}%
+                            {{ number_format($kpiQualityKorlap, 2) }}%
                         </td>
                     </tr>
                 </tbody>
@@ -262,11 +262,11 @@
                             <td class="text-center">{{ number_format($qm, 2) }}</td>
 
                             <td class="text-center" style="font-weight:bold; {{ $kpiQty < 100 ? 'color:#c53030;' : 'color:#047857;' }}">
-                                {{ number_format($kpiQty, 0) }}%
+                                {{ number_format($kpiQty, 2) }}%
                             </td>
 
                             <td class="text-center" style="font-weight:bold; {{ $kpiQuality < 100 ? 'color:#c53030;' : 'color:#047857;' }}">
-                                {{ number_format($kpiQuality, 0) }}%
+                                {{ number_format($kpiQuality, 2) }}%
                             </td>
                         </tr>
                     @endforeach

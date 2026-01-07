@@ -43,9 +43,10 @@ class WiSummaryExport implements
             'WC',              // E
             'Devisi',          // F
             'Time WI',         // G
-            'Time CONF',       // H ✅ KOLOM BARU
+            'Time CONF',       // H
             'Time QM',         // I
-            '% KPI',           // J
+            '% KPI Qty',       // J
+            '% KPI Quality',   // K
         ];
     }
 
@@ -61,9 +62,18 @@ class WiSummaryExport implements
             $rentang = "{$min} - {$max}";
 
             $wi   = (float)($row->time_wi_sum ?? 0);
-            $conf = (float)($row->time_conf_sum ?? 0); // ✅ DATA CONF
+            $conf = (float)($row->time_conf_sum ?? 0);
             $qm   = (float)($row->time_qm_sum ?? 0);
-            $kpi  = isset($row->kpi_pct) ? (float)$row->kpi_pct : ($wi == 0.0 ? 0.0 : (($qm / $wi) * 100));
+
+            // KPI Qty  = WI / CONF
+            $kpiQty = isset($row->kpi_qty_pct)
+                ? (float)$row->kpi_qty_pct
+                : ($wi == 0.0 ? 0.0 : (($conf / $wi) * 100));
+
+            // KPI Quality = QM / WI
+            $kpiQuality = isset($row->kpi_quality_pct)
+                ? (float)$row->kpi_quality_pct
+                : ($wi == 0.0 ? 0.0 : (($qm / $wi) * 100));
 
             $devisi = (string)($row->devisi ?? '');
             if (trim($devisi) === '') $devisi = '-';
@@ -76,9 +86,10 @@ class WiSummaryExport implements
                 (string)($row->wc ?? ''),    // E
                 $devisi,                     // F
                 $wi,                         // G
-                $conf,                       // H ✅
+                $conf,                       // H
                 $qm,                         // I
-                $kpi,                        // J
+                $kpiQty,                     // J
+                $kpiQuality,                 // K
             ];
         });
     }
@@ -108,9 +119,10 @@ class WiSummaryExport implements
     {
         return [
             'G' => '#,##0.00', // Time WI
-            'H' => '#,##0.00', // Time CONF ✅
+            'H' => '#,##0.00', // Time CONF
             'I' => '#,##0.00', // Time QM
-            'J' => '0.00',     // KPI
+            'J' => '0.00',     // KPI Qty (2 decimal)
+            'K' => '0.00',     // KPI Quality (2 decimal)
         ];
     }
 
@@ -121,7 +133,7 @@ class WiSummaryExport implements
                 $sheet = $event->sheet->getDelegate();
 
                 $rowCount = $this->rows->count() + 1; // + header
-                $lastCol = 'J'; // ✅ GESER KE J
+                $lastCol = 'K';
                 $tableRange = "A1:{$lastCol}{$rowCount}";
 
                 $sheet->setAutoFilter("A1:{$lastCol}1");
@@ -130,13 +142,13 @@ class WiSummaryExport implements
                 // Align
                 $sheet->getStyle("A2:A{$rowCount}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER); // No
                 $sheet->getStyle("B2:B{$rowCount}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER); // NIK
+                $sheet->getStyle("C2:C{$rowCount}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER); // Rentang
                 $sheet->getStyle("E2:E{$rowCount}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER); // WC
 
-                $sheet->getStyle("C2:C{$rowCount}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER); // Rentang
                 $sheet->getStyle("D2:D{$rowCount}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);   // Nama
                 $sheet->getStyle("F2:F{$rowCount}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);   // Devisi
 
-                $sheet->getStyle("G2:J{$rowCount}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);  // Angka (G, H, I, J) ✅
+                $sheet->getStyle("G2:K{$rowCount}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);  // Angka
 
                 // Border
                 $sheet->getStyle($tableRange)->applyFromArray([
