@@ -240,7 +240,7 @@
             @if($isKorlapMode)
                 <div class="flex flex-col items-start gap-1">
                     <span class="text-[10px] uppercase tracking-widest text-emerald-900/70 font-black">
-                        Periode Export :
+                        Periode Data :
                     </span>
 
                     <div class="relative group" wire:ignore>

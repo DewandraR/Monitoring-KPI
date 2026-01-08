@@ -80,6 +80,22 @@ class WiDailyReport extends Component
         return [$all, $dev, $arbpl, $niks];
     }
 
+    protected function getDateRangeForView(): array
+    {
+        // default: ikut monthFilter seperti sekarang
+        [$start, $end] = $this->getDateRangeForFilter();
+
+        // kalau mode KORLAP, pakai range dari datepicker (korlapPrintStart/End)
+        if (($this->reportMode ?? 'wi') === 'korlap') {
+            [$s, $e] = $this->normalizeKorlapPrintRange($this->korlapPrintStart, $this->korlapPrintEnd);
+
+            try { $start = Carbon::parse($s)->startOfDay(); } catch (\Throwable $x) {}
+            try { $end   = Carbon::parse($e)->startOfDay(); } catch (\Throwable $x) {}
+        }
+
+        return [$start, $end];
+    }
+
     protected function normalizeKorlapPrintRange(?string $start, ?string $end): array
     {
         // fallback pakai range default dari monthFilter
@@ -121,6 +137,9 @@ class WiDailyReport extends Component
             'wi_daily.korlap_print_start' => $s,
             'wi_daily.korlap_print_end'   => $e,
         ]);
+
+        $this->closeDetailModal();
+        $this->refreshExpandedKorlapSummaries();
     }
 
     public function updatedKorlapPrintEnd($value): void
@@ -133,6 +152,9 @@ class WiDailyReport extends Component
             'wi_daily.korlap_print_start' => $s,
             'wi_daily.korlap_print_end'   => $e,
         ]);
+
+        $this->closeDetailModal();
+        $this->refreshExpandedKorlapSummaries();
     }
 
     protected function korlapCacheSignature(): string
@@ -216,7 +238,7 @@ class WiDailyReport extends Component
 
     protected function buildDetailJoinedForCurrentFilters(bool $withSearch = true): array
     {
-        [$start, $end] = $this->getDateRangeForFilter();
+        [$start, $end] = $this->getDateRangeForView();
 
         $begdaStart = $start->format('Ymd');
         $begdaEnd   = $end->format('Ymd');
@@ -849,7 +871,7 @@ class WiDailyReport extends Component
     {
         $this->selectedNik = trim((string) $clickedNik);
 
-        [$start, $end] = $this->getDateRangeForFilter();
+        [$start, $end] = $this->getDateRangeForView();
         $begdaStart = $start->format('Ymd');
         $begdaEnd   = $end->format('Ymd');
 
