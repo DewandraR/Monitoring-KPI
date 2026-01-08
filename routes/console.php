@@ -6,20 +6,14 @@ use Illuminate\Support\Facades\Schedule;
 
 /*
  |-----------------------------------------------------------------------
- | WC PERSON & YPPR058 (FULL RANGE) – JAM 01:00
+ | WC PERSON & YPPR058 (FULL RANGE) – JAM 01:00 (HARIAN)
  |-----------------------------------------------------------------------
- | Urutan penting:
- | 1) sync:wc_person jalan dulu
- | 2) setelah selesai, baru sync:yppr058
- | 
- | Karena keduanya didefinisikan berurutan di file ini dengan jam yang sama,
- | saat `php artisan schedule:run` dieksekusi, Laravel akan menjalankan
- | event schedule secara berurutan: wc_person dulu, lalu yppr058.
-*/
+ | Urutan: sync:wc_person jalan dulu, baru sync:yppr058.
+ */
 
-// --- Jadwal untuk WC PERSON (YPPR079 / WC-person) ---
+// 1. Jadwal untuk WC PERSON
 Schedule::command('sync:wc_person')
-    ->dailyAt('01:00') // jam 1 subuh
+    ->dailyAt('01:00') // Setiap hari jam 01:00
     ->timezone('Asia/Jakarta')
     ->before(function () {
         echo now()->format('Y-m-d H:i:s') . ' Running ["artisan" sync:wc_person]' . PHP_EOL;
@@ -27,9 +21,9 @@ Schedule::command('sync:wc_person')
     ->sendOutputTo(storage_path('logs/WC_PERSON.log'))
     ->withoutOverlapping();
 
-// --- Jadwal untuk YPPR058 (mode default: kemarin → tanggal 1) ---
+// 2. Jadwal untuk YPPR058
 Schedule::command('sync:yppr058')
-    ->dailyAt('01:00') // jam 1 subuh, setelah wc_person
+    ->dailyAt('01:00') // Setiap hari jam 01:00 (antri setelah wc_person)
     ->timezone('Asia/Jakarta')
     ->before(function () {
         echo now()->format('Y-m-d H:i:s') . ' Running ["artisan" sync:yppr058]' . PHP_EOL;
@@ -39,14 +33,29 @@ Schedule::command('sync:yppr058')
 
 /*
  |-----------------------------------------------------------------------
- | YPPR058 YESTERDAY ONLY – JAM 10:00 PAGI
+ | WEEKLY OWNER REPORT – JAM 07:00 (KHUSUS SENIN)
  |-----------------------------------------------------------------------
- | Command: app:yppr058_yesterday
- | Ini yang menjalankan Python dengan argumen --yesterday.
-*/
+ | Mengirim email PDF report Korlap (Data Senin-Minggu lalu) ke Owner.
+ */
+
+Schedule::command('report:send-weekly-owner')
+    ->weeklyOn(1, '07:00') // 1 = Senin, Jam 07:00 Pagi
+    ->timezone('Asia/Jakarta')
+    ->before(function () {
+        echo now()->format('Y-m-d H:i:s') . ' Running ["artisan" report:send-weekly-owner]' . PHP_EOL;
+    })
+    ->sendOutputTo(storage_path('logs/WEEKLY_OWNER_REPORT.log')) // Log khusus email
+    ->withoutOverlapping();
+
+/*
+ |-----------------------------------------------------------------------
+ | YPPR058 YESTERDAY ONLY – JAM 10:00 PAGI (HARIAN)
+ |-----------------------------------------------------------------------
+ | Menjalankan Python dengan argumen --yesterday.
+ */
 
 Schedule::command('app:yppr058_yesterday')
-    ->dailyAt('10:00') // jam 10 pagi
+    ->dailyAt('10:00') // Setiap hari jam 10:00
     ->timezone('Asia/Jakarta')
     ->before(function () {
         echo now()->format('Y-m-d H:i:s') . ' Running ["artisan" app:yppr058_yesterday]' . PHP_EOL;
@@ -55,7 +64,7 @@ Schedule::command('app:yppr058_yesterday')
     ->withoutOverlapping();
 
 
-// Command bawaan "inspire" (biarkan saja)
+// --- Command Bawaan ---
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');

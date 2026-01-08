@@ -56,10 +56,10 @@ class WiKorlapExport implements
                 'NAMA KORLAP',
                 'WC Anggota',
                 'JML NIK INDUK WI',
-                'TIME WI',
-                'TIME CONF',
+                'Menit WI',
+                'Menit CONF',
                 'TIME QM',
-                'HASIL MENIT WI %',
+                'HASIL MENIT CONF %',
                 'HASIL MENIT QM %',
             ]);
 
@@ -89,10 +89,10 @@ class WiKorlapExport implements
                 'NAMA ANGGOTA',
                 'DEVISI',
                 'WC',
-                'TIME WI',
-                'TIME CONF',
+                'Menit WI',
+                'Menit CONF',
                 'TIME QM',
-                'HASIL MENIT WI %',
+                'HASIL MENIT CONF %',
                 'HASIL MENIT QM %',
             ]);
 
@@ -151,7 +151,7 @@ class WiKorlapExport implements
                 $sheet->getColumnDimension('F')->setWidth(12);  // WI
                 $sheet->getColumnDimension('G')->setWidth(12);  // Conf
                 $sheet->getColumnDimension('H')->setWidth(12);  // QM
-                $sheet->getColumnDimension('I')->setWidth(12);  // HASIL MENIT WI
+                $sheet->getColumnDimension('I')->setWidth(12);  // HASIL MENIT CONF
                 $sheet->getColumnDimension('J')->setWidth(14);  // HASIL MENIT QM
 
                 for ($row = 1; $row <= $lastRow; $row++) {
@@ -200,7 +200,7 @@ class WiKorlapExport implements
                         $sheet->getStyle("I{$row}:J{$row}")
                             ->getNumberFormat()->setFormatCode('0.00');
 
-                        // Warna HASIL MENIT WI (I)
+                        // Warna HASIL MENIT CONF (I)
                         $kpiQtyVal = $sheet->getCell("I{$row}")->getValue();
                         if (is_numeric($kpiQtyVal) && $kpiQtyVal < 100) {
                             $sheet->getStyle("I{$row}")->getFont()->getColor()->setARGB('FFC53030');
@@ -268,7 +268,7 @@ class WiKorlapExport implements
                         $sheet->getStyle("I{$row}:J{$row}")
                             ->getNumberFormat()->setFormatCode('0.00');
 
-                        // HASIL MENIT WI color (I)
+                        // HASIL MENIT CONF color (I)
                         $kpiQtyVal = $sheet->getCell("I{$row}")->getValue();
                         if (is_numeric($kpiQtyVal) && $kpiQtyVal < 100) {
                             $sheet->getStyle("I{$row}")->getFont()->getColor()->setARGB('FFC53030');

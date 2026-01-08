@@ -64,16 +64,71 @@ class NikKorlapSeeder extends Seeder
                 'plant' => '2000',
                 'wc_korlap' => ['WC410','WC505','WC506','WC507','WC509','WC511','WC512','WC514','WC412','WC401'],
             ],
+
+            // ===== PAINTING (tambahan dari data atas) =====
+            [
+                'nik' => '10000719',
+                'nama' => 'Fitrianto',
+                'plant' => '2000',
+                'wc_korlap' => ['WC580','WC581','WC582','WC583','WC584','WC687','WC804','WC805','WC854'],
+            ],
+            [
+                'nik' => '10000587',
+                'nama' => 'Moch. Darmawan Eko',
+                'plant' => '2000',
+                'wc_korlap' => ['WC688','WC689','WC690','WC691','WC584','WC807','WC808','WC809','WC855'],
+            ],
+            [
+                'nik' => '10000544',
+                'nama' => 'Moch. Choirudin',
+                'plant' => '2000',
+                'wc_korlap' => ['WC835','WC836','WC837','WC838','WC839','WC840','WC841','WC842','WC856'],
+            ],
+            [
+                'nik' => '10000413',
+                'nama' => 'Arif Budi Prasetya',
+                'plant' => '2000',
+                'wc_korlap' => ['WC844','WC845','WC584','WC847'],
+            ],
+            [
+                'nik' => '10000410',
+                'nama' => 'Dian Prasetyo',
+                'plant' => '2000',
+                'wc_korlap' => ['WC848','WC845','WC849','WC850','WC853','WC851'],
+            ],
+            [
+                'nik' => '10000421',
+                'nama' => 'Sunarto',
+                'plant' => '2000',
+                'wc_korlap' => ['WC848','WC849','WC850','WC851'],
+            ],
+            [
+                'nik' => '10000388',
+                'nama' => 'Abdul Kholiq Idris',
+                'plant' => '2000',
+                'wc_korlap' => ['WC844','WC845','WC846','WC847'],
+            ],
+            [
+                'nik' => '10000409',
+                'nama' => 'Nanang Soiman',
+                'plant' => '2000',
+                'wc_korlap' => ['WC835','WC836','WC837','WC838'],
+            ],
         ];
 
         foreach ($rows as $row) {
-            // rapikan WC (unique + reindex)
-            $row['wc_korlap'] = array_values(array_unique($row['wc_korlap']));
+            // rapikan nik & nama
+            $row['nik']  = trim((string) $row['nik']);
+            $row['nama'] = trim((string) $row['nama']);
+
+            // rapikan WC: trim, uppercase, unique, reindex
+            $row['wc_korlap'] = array_values(array_unique(array_map(function ($wc) {
+                $wc = strtoupper(trim((string) $wc));
+                return $wc;
+            }, $row['wc_korlap'])));
 
             NikKorlap::updateOrCreate(
-                // ✅ key unik (nik + plant)
                 ['nik' => $row['nik'], 'plant' => $row['plant']],
-                // ✅ fields yang diupdate
                 ['nama' => $row['nama'], 'wc_korlap' => $row['wc_korlap']]
             );
         }

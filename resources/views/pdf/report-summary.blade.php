@@ -292,7 +292,7 @@
 
                     {{-- % VAR --}}
                     <td class="text-center font-mono nowrap">
-                        {{ number_format($persenVar, 2) }}%
+                        {{ number_format($persenVar, 2, ',', '.') }}%
                     </td>
                 </tr>
             @endforeach

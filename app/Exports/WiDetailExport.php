@@ -42,10 +42,10 @@ class WiDetailExport implements
             'Nama',          // D
             'Devisi',        // E
             'WC',            // F
-            'Time WI',       // G
-            'Time CONF',     // H
+            'Menit WI',       // G
+            'Menit CONF',     // H
             'Time QM',       // I
-            '% HASIL MENIT WI',     // J
+            '% HASIL MENIT CONF',     // J
             '% HASIL MENIT QM', // K
         ];
     }
@@ -129,10 +129,10 @@ class WiDetailExport implements
     public function columnFormats(): array
     {
         return [
-            'G' => '#,##0.00', // Time WI
-            'H' => '#,##0.00', // Time CONF
+            'G' => '#,##0.00', // Menit WI
+            'H' => '#,##0.00', // Menit CONF
             'I' => '#,##0.00', // Time QM
-            'J' => '0.00',     // KPI HASIL MENIT WI (2 decimal)
+            'J' => '0.00',     // KPI HASIL MENIT CONF (2 decimal)
             'K' => '0.00',     // HASIL MENIT QM (2 decimal)
         ];
     }

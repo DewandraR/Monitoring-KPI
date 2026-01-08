@@ -7,8 +7,8 @@
      * HEADER (SUMMARY) & DETAIL HEADERS (untuk style konsisten)
      * =========================================================
      */
-    $headersSummary = ['No','NIK','Rentang Tanggal','Nama','WC','Devisi','Time WI','Time CONF','Time QM','% HASIL MENIT WI','% HASIL MENIT QM'];
-    $headersDetail  = ['No','NIK','Tanggal','Nama','WC','Devisi','Time WI','Time CONF','Time QM','% HASIL MENIT WI','% HASIL MENIT QM'];
+    $headersSummary = ['No','NIK','Rentang Tanggal','Nama','WC','Devisi','Menit WI','Menit CONF','Time QM','% HASIL MENIT CONF','% HASIL MENIT QM'];
+    $headersDetail  = ['No','NIK','Tanggal','Nama','WC','Devisi','Menit WI','Menit CONF','Time QM','% HASIL MENIT CONF','% HASIL MENIT QM'];
 
     /**
      * =========================================================
@@ -114,6 +114,8 @@
      data-selected-niks='@json($selectedNiksArr->values()->all())'
      data-selected-korlaps='@json($selectedKorlapsArr->values()->all())'
      data-selected-detail-keys='@json($selectedDetailKeysArr->values()->all())'
+     data-korlap-print-start="{{ $korlapPrintStart ?? '' }}"
+     data-korlap-print-end="{{ $korlapPrintEnd ?? '' }}"
      class="bg-white overflow-hidden shadow-[0_25px_50px_-12px_rgba(0,0,0,0.15)] sm:rounded-xl p-8 border border-emerald-50 relative">
 
     {{-- TOAST CONTAINER --}}
@@ -123,72 +125,81 @@
     <div class="absolute top-0 right-0 -mt-4 -mr-4 w-64 h-64 bg-gradient-to-br from-emerald-100/40 to-transparent rounded-full blur-3xl pointer-events-none"></div>
 
     {{-- ========================================================= --}}
-    {{-- BAGIAN 1: HEADER + TOGGLE PERIODE + AKSI BUTTONS --}}
-    {{-- ========================================================= --}}
+    {{-- BAGIAN 1: HEADER + TOGGLE PERIODE + DATE PICKER + AKSI BUTTONS --}}
     <div class="flex flex-col gap-6 mb-8 relative z-10">
 
-        {{-- BARIS 1: JUDUL --}}
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        {{-- BARIS 1: JUDUL & FILTER (STYLE MEGA + RANGE TANGGAL) --}}
+    <div class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
 
-            <div class="space-y-2">
-                <h3 class="text-3xl lg:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-800 to-teal-600 tracking-tight drop-shadow-sm animate-fade-in">
-                    {{ __('WI Daily Report') }}
-                    <span class="text-emerald-900/20 font-light">—</span>
-                    <span class="text-2xl lg:text-3xl font-mono">{{ $plant ?? ($werks ?? request()->route('werks')) }}</span>
-                </h3>
+        {{-- JUDUL + PERIODE + TOGGLE MODE --}}
+        <div class="space-y-2">
+            <h3 class="text-3xl lg:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-800 to-teal-600 tracking-tight drop-shadow-sm animate-fade-in">
+                {{ __('WI Daily Report') }}
+                <span class="text-emerald-900/20 font-light">—</span>
+                <span class="text-2xl lg:text-3xl font-mono">
+                    {{ $plant ?? ($werks ?? request()->route('werks')) ?? '-' }}
+                </span>
+            </h3>
 
-                <div class="flex flex-wrap items-center gap-2 text-sm">
-                    <span class="text-slate-500">Periode:</span>
-                    <span class="font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-lg shadow-sm">
-                        {{ $rangeStart ?? '-' }} s.d. {{ $rangeEnd ?? '-' }}
-                    </span>
+            <div class="flex flex-wrap items-center gap-2 text-sm">
+                <span class="text-slate-500">Periode:</span>
 
-                    {{-- ✅ TOGGLE REPORT MODE (WI / KORLAP) --}}
-                    <div class="inline-flex items-center rounded-xl bg-white/70 p-1 ring-1 ring-emerald-200 shadow-sm ml-2">
-                        <button type="button"
-                                wire:click="setReportMode('wi')"
-                                class="px-3 py-1.5 rounded-lg text-xs font-black tracking-wide transition-all
-                                    {{ $isWiMode ? 'bg-emerald-600 text-white shadow' : 'text-slate-600 hover:text-emerald-700' }}">
-                            Per NIK
-                        </button>
+                {{-- RANGE TANGGAL (YANG KAMU MAU) --}}
+                <span class="font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-lg shadow-sm">
+                    {{ $rangeStart ?? '-' }} s.d. {{ $rangeEnd ?? '-' }}
+                </span>
 
-                        <button type="button"
-                                wire:click="setReportMode('korlap')"
-                                class="px-3 py-1.5 rounded-lg text-xs font-black tracking-wide transition-all
-                                    {{ $isKorlapMode ? 'bg-emerald-900 text-white shadow' : 'text-slate-600 hover:text-emerald-800' }}">
-                            Per Korlap
-                        </button>
-                    </div>
+                {{-- TOGGLE REPORT MODE (WI / KORLAP) - STYLE LAMA --}}
+                <div class="inline-flex items-center rounded-xl bg-white/70 p-1 ring-1 ring-emerald-200 shadow-sm ml-2">
+                    <button type="button"
+                            wire:click="setReportMode('wi')"
+                            class="px-3 py-1.5 rounded-lg text-xs font-black tracking-wide transition-all
+                            {{ $isWiMode ? 'bg-emerald-600 text-white shadow' : 'text-slate-600 hover:text-emerald-700' }}">
+                        Per NIK
+                    </button>
 
-                    <span class="text-xs text-gray-400 italic">
-                        {{ $isKorlapMode ? '(Ringkasan per Korlap)' : '(Ringkasan per NIK)' }}
-                    </span>
+                    <button type="button"
+                            wire:click="setReportMode('korlap')"
+                            class="px-3 py-1.5 rounded-lg text-xs font-black tracking-wide transition-all
+                            {{ $isKorlapMode ? 'bg-emerald-900 text-white shadow' : 'text-slate-600 hover:text-emerald-800' }}">
+                        Per Korlap
+                    </button>
                 </div>
-            </div>
 
-            {{-- TOGGLE BULAN --}}
+                <span class="text-xs text-gray-400 italic">
+                    {{ $isKorlapMode ? '(Ringkasan per Korlap)' : '(Ringkasan per NIK)' }}
+                </span>
+            </div>
+        </div>
+
+        {{-- AREA FILTER: TOGGLE BULAN + DATE PICKER (KORLAP) --}}
+        <div class="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+
+            {{-- TOGGLE BULAN - STYLE LAMA --}}
             <div class="flex items-center gap-3 group/toggle">
                 <span class="hidden sm:inline text-[11px] uppercase tracking-widest text-emerald-900/70 font-black flex items-center gap-2">
                     <svg class="w-4 h-4 text-emerald-600 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                            d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                     </svg>
                     Periode
                 </span>
 
                 <div class="relative inline-flex rounded-2xl bg-gradient-to-r from-emerald-100 via-teal-100 to-emerald-100 p-1.5 shadow-lg ring-2 ring-emerald-200/50 backdrop-blur-sm">
-                    <div class="absolute inset-1.5 rounded-xl bg-gradient-to-r from-white via-emerald-50 to-white shadow-inner transition-all duration-500 ease-out {{ ($monthFilter ?? 'this') === 'this' ? 'translate-x-0' : 'translate-x-[calc(100%-4px)]' }}"
-                         style="width: calc(50% - 2px);"></div>
+                    <div class="absolute inset-1.5 rounded-xl bg-gradient-to-r from-white via-emerald-50 to-white shadow-inner transition-all duration-500 ease-out
+                        {{ ($monthFilter ?? 'this') === 'this' ? 'translate-x-0' : 'translate-x-[calc(100%-4px)]' }}"
+                        style="width: calc(50% - 2px);"></div>
 
-                    <button type="button" wire:click="setMonthFilter('this')"
+                    <button type="button"
+                            wire:click="setMonthFilter('this')"
                             class="relative z-10 px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 ease-out flex items-center gap-2
-                                   {{ ($monthFilter ?? 'this') === 'this'
-                                     ? 'text-emerald-700 scale-105'
-                                     : 'text-emerald-600/60 hover:text-emerald-700 hover:scale-105' }}">
+                            {{ ($monthFilter ?? 'this') === 'this'
+                                ? 'text-emerald-700 scale-105'
+                                : 'text-emerald-600/60 hover:text-emerald-700 hover:scale-105' }}">
                         <svg class="w-4 h-4 transition-all duration-300 {{ ($monthFilter ?? 'this') === 'this' ? 'rotate-0 scale-110' : 'rotate-12 scale-90 opacity-70' }}"
-                             fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
-                                  d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                         </svg>
                         <span class="whitespace-nowrap">Bulan Ini</span>
 
@@ -200,15 +211,16 @@
                         @endif
                     </button>
 
-                    <button type="button" wire:click="setMonthFilter('prev')"
+                    <button type="button"
+                            wire:click="setMonthFilter('prev')"
                             class="relative z-10 px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 ease-out flex items-center gap-2
-                                   {{ ($monthFilter ?? 'this') === 'prev'
-                                     ? 'text-teal-700 scale-105'
-                                     : 'text-teal-600/60 hover:text-teal-700 hover:scale-105' }}">
+                            {{ ($monthFilter ?? 'this') === 'prev'
+                                ? 'text-teal-700 scale-105'
+                                : 'text-teal-600/60 hover:text-teal-700 hover:scale-105' }}">
                         <svg class="w-4 h-4 transition-all duration-300 {{ ($monthFilter ?? 'this') === 'prev' ? 'rotate-0 scale-110' : '-rotate-12 scale-90 opacity-70' }}"
-                             fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
-                                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
                         </svg>
                         <span class="whitespace-nowrap">Bulan Lalu</span>
 
@@ -223,8 +235,39 @@
                     <div class="absolute -inset-1 bg-gradient-to-r from-emerald-400/20 via-teal-400/20 to-emerald-400/20 rounded-2xl blur-lg opacity-0 group-hover/toggle:opacity-100 transition-opacity duration-500 -z-10"></div>
                 </div>
             </div>
-        </div>
 
+            {{-- DATE PICKER (KORLAP) - DISERASIIN BIAR MATCH STYLE --}}
+            @if($isKorlapMode)
+                <div class="flex flex-col items-start gap-1">
+                    <span class="text-[10px] uppercase tracking-widest text-emerald-900/70 font-black">
+                        Periode Export :
+                    </span>
+
+                    <div class="relative group" wire:ignore>
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <svg class="h-4 w-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                        </div>
+
+                        <input id="compact-date-range" type="text"
+                            class="pl-9 pr-3 py-2 w-56 text-xs font-black tracking-wide text-emerald-800
+                                    bg-white/80 border border-emerald-200 rounded-2xl shadow-sm ring-1 ring-emerald-200/60
+                                    focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 cursor-pointer text-center
+                                    transition-all duration-300 hover:shadow-md"
+                            placeholder="Pilih Tanggal..."
+                            data-max-date="{{ \Carbon\Carbon::yesterday()->toDateString() }}"
+                            readonly>
+
+                        {{-- Hidden Inputs untuk Livewire Sync --}}
+                        <input type="hidden" id="korlap-print-start" wire:model.live="korlapPrintStart">
+                        <input type="hidden" id="korlap-print-end"   wire:model.live="korlapPrintEnd">
+                    </div>
+                </div>
+            @endif
+        </div>
+    </div>
         {{-- BARIS 2: BUTTONS --}}
         <div class="grid grid-cols-1 sm:grid-cols-2 {{ $isWiMode ? 'lg:grid-cols-3' : '' }} gap-3">
 
@@ -617,7 +660,7 @@
                                 $confSum = (float)($row->time_conf_sum ?? 0);
                                 $qmSum   = (float)($row->time_qm_sum ?? 0);
 
-                                // HASIL MENIT WI  = WI / CONF
+                                // HASIL MENIT CONF  = WI / CONF
                                 $kpiQty = isset($row->kpi_qty_pct)
                                     ? (float)$row->kpi_qty_pct
                                     : ($confSum == 0 ? 0 : (($wiSum / $confSum) * 100));
@@ -681,26 +724,27 @@
                                     {{ $row->devisi ?? '-' }}
                                 </td>
 
-                                {{-- Time WI --}}
+                                {{-- Menit WI --}}
                                 <td class="px-6 py-4 text-center text-gray-900 font-semibold tracking-tight">
-                                    {{ number_format($wiSum, 2) }}
+                                    {{ number_format((float)$wiSum, 2, ',', '.') }}
+
                                 </td>
 
-                                {{-- Time CONF --}}
+                                {{-- Menit CONF --}}
                                 <td class="px-6 py-4 text-center text-gray-900 font-semibold tracking-tight">
-                                    {{ number_format($confSum, 2) }}
+                                    {{ number_format($confSum, 2, ',', '.') }}
                                 </td>
 
                                 {{-- Time QM --}}
                                 <td class="px-6 py-4 text-center text-gray-900 font-semibold tracking-tight">
-                                    {{ number_format($qmSum, 2) }}
+                                    {{ number_format($qmSum, 2, ',', '.') }}
                                 </td>
 
-                                {{-- HASIL MENIT WI (WI/CONF) --}}
+                                {{-- HASIL MENIT CONF (WI/CONF) --}}
                                 <td class="px-6 py-4 text-center">
                                     <span class="inline-flex items-center px-2.5 py-1 rounded text-[11px] font-semibold
                                         {{ $kpiQty < 100 ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800' }}">
-                                        {{ number_format($kpiQty, 2) }}%
+                                        {{ number_format($kpiQty, 2, ',', '.') }}%
                                     </span>
                                 </td>
 
@@ -708,7 +752,7 @@
                                 <td class="px-6 py-4 text-center">
                                     <span class="inline-flex items-center px-2.5 py-1 rounded text-[11px] font-semibold
                                         {{ $kpiQuality < 100 ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800' }}">
-                                        {{ number_format($kpiQuality, 2) }}%
+                                        {{ number_format($kpiQuality, 2, ',', '.') }}%
                                     </span>
                                 </td>
                             </tr>
@@ -763,10 +807,10 @@
                             <th class="px-6 py-4 text-left   text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">Nama Korlap</th>
                             <th class="px-6 py-4 text-left   text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">WC Anggota</th>
                             <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">Jumlah NIK Induk WI</th>
-                            <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">Time WI</th>
-                            <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">Time CONF</th>
+                            <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">Menit WI</th>
+                            <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">Menit CONF</th>
                             <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">Time QM</th>
-                            <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">% HASIL MENIT WI</th>
+                            <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">% HASIL MENIT CONF</th>
                             <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">% HASIL MENIT QM</th>
                         </tr>
                     </thead>
@@ -826,22 +870,22 @@
                                 </td>
 
                                 <td wire:click="toggleKorlap({{ \Illuminate\Support\Js::from($korlapNik) }})" class="px-6 py-4 text-center font-semibold text-slate-700">
-                                    {{ number_format((float)($k['time_wi_sum'] ?? 0), 2) }}
+                                    {{ number_format((float)($k['time_wi_sum'] ??0), 2, ',', '.') }}
                                 </td>
 
                                 <td wire:click="toggleKorlap({{ \Illuminate\Support\Js::from($korlapNik) }})" class="px-6 py-4 text-center font-semibold text-slate-700">
-                                    {{ number_format((float)($k['time_conf_sum'] ?? 0), 2) }}
+                                    {{ number_format((float)($k['time_conf_sum'] ??0), 2, ',', '.') }}
                                 </td>
 
                                 <td wire:click="toggleKorlap({{ \Illuminate\Support\Js::from($korlapNik) }})" class="px-6 py-4 text-center font-semibold text-slate-700">
-                                    {{ number_format((float)($k['time_qm_sum'] ?? 0), 2) }}
+                                    {{ number_format((float)($k['time_qm_sum'] ??0), 2, ',', '.') }}
                                 </td>
 
-                                {{-- HASIL MENIT WI --}}
+                                {{-- HASIL MENIT CONF --}}
                                 <td wire:click="toggleKorlap({{ \Illuminate\Support\Js::from($korlapNik) }})" class="px-6 py-4 text-center">
                                     <span class="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold shadow-sm
                                         {{ $kpiQty < 100 ? 'bg-amber-100 text-amber-800 ring-1 ring-amber-200' : 'bg-blue-100 text-blue-800 ring-1 ring-blue-200' }}">
-                                        {{ number_format($kpiQty, 2) }}%
+                                        {{ number_format($kpiQty, 2, ',', '.') }}%
                                     </span>
                                 </td>
 
@@ -849,7 +893,7 @@
                                 <td wire:click="toggleKorlap({{ \Illuminate\Support\Js::from($korlapNik) }})" class="px-6 py-4 text-center">
                                     <span class="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold shadow-sm
                                         {{ $kpiQuality < 100 ? 'bg-red-100 text-red-800 ring-1 ring-red-200' : 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200' }}">
-                                        {{ number_format($kpiQuality, 2) }}%
+                                        {{ number_format($kpiQuality, 2, ',', '.') }}%
                                     </span>
                                 </td>
                             </tr>
@@ -885,10 +929,10 @@
                                                             <th class="px-4 py-3 text-left   text-xs font-black text-emerald-800/70 uppercase">Nama</th>
                                                             <th class="px-4 py-3 text-center text-xs font-black text-emerald-800/70 uppercase">WC</th>
                                                             <th class="px-4 py-3 text-left   text-xs font-black text-emerald-800/70 uppercase">Devisi</th>
-                                                            <th class="px-4 py-3 text-center text-xs font-black text-emerald-800/70 uppercase">Time WI</th>
-                                                            <th class="px-4 py-3 text-center text-xs font-black text-emerald-800/70 uppercase">Time CONF</th>
+                                                            <th class="px-4 py-3 text-center text-xs font-black text-emerald-800/70 uppercase">Menit WI</th>
+                                                            <th class="px-4 py-3 text-center text-xs font-black text-emerald-800/70 uppercase">Menit CONF</th>
                                                             <th class="px-4 py-3 text-center text-xs font-black text-emerald-800/70 uppercase">Time QM</th>
-                                                            <th class="px-4 py-3 text-center text-xs font-black text-emerald-800/70 uppercase">% HASIL MENIT WI</th>
+                                                            <th class="px-4 py-3 text-center text-xs font-black text-emerald-800/70 uppercase">% HASIL MENIT CONF</th>
                                                             <th class="px-4 py-3 text-center text-xs font-black text-emerald-800/70 uppercase">% HASIL MENIT QM</th>
                                                         </tr>
                                                     </thead>
@@ -913,28 +957,28 @@
                                                                 <td class="px-4 py-3 text-left text-sm font-medium text-slate-600">{{ $r['devisi'] ?? '-' }}</td>
 
                                                                 <td class="px-4 py-3 text-center text-sm font-bold font-mono text-slate-700">
-                                                                    {{ number_format($wiSum2, 2) }}
+                                                                    {{ number_format($wiSum2, 2, ',', '.') }}
                                                                 </td>
 
                                                                 <td class="px-4 py-3 text-center text-sm font-bold font-mono text-slate-700">
-                                                                    {{ number_format($confSum2, 2) }}
+                                                                    {{ number_format($confSum2, 2, ',', '.') }}
                                                                 </td>
 
                                                                 <td class="px-4 py-3 text-center text-sm font-bold font-mono text-slate-700">
-                                                                    {{ number_format($qmSum2, 2) }}
+                                                                    {{ number_format($qmSum2, 2, ',', '.') }}
                                                                 </td>
 
                                                                 <td class="px-4 py-3 text-center">
                                                                     <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold
                                                                         {{ $kpiQty2 < 100 ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700' }}">
-                                                                        {{ number_format($kpiQty2, 2) }}%
+                                                                        {{ number_format($kpiQty2, 2, ',', '.') }}%
                                                                     </span>
                                                                 </td>
 
                                                                 <td class="px-4 py-3 text-center">
                                                                     <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold
                                                                         {{ $kpiQuality2 < 100 ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600' }}">
-                                                                        {{ number_format($kpiQuality2, 2) }}%
+                                                                        {{ number_format($kpiQuality2, 2, ',', '.') }}%
                                                                     </span>
                                                                 </td>
                                                             </tr>
@@ -1003,15 +1047,15 @@
 
                             {{-- TOTAL DI MODAL --}}
                             <div class="text-xs text-emerald-100 mt-1">
-                                Total WI: <b>{{ number_format((float)($detailTotalWi ?? 0), 2) }}</b>
+                                Total WI: <b>{{ number_format((float)($detailTotalWi ??0), 2, ',', '.') }}</b>
                                 &nbsp;|&nbsp;
-                                Total CONF: <b>{{ number_format((float)($detailTotalConf ?? 0), 2) }}</b>
+                                Total CONF: <b>{{ number_format((float)($detailTotalConf ??0), 2, ',', '.') }}</b>
                                 &nbsp;|&nbsp;
-                                Total QM: <b>{{ number_format((float)($detailTotalQm ?? 0), 2) }}</b>
+                                Total QM: <b>{{ number_format((float)($detailTotalQm ??0), 2, ',', '.') }}</b>
                                 &nbsp;|&nbsp;
-                                HASIL MENIT WI: <b>{{ number_format((float)($detailKpiQty ?? 0), 2) }}%</b>
+                                HASIL MENIT CONF: <b>{{ number_format((float)($detailKpiQty ??0), 2, ',', '.') }}%</b>
                                 &nbsp;|&nbsp;
-                                HASIL MENIT QM: <b>{{ number_format((float)($detailKpiQuality ?? 0), 2) }}%</b>
+                                HASIL MENIT QM: <b>{{ number_format((float)($detailKpiQuality ??0), 2, ',', '.') }}%</b>
                             </div>
                         </div>
 
@@ -1120,22 +1164,22 @@
                                                 {{ $d['devisi'] ?? '-' }}
                                             </td>
 
-                                            {{-- Time WI --}}
+                                            {{-- Menit WI --}}
                                             <td class="px-4 py-2 text-sm font-bold text-center font-mono">
-                                                {{ is_null($timeWi) ? '-' : number_format((float)$timeWi, 2) }}
+                                                {{ is_null($timeWi) ? '-' : number_format((float)$timeWi, 2, ',', '.') }}
                                             </td>
 
-                                            {{-- Time CONF --}}
+                                            {{-- Menit CONF --}}
                                             <td class="px-4 py-2 text-sm font-bold text-center font-mono">
-                                                {{ is_null($timeConf) ? '-' : number_format((float)$timeConf, 2) }}
+                                                {{ is_null($timeConf) ? '-' : number_format((float)$timeConf, 2, ',', '.') }}
                                             </td>
 
                                             {{-- Time QM --}}
                                             <td class="px-4 py-2 text-sm font-bold text-center font-mono">
-                                                {{ is_null($timeQm) ? '-' : number_format((float)$timeQm, 2) }}
+                                                {{ is_null($timeQm) ? '-' : number_format((float)$timeQm, 2, ',', '.') }}
                                             </td>
 
-                                            {{-- HASIL MENIT WI --}}
+                                            {{-- HASIL MENIT CONF --}}
                                             <td class="px-4 py-2 text-center">
                                                 <span class="inline-flex items-center px-2.5 py-1 rounded text-[11px] font-semibold
                                                     {{ is_null($kpiQtyRow) ? 'bg-slate-100 text-slate-500' : ($kpiQtyRow < 100 ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800') }}">
@@ -1187,48 +1231,52 @@
     @push('scripts')
         <script>
             (function () {
-              if (window.__wiBound) return;
-              window.__wiBound = true;
+            if (window.__wiBound) return;
+            window.__wiBound = true;
 
-              const $  = (sel, root = document) => root.querySelector(sel);
-              const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+            const $  = (sel, root = document) => root.querySelector(sel);
 
-              function showToast(message, type = 'success') {
+            // =========================
+            // TOAST (punyamu, tetap)
+            // =========================
+            function showToast(message, type = 'success') {
                 const container = $('#wi-toast-container');
                 if (!container) return;
 
                 const colors = {
-                  success: 'bg-emerald-600',
-                  warning: 'bg-amber-600',
-                  error:   'bg-rose-600',
-                  info:    'bg-slate-700',
+                success: 'bg-emerald-600',
+                warning: 'bg-amber-600',
+                error:   'bg-rose-600',
+                info:    'bg-slate-700',
                 };
 
                 const el = document.createElement('div');
                 el.className = `text-white ${colors[type] || colors.info} shadow-2xl rounded-xl px-4 py-3 text-sm font-semibold flex items-start gap-3 max-w-[360px]`;
                 el.innerHTML = `
-                  <div class="mt-0.5">
+                <div class="mt-0.5">
                     <svg class="w-5 h-5 opacity-95" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M12 9v2m0 4h.01M12 5.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M12 9v2m0 4h.01M12 5.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13z"/>
                     </svg>
-                  </div>
-                  <div class="flex-1 leading-snug">${String(message || '')}</div>
-                  <button type="button" class="ml-2 opacity-80 hover:opacity-100">✕</button>
+                </div>
+                <div class="flex-1 leading-snug">${String(message || '')}</div>
+                <button type="button" class="ml-2 opacity-80 hover:opacity-100">✕</button>
                 `;
-
                 el.querySelector('button')?.addEventListener('click', () => el.remove());
                 container.appendChild(el);
 
                 setTimeout(() => {
-                  el.style.transition = 'all 300ms ease';
-                  el.style.opacity = '0';
-                  el.style.transform = 'translateY(-6px)';
-                  setTimeout(() => el.remove(), 320);
+                el.style.transition = 'all 300ms ease';
+                el.style.opacity = '0';
+                el.style.transform = 'translateY(-6px)';
+                setTimeout(() => el.remove(), 320);
                 }, 3000);
-              }
+            }
 
-              function getSelectedForCopy() {
+            // =========================
+            // COPY (opsional, tetap)
+            // =========================
+            function getSelectedForCopy() {
                 const root = $('#wi-root');
                 if (!root) return [];
 
@@ -1237,28 +1285,28 @@
 
                 try { return JSON.parse(root.dataset[key] || '[]') || []; }
                 catch { return []; }
-              }
+            }
 
-              async function copySelected() {
+            async function copySelected() {
                 const root = $('#wi-root');
                 const mode = String(root?.dataset?.reportMode || 'wi').trim();
-
-                const arr = getSelectedForCopy().map(v => String(v || '').trim()).filter(Boolean);
+                const arr  = getSelectedForCopy().map(v => String(v || '').trim()).filter(Boolean);
 
                 if (!arr.length) {
-                  showToast(mode === 'korlap'
+                showToast(
+                    mode === 'korlap'
                     ? 'Belum ada NIK Korlap yang dipilih di tabel ringkasan.'
-                    : 'Belum ada NIK yang dipilih di tabel ringkasan.'
-                  , 'warning');
-                  return;
+                    : 'Belum ada NIK yang dipilih di tabel ringkasan.',
+                    'warning'
+                );
+                return;
                 }
 
                 const text = arr.join(' ');
-
                 try {
-                  if (navigator.clipboard && navigator.clipboard.writeText) {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
                     await navigator.clipboard.writeText(text);
-                  } else {
+                } else {
                     const ta = document.createElement('textarea');
                     ta.value = text;
                     ta.style.position = 'fixed';
@@ -1267,91 +1315,353 @@
                     ta.select();
                     document.execCommand('copy');
                     document.body.removeChild(ta);
-                  }
-                  showToast(`Berhasil copy ${arr.length} data.`, 'success');
+                }
+                showToast(`Berhasil copy ${arr.length} data.`, 'success');
                 } catch {
-                  showToast('Gagal menyalin. Silakan copy manual dari pilihan.', 'error');
+                showToast('Gagal menyalin. Silakan copy manual dari pilihan.', 'error');
                 }
-              }
+            }
 
-              // CLICK HANDLER (delegation)
-              document.addEventListener('click', (e) => {
-                const exportBtn       = e.target.closest('#wi-export-dropdown-button');
-                const exportDetailBtn = e.target.closest('#wi-export-detail-dropdown-button');
-                const copyBtn         = e.target.closest('#wi-btn-copy-nik');
+            // =========================================================
+            // ✅ DROPDOWN SYSTEM (INI YANG BIKIN MENU KAMU BISA KEBUKA)
+            // - event delegation, aman Livewire rerender
+            // - close jika klik luar / ESC
+            // =========================================================
+            const DROPDOWNS = [
+                { btn: '#wi-export-dropdown-button',        menu: '#wi-export-dropdown-menu' },
+                { btn: '#wi-export-detail-dropdown-button', menu: '#wi-export-detail-dropdown-menu' },
+            ];
 
-                const exportMenu       = $('#wi-export-dropdown-menu');
-                const exportDetailMenu = $('#wi-export-detail-dropdown-menu');
-
-                if (exportBtn) {
-                  e.preventDefault(); e.stopPropagation();
-                  exportMenu?.classList.toggle('hidden');
-                  exportDetailMenu?.classList.add('hidden');
-                  return;
+            function closeAllDropdowns(exceptMenuEl = null) {
+                for (const dd of DROPDOWNS) {
+                const menuEl = $(dd.menu);
+                if (!menuEl) continue;
+                if (exceptMenuEl && menuEl === exceptMenuEl) continue;
+                menuEl.classList.add('hidden');
                 }
+            }
 
-                if (exportDetailBtn) {
-                  e.preventDefault(); e.stopPropagation();
-                  exportDetailMenu?.classList.toggle('hidden');
-                  exportMenu?.classList.add('hidden');
-                  return;
-                }
+            function toggleDropdown(btnSel, menuSel) {
+                const btnEl  = $(btnSel);
+                const menuEl = $(menuSel);
+                if (!btnEl || !menuEl) return;
 
-                if (copyBtn) {
-                  e.preventDefault(); e.stopPropagation();
-                  copySelected();
-                  return;
-                }
+                const willOpen = menuEl.classList.contains('hidden');
+                closeAllDropdowns(menuEl);
 
-                // klik di luar -> tutup dropdown
-                if (exportMenu && !exportMenu.classList.contains('hidden') && !exportMenu.contains(e.target)) {
-                  exportMenu.classList.add('hidden');
-                }
-                if (exportDetailMenu && !exportDetailMenu.classList.contains('hidden') && !exportDetailMenu.contains(e.target)) {
-                  exportDetailMenu.classList.add('hidden');
-                }
-              });
+                if (willOpen) menuEl.classList.remove('hidden');
+                else menuEl.classList.add('hidden');
+            }
 
-              // CHECK ALL (delegation)
-              document.addEventListener('change', (e) => {
-                // 1. Check All NIK Summary
-                if (e.target && e.target.id === 'wi-check-all-summary') {
-                  $$('.wi-summary-check').forEach(cb => {
-                    cb.checked = e.target.checked;
-                    cb.dispatchEvent(new Event('change', { bubbles: true }));
-                    cb.dispatchEvent(new Event('input', { bubbles: true }));
-                  });
+            function getLivewireComponent() {
+                const root = document.getElementById('wi-root');
+                const wireId =
+                    root?.getAttribute('wire:id') ||
+                    root?.closest('[wire\\:id]')?.getAttribute('wire:id');
+
+                if (!wireId || !window.Livewire?.find) return null;
+                return window.Livewire.find(wireId);
                 }
 
-                // 2. Check All Detail Modal
-                if (e.target && e.target.id === 'wi-check-all-detail') {
-                  const modal = $('#wi-modal') || document;
-                  $$('.wi-detail-check', modal).forEach(cb => {
-                    cb.checked = e.target.checked;
-                    cb.dispatchEvent(new Event('change', { bubbles: true }));
-                    cb.dispatchEvent(new Event('input', { bubbles: true }));
-                  });
+                function uniq(arr) {
+                return Array.from(new Set((arr || []).map(v => String(v || '').trim()).filter(Boolean)));
                 }
 
-                // 3. Check All Korlap
-                if (e.target && e.target.id === 'wi-check-all-korlap') {
-                  $$('.wi-korlap-check').forEach(cb => {
-                    cb.checked = e.target.checked;
-                    cb.dispatchEvent(new Event('change', { bubbles: true }));
-                    cb.dispatchEvent(new Event('input', { bubbles: true }));
-                  });
+                function union(a, b) {
+                return uniq([...(a || []), ...(b || [])]);
                 }
-              });
 
-              // Livewire browser events
-              document.addEventListener('wi-open-url', (e) => {
-                const url = e?.detail?.url;
-                if (url) window.open(url, '_blank');
-              });
+                function diff(a, removeList) {
+                const rm = new Set((removeList || []).map(v => String(v || '').trim()).filter(Boolean));
+                return (a || []).map(v => String(v || '').trim()).filter(v => v && !rm.has(v));
+                }
 
-              document.addEventListener('wi-toast', (e) => {
-                showToast(e?.detail?.message || '', e?.detail?.type || 'info');
-              });
+                // update master checkbox status (summary)
+                function refreshSummaryCheckAllState() {
+                const master = document.getElementById('wi-check-all-summary');
+                if (!master) return;
+
+                const checks = Array.from(document.querySelectorAll('.wi-summary-check'));
+                if (!checks.length) {
+                    master.checked = false;
+                    master.indeterminate = false;
+                    return;
+                }
+
+                const checkedCount = checks.filter(cb => cb.checked).length;
+
+                master.checked = checkedCount === checks.length;
+                master.indeterminate = checkedCount > 0 && checkedCount < checks.length;
+                }
+
+                // update master checkbox status (detail modal)
+                function refreshDetailCheckAllState() {
+                const master = document.getElementById('wi-check-all-detail');
+                if (!master) return;
+
+                const checks = Array.from(document.querySelectorAll('.wi-detail-check'));
+                if (!checks.length) {
+                    master.checked = false;
+                    master.indeterminate = false;
+                    return;
+                }
+
+                const checkedCount = checks.filter(cb => cb.checked).length;
+                master.checked = checkedCount === checks.length;
+                master.indeterminate = checkedCount > 0 && checkedCount < checks.length;
+                }
+
+                // update master checkbox status (korlap)
+                function refreshKorlapCheckAllState() {
+                const master = document.getElementById('wi-check-all-korlap');
+                if (!master) return;
+
+                const checks = Array.from(document.querySelectorAll('.wi-korlap-check'));
+                if (!checks.length) {
+                    master.checked = false;
+                    master.indeterminate = false;
+                    return;
+                }
+
+                const checkedCount = checks.filter(cb => cb.checked).length;
+                master.checked = checkedCount === checks.length;
+                master.indeterminate = checkedCount > 0 && checkedCount < checks.length;
+                }
+
+                // Delegation: CHANGE handler
+                document.addEventListener('change', (e) => {
+                const t = e.target;
+
+                // ===== SUMMARY SELECT ALL =====
+                if (t && t.id === 'wi-check-all-summary') {
+                    const comp = getLivewireComponent();
+                    const pageChecks = Array.from(document.querySelectorAll('.wi-summary-check'));
+                    const pageNiks = pageChecks.map(cb => String(cb.value || '').trim()).filter(Boolean);
+
+                    // set UI
+                    pageChecks.forEach(cb => (cb.checked = t.checked));
+
+                    // sync to Livewire: add/remove hanya NIK di halaman ini
+                    const root = document.getElementById('wi-root');
+                    let current = [];
+                    try { current = JSON.parse(root?.dataset?.selectedNiks || '[]') || []; } catch { current = []; }
+                    current = current.map(v => String(v || '').trim()).filter(Boolean);
+
+                    const next = t.checked ? union(current, pageNiks) : diff(current, pageNiks);
+                    comp?.set('selectedNiks', next);
+
+                    refreshSummaryCheckAllState();
+                    return;
+                }
+
+                // bila user cek/uncek checkbox per baris (summary) -> update master
+                if (t && t.classList && t.classList.contains('wi-summary-check')) {
+                    // biarkan wire:model jalan, kita hanya update tampilan master
+                    refreshSummaryCheckAllState();
+                    return;
+                }
+
+                // ===== DETAIL SELECT ALL (MODAL) =====
+                if (t && t.id === 'wi-check-all-detail') {
+                    const comp = getLivewireComponent();
+                    const checks = Array.from(document.querySelectorAll('.wi-detail-check'));
+                    const keys = checks.map(cb => String(cb.value || '').trim()).filter(Boolean);
+
+                    checks.forEach(cb => (cb.checked = t.checked));
+
+                    const root = document.getElementById('wi-root');
+                    let current = [];
+                    try { current = JSON.parse(root?.dataset?.selectedDetailKeys || '[]') || []; } catch { current = []; }
+                    current = current.map(v => String(v || '').trim()).filter(Boolean);
+
+                    const next = t.checked ? union(current, keys) : diff(current, keys);
+                    comp?.set('selectedDetailKeys', next);
+
+                    refreshDetailCheckAllState();
+                    return;
+                }
+
+                if (t && t.classList && t.classList.contains('wi-detail-check')) {
+                    refreshDetailCheckAllState();
+                    return;
+                }
+
+                // ===== KORLAP SELECT ALL =====
+                if (t && t.id === 'wi-check-all-korlap') {
+                    const comp = getLivewireComponent();
+                    const checks = Array.from(document.querySelectorAll('.wi-korlap-check'));
+                    const niks = checks.map(cb => String(cb.value || '').trim()).filter(Boolean);
+
+                    checks.forEach(cb => (cb.checked = t.checked));
+
+                    const root = document.getElementById('wi-root');
+                    let current = [];
+                    try { current = JSON.parse(root?.dataset?.selectedKorlaps || '[]') || []; } catch { current = []; }
+                    current = current.map(v => String(v || '').trim()).filter(Boolean);
+
+                    const next = t.checked ? union(current, niks) : diff(current, niks);
+                    comp?.set('selectedKorlaps', next);
+
+                    refreshKorlapCheckAllState();
+                    return;
+                }
+
+                if (t && t.classList && t.classList.contains('wi-korlap-check')) {
+                    refreshKorlapCheckAllState();
+                    return;
+                }
+                });
+
+                // Saat pertama load + setelah rerender Livewire, rapikan status master checkbox
+                setTimeout(() => {
+                refreshSummaryCheckAllState();
+                refreshDetailCheckAllState();
+                refreshKorlapCheckAllState();
+                }, 50);
+
+                document.addEventListener('livewire:init', () => {
+                // setelah update DOM
+                if (window.Livewire?.hook) {
+                    Livewire.hook('commit', ({ succeed }) => {
+                    succeed(() => setTimeout(() => {
+                        refreshSummaryCheckAllState();
+                        refreshDetailCheckAllState();
+                        refreshKorlapCheckAllState();
+                    }, 50));
+                    });
+                }
+                });
+
+            // Document click (delegation)
+            document.addEventListener('click', (e) => {
+                const target = e.target;
+
+                // Copy button
+                if (target.closest('#wi-btn-copy-nik')) {
+                e.preventDefault();
+                copySelected();
+                return;
+                }
+
+                // Dropdown buttons
+                for (const dd of DROPDOWNS) {
+                if (target.closest(dd.btn)) {
+                    e.preventDefault();
+                    toggleDropdown(dd.btn, dd.menu);
+                    return;
+                }
+                }
+
+                // Klik di dalam menu -> biarkan, tapi kalau klik item button export, tutup setelahnya
+                for (const dd of DROPDOWNS) {
+                const menuEl = $(dd.menu);
+                const btnEl  = $(dd.btn);
+                if (!menuEl || !btnEl) continue;
+
+                if (menuEl.contains(target)) {
+                    // Kalau user klik tombol item (PDF/XLSX) di menu, tutup dropdown setelah click
+                    if (target.closest('button')) {
+                    setTimeout(() => menuEl.classList.add('hidden'), 50);
+                    }
+                    return;
+                }
+                }
+
+                // Klik di luar semuanya -> tutup
+                closeAllDropdowns();
+            });
+
+            // ESC untuk tutup
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') closeAllDropdowns();
+            });
+
+            // =========================================================
+            // ✅ LITEPICKER: ADVANCED RANGE (KORLAP ONLY)
+            // =========================================================
+            function bindCompactRangePicker() {
+                const input = document.getElementById('compact-date-range');
+                if (!input) return;
+
+                // prevent double bind
+                if (input.dataset.pickerBound === '1') return;
+
+                if (!window.Litepicker) {
+                console.warn('Litepicker tidak ditemukan. Pastikan library Litepicker sudah di-load.');
+                return;
+                }
+
+                const maxDateAllowed = input.dataset.maxDate || null;
+                const startHidden = document.getElementById('korlap-print-start');
+                const endHidden   = document.getElementById('korlap-print-end');
+
+                const startVal = startHidden?.value || '';
+                const endVal   = endHidden?.value || '';
+
+                input.dataset.pickerBound = '1';
+
+                const picker = new window.Litepicker({
+                element: input,
+                singleMode: false,
+                autoApply: true,
+                numberOfMonths: 2,
+                numberOfColumns: 2,
+                format: 'YYYY-MM-DD',
+                delimiter: ' s.d ',
+
+                startDate: startVal || null,
+                endDate: endVal || null,
+
+                maxDate: maxDateAllowed,
+                minDate: null,
+
+                setup: (picker) => {
+                    picker.on('selected', (date1, date2) => {
+                    const s = date1.format('YYYY-MM-DD');
+                    const e = date2.format('YYYY-MM-DD');
+
+                    if (startHidden) {
+                        startHidden.value = s;
+                        startHidden.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
+                    if (endHidden) {
+                        endHidden.value = e;
+                        endHidden.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
+                    });
+                }
+                });
+
+                // Set text visual awal
+                if (startVal && endVal) input.value = `${startVal} s.d ${endVal}`;
+            }
+
+            // Livewire 3
+            document.addEventListener('livewire:init', () => {
+                // Toast dari server
+                Livewire.on('wi-toast', ({ type, message }) => {
+                    // pakai fungsi showToast yang sudah kamu punya
+                    showToast(message, type);
+                });
+
+                // Buka URL export
+                Livewire.on('wi-open-url', ({ url }) => {
+                    // paling aman untuk download: pakai same-tab navigation
+                    window.location.href = url;
+
+                    // kalau tetap mau new tab, ini sering kena popup-blocker karena event datang setelah request async:
+                    // window.open(url, '_blank');
+                });
+            });
+
+            // Livewire 2 fallback
+            document.addEventListener('livewire:load', () => {
+                bindCompactRangePicker();
+            });
+
+            // Fallback plain
+            setTimeout(bindCompactRangePicker, 500);
+
             })();
         </script>
     @endpush

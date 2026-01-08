@@ -45,7 +45,10 @@ class WiDailyReport extends Component
     public array $korlapNikSummariesSig = [];
     public array $selectedKorlaps = [];
 
-    public string $dataVisibleFrom = '2026-01-01'; 
+    public ?string $korlapPrintStart = null; // YYYY-MM-DD
+    public ?string $korlapPrintEnd   = null; // YYYY-MM-DD
+
+    public string $dataVisibleFrom = '2025-12-01'; 
 
     /**
      * Ambil scope dari middleware (data.scope)
@@ -75,6 +78,61 @@ class WiDailyReport extends Component
         ))));
 
         return [$all, $dev, $arbpl, $niks];
+    }
+
+    protected function normalizeKorlapPrintRange(?string $start, ?string $end): array
+    {
+        // fallback pakai range default dari monthFilter
+        [$defStart, $defEnd] = $this->getDateRangeForFilter();
+
+        try { $s = $start ? Carbon::parse($start)->startOfDay() : $defStart->copy(); }
+        catch (\Throwable $e) { $s = $defStart->copy(); }
+
+        try { $e = $end ? Carbon::parse($end)->startOfDay() : $defEnd->copy(); }
+        catch (\Throwable $e) { $e = $defEnd->copy(); }
+
+        // swap kalau kebalik
+        if ($e->lt($s)) { [$s, $e] = [$e, $s]; }
+
+        // cutoff dataVisibleFrom
+        if ($vf = $this->dataVisibleFromDate()) {
+            if ($vf->lte($e) && $s->lt($vf)) {
+                $s = $vf->copy();
+            }
+        }
+
+        // max end (biar konsisten sama logic layar yang biasanya sampai kemarin)
+        $maxEnd = Carbon::today()->subDay()->startOfDay();
+        if ($e->gt($maxEnd)) $e = $maxEnd;
+
+        // pastikan start tidak lewat dari end
+        if ($s->gt($e)) $s = $e->copy();
+
+        return [$s->toDateString(), $e->toDateString()];
+    }
+
+    public function updatedKorlapPrintStart($value): void
+    {
+        [$s, $e] = $this->normalizeKorlapPrintRange((string)$value, $this->korlapPrintEnd);
+        $this->korlapPrintStart = $s;
+        $this->korlapPrintEnd   = $e;
+
+        session([
+            'wi_daily.korlap_print_start' => $s,
+            'wi_daily.korlap_print_end'   => $e,
+        ]);
+    }
+
+    public function updatedKorlapPrintEnd($value): void
+    {
+        [$s, $e] = $this->normalizeKorlapPrintRange($this->korlapPrintStart, (string)$value);
+        $this->korlapPrintStart = $s;
+        $this->korlapPrintEnd   = $e;
+
+        session([
+            'wi_daily.korlap_print_start' => $s,
+            'wi_daily.korlap_print_end'   => $e,
+        ]);
     }
 
     protected function korlapCacheSignature(): string
@@ -322,6 +380,17 @@ class WiDailyReport extends Component
         //MARK KALO MAU GAK NGABAIKAN SESION
         $this->wiMode = 'with'; 
         session(['wi_daily.wi_mode' => 'with']);
+
+        [$start, $end] = $this->getDateRangeForFilter();
+
+        $savedStart = session('wi_daily.korlap_print_start', $start->toDateString());
+        $savedEnd   = session('wi_daily.korlap_print_end',   $end->toDateString());
+
+        [$savedStart, $savedEnd] = $this->normalizeKorlapPrintRange($savedStart, $savedEnd);
+
+        $this->korlapPrintStart = $savedStart;
+        $this->korlapPrintEnd   = $savedEnd;
+        $this->setAutomaticDateRange();
     }
 
     public function setMonthFilter(string $mode): void
@@ -332,8 +401,35 @@ class WiDailyReport extends Component
         session(['wi_daily.month_filter' => $this->monthFilter]);
         $this->closeDetailModal();
 
-        // ✅ refresh expand korlap (kalau lagi mode korlap)
+        // LOGIKA BARU: Reset tanggal saat tombol bulan diklik
+        $this->setAutomaticDateRange();
+
         $this->refreshExpandedKorlapSummaries();
+    }
+
+    protected function setAutomaticDateRange(): void
+    {
+        $today = Carbon::today();
+
+        if ($this->monthFilter === 'prev') {
+            // Bulan Lalu: Full 1 bulan
+            $s = $today->copy()->subMonth()->startOfMonth();
+            $e = $today->copy()->subMonth()->endOfMonth();
+        } else {
+            // Bulan Ini: Tanggal 1 s.d. Kemarin (H-1)
+            // Agar sesuai request "Tanggal 8 maka tertulis 1-7"
+            $s = $today->copy()->startOfMonth();
+            $e = $today->copy()->subDay(); // Kemarin
+
+            // Handle jika hari ini tanggal 1, maka range mundur ke bulan lalu atau tetap tgl 1
+            if ($e->lt($s)) {
+                $s = $today->copy();
+                $e = $today->copy();
+            }
+        }
+
+        $this->korlapPrintStart = $s->toDateString();
+        $this->korlapPrintEnd   = $e->toDateString();
     }
 
 
@@ -642,13 +738,16 @@ class WiDailyReport extends Component
                 $this->dispatch('wi-toast', type: 'warning', message: 'Pilih minimal 1 Korlap untuk Export.');
                 return;
             }
-
+            [$rs, $re] = $this->normalizeKorlapPrintRange($this->korlapPrintStart, $this->korlapPrintEnd);
             // Simpan state ke session khusus Korlap
             session([
                 'wi_export_korlap.month_filter' => $this->monthFilter,
                 'wi_export_korlap.q'            => $this->q,
                 'wi_export_korlap.korlaps'      => $korlaps,
                 'wi_export_korlap.wi_mode'      => $this->wiMode, 
+
+                'wi_export_korlap.range_start'  => $rs,
+                'wi_export_korlap.range_end'    => $re,
             ]);
 
             if ($format === 'pdf') {
@@ -1006,6 +1105,8 @@ class WiDailyReport extends Component
                 'q' => $this->q,
                 'plant' => $this->plant,
                 'selectedKorlaps' => $this->selectedKorlaps, // ✅ Pass ini
+                'korlapPrintStart' => $this->korlapPrintStart,
+                'korlapPrintEnd'   => $this->korlapPrintEnd,
             ]);
         }
 
@@ -1119,6 +1220,8 @@ class WiDailyReport extends Component
             // korlapData tidak dipakai di mode wi (biar blade aman kalau dicek)
             'korlapData' => [],
             'selectedKorlaps' => [],
+            'korlapPrintStart' => $this->korlapPrintStart,
+            'korlapPrintEnd'   => $this->korlapPrintEnd,
         ]);
     }
 }

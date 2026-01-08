@@ -48,8 +48,12 @@
             font-family: 'Courier New', monospace;
         }
 
+        /* WRAPPER KORLAP 
+           Ini kunci agar Header Summary dan Tabel Detail 'berusaha' tetap di halaman yang sama 
+        */
         .korlap-section {
             margin-bottom: 35px;
+            page-break-inside: avoid; /* Mencoba agar blok ini tidak terpotong */
             break-inside: avoid;
         }
 
@@ -57,8 +61,9 @@
         table.korlap-table {
             width:100%;
             border-collapse:collapse;
-            margin-bottom: 12px;
+            margin-bottom: 5px; /* Jarak dibuat kecil ke judul detail */
             border: 2px solid #1a202c;
+            page-break-after: avoid; /* Agar setelah tabel ini tidak ganti halaman */
         }
         table.korlap-table th {
             background:#2d3748;
@@ -92,9 +97,11 @@
             color: #4a5568;
             margin-left: 4%;
             margin-bottom: 5px;
+            margin-top: 8px;
             display: block;
             text-transform: uppercase;
             font-family: 'Courier New', monospace;
+            page-break-after: avoid; /* Agar judul tidak pisah dari tabel detail */
         }
 
         /* --- TABEL MEMBER (DETAIL) --- */
@@ -166,10 +173,10 @@
                         <th style="width:18%">Nama Korlap</th>
                         <th style="width:16%">WC Anggota</th>
                         <th style="width:6%">Jml NIK INDUK WI</th>
-                        <th style="width:9%">Time WI</th>
-                        <th style="width:9%">Time CONF</th>
+                        <th style="width:9%">Menit WI</th>
+                        <th style="width:9%">Menit CONF</th>
                         <th style="width:9%">Time QM</th>
-                        <th style="width:10%">% HASIL MENIT WI</th>
+                        <th style="width:10%">% HASIL MENIT CONF</th>
                         <th style="width:10%">% HASIL MENIT QM</th>
                     </tr>
                 </thead>
@@ -184,16 +191,16 @@
                             {{ $group['summary']['wc_string'] }}
                         </td>
                         <td class="text-center">{{ $group['summary']['count_nik'] }}</td>
-                        <td class="text-center">{{ number_format((float)$group['summary']['total_wi'], 2) }}</td>
-                        <td class="text-center">{{ number_format((float)$group['summary']['total_conf'], 2) }}</td>
-                        <td class="text-center">{{ number_format((float)$group['summary']['total_qm'], 2) }}</td>
+                        <td class="text-center">{{ number_format((float)$group['summary']['total_wi'], 2, ',', '.') }}</td>
+                        <td class="text-center">{{ number_format((float)$group['summary']['total_conf'], 2, ',', '.') }}</td>
+                        <td class="text-center">{{ number_format((float)$group['summary']['total_qm'], 2, ',', '.') }}</td>
 
                         <td class="text-center" style="font-weight:bold; {{ $kpiQtyKorlap < 100 ? 'color:#c53030;' : 'color:#047857;' }}">
-                            {{ number_format($kpiQtyKorlap, 2) }}%
+                            {{ number_format($kpiQtyKorlap, 2, ',', '.') }}%
                         </td>
 
                         <td class="text-center" style="font-weight:bold; {{ $kpiQualityKorlap < 100 ? 'color:#c53030;' : 'color:#047857;' }}">
-                            {{ number_format($kpiQualityKorlap, 2) }}%
+                            {{ number_format($kpiQualityKorlap, 2, ',', '.') }}%
                         </td>
                     </tr>
                 </tbody>
@@ -210,10 +217,10 @@
                         <th style="width:20%;">Nama Anggota</th>
                         <th style="width:14%;">Devisi</th>
                         <th style="width:8%;">WC</th>
-                        <th style="width:9%;">Time WI</th>
-                        <th style="width:9%;">Time CONF</th>
+                        <th style="width:9%;">Menit WI</th>
+                        <th style="width:9%;">Menit CONF</th>
                         <th style="width:9%;">Time QM</th>
-                        <th style="width:9%;">HASIL MENIT WI %</th>
+                        <th style="width:9%;">HASIL MENIT CONF %</th>
                         <th style="width:9%;">HASIL MENIT QM %</th>
                     </tr>
                 </thead>
@@ -234,16 +241,16 @@
                             <td class="text-left" style="text-transform:capitalize;">{{ strtolower($m->nama) }}</td>
                             <td class="text-left">{{ $m->devisi ?? '-' }}</td>
                             <td class="text-center">{{ $m->wc }}</td>
-                            <td class="text-center">{{ number_format($wi, 2) }}</td>
-                            <td class="text-center">{{ number_format($conf, 2) }}</td>
-                            <td class="text-center">{{ number_format($qm, 2) }}</td>
+                            <td class="text-center">{{ number_format($wi, 2, ',', '.') }}</td>
+                            <td class="text-center">{{ number_format($conf, 2, ',', '.') }}</td>
+                            <td class="text-center">{{ number_format($qm, 2, ',', '.') }}</td>
 
                             <td class="text-center" style="font-weight:bold; {{ $kpiQty < 100 ? 'color:#c53030;' : 'color:#047857;' }}">
-                                {{ number_format($kpiQty, 2) }}%
+                                {{ number_format($kpiQty, 2, ',', '.') }}%
                             </td>
 
                             <td class="text-center" style="font-weight:bold; {{ $kpiQuality < 100 ? 'color:#c53030;' : 'color:#047857;' }}">
-                                {{ number_format($kpiQuality, 2) }}%
+                                {{ number_format($kpiQuality, 2, ',', '.') }}%
                             </td>
                         </tr>
                     @endforeach

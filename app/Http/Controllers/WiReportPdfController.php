@@ -32,7 +32,7 @@ class WiReportPdfController extends Controller
     protected string $qmRoleValue = 'INDUK';
 
     // di WiReportPdfController
-    protected string $dataVisibleFrom = '2026-01-01';
+    protected string $dataVisibleFrom = '2025-12-01';
 
     protected function dataVisibleFromDate(): ?Carbon
     {
@@ -81,6 +81,44 @@ class WiReportPdfController extends Controller
 
         // ✅ penting: cutoff
         $this->clampStartByVisibleFrom($start, $end);
+
+        return [$start, $end];
+    }
+
+    protected function getKorlapExportRange(Request $request, ?string $monthFilter): array
+    {
+        $monthFilter = $monthFilter === 'prev' ? 'prev' : 'this';
+
+        $startRaw = trim((string)$request->session()->get('wi_export_korlap.range_start', ''));
+        $endRaw   = trim((string)$request->session()->get('wi_export_korlap.range_end', ''));
+
+        $start = null;
+        $end   = null;
+
+        if ($startRaw !== '' && $endRaw !== '') {
+            try { $start = Carbon::parse($startRaw)->startOfDay(); } catch (\Throwable $e) { $start = null; }
+            try { $end   = Carbon::parse($endRaw)->startOfDay(); } catch (\Throwable $e) { $end = null; }
+        }
+
+        // kalau gagal parse, fallback ke monthFilter
+        if (!$start || !$end) {
+            return $this->getDateRangeForMonth($monthFilter);
+        }
+
+        // swap kalau kebalik
+        if ($end->lt($start)) {
+            [$start, $end] = [$end, $start];
+        }
+
+        // clamp end maksimal sampai kemarin (biar konsisten dengan UI yang biasanya stop di H-1)
+        $maxEnd = Carbon::today()->subDay()->startOfDay();
+        if ($end->gt($maxEnd)) $end = $maxEnd;
+
+        // cutoff visibility (sesuai livewire)
+        $this->clampStartByVisibleFrom($start, $end);
+
+        // guard final
+        if ($start->gt($end)) $start = $end->copy();
 
         return [$start, $end];
     }
@@ -211,11 +249,10 @@ class WiReportPdfController extends Controller
         $wiMode      = (string)$request->session()->get('wi_export_korlap.wi_mode', 'all');
 
         $korlaps = array_values(array_filter(array_map('strval', $korlaps)));
-
         if (empty($korlaps)) abort(404, 'Tidak ada Korlap yang dipilih.');
 
-        // Hitung Range Tanggal
-        [$start, $end] = $this->getDateRangeForMonth($monthFilter);
+        // ✅ Hitung Range Tanggal (pakai range custom kalau ada)
+        [$start, $end] = $this->getKorlapExportRange($request, $monthFilter);
         $range = $this->getRangeStrings($start, $end);
 
         // Ambil Data
@@ -225,8 +262,15 @@ class WiReportPdfController extends Controller
             return abort(404, 'Tidak ada data anggota tim yang sesuai kriteria filter untuk Korlap yang dipilih.');
         }
 
-        // Hapus session
-        $request->session()->forget(['wi_export_korlap.month_filter', 'wi_export_korlap.korlaps', 'wi_export_korlap.wi_mode', 'wi_export_korlap.q']);
+        // ✅ Hapus session (tambahkan range_start/range_end)
+        $request->session()->forget([
+            'wi_export_korlap.month_filter',
+            'wi_export_korlap.korlaps',
+            'wi_export_korlap.wi_mode',
+            'wi_export_korlap.q',
+            'wi_export_korlap.range_start',
+            'wi_export_korlap.range_end',
+        ]);
 
         // Load View
         $pdf = Pdf::loadView('pdf.wi-korlap', [
@@ -235,7 +279,7 @@ class WiReportPdfController extends Controller
             'rangeStart' => $range['iso'][0],
             'rangeEnd'   => $range['iso'][1],
             'wiMode'     => $wiMode
-        ])->setPaper('a4', 'portrait'); // Bisa landscape kalau kolom banyak
+        ])->setPaper('a4', 'landscape'); // ✅ cocok dengan template @page size: landscape
 
         return $pdf->download("wi-korlap-report-{$plant}.pdf");
     }
@@ -244,35 +288,42 @@ class WiReportPdfController extends Controller
     {
         $plant = strtoupper(trim($plant));
 
-        // 1. Ambil session (sama seperti PDF)
+        // 1. Ambil session
         $monthFilter = (string)$request->session()->get('wi_export_korlap.month_filter', 'this');
         $korlaps     = (array)$request->session()->get('wi_export_korlap.korlaps', []);
         $wiMode      = (string)$request->session()->get('wi_export_korlap.wi_mode', 'all');
 
         $korlaps = array_values(array_filter(array_map('strval', $korlaps)));
-
         if (empty($korlaps)) abort(404, 'Tidak ada Korlap yang dipilih.');
 
-        // 2. Hitung Range Tanggal
-        [$start, $end] = $this->getDateRangeForMonth($monthFilter);
+        // 2. ✅ Hitung Range Tanggal (pakai range custom kalau ada)
+        [$start, $end] = $this->getKorlapExportRange($request, $monthFilter);
         $range = $this->getRangeStrings($start, $end);
-        $rangeString = "{$range['iso'][0]} s.d {$range['iso'][1]}"; // String utk judul Excel
+        $rangeString = "{$range['iso'][0]} s.d {$range['iso'][1]}";
 
-        // 3. Ambil Data (Pakai helper yang sama dengan PDF)
+        // 3. Ambil Data
         $data = $this->getKorlapMembersData($plant, $range['iso'], $range['ymd'], $korlaps, $wiMode);
 
         if ($data->isEmpty()) {
             return abort(404, 'Tidak ada data anggota tim yang sesuai kriteria filter untuk Korlap yang dipilih.');
         }
 
-        // 4. Hapus session
-        $request->session()->forget(['wi_export_korlap.month_filter', 'wi_export_korlap.korlaps', 'wi_export_korlap.wi_mode', 'wi_export_korlap.q']);
+        // 4. ✅ Hapus session (tambahkan range_start/range_end)
+        $request->session()->forget([
+            'wi_export_korlap.month_filter',
+            'wi_export_korlap.korlaps',
+            'wi_export_korlap.wi_mode',
+            'wi_export_korlap.q',
+            'wi_export_korlap.range_start',
+            'wi_export_korlap.range_end',
+        ]);
 
         // 5. Download Excel
-        // Pastikan namespace App\Exports\WiKorlapExport sudah di-import di atas controller
-        return Excel::download(new \App\Exports\WiKorlapExport($data, $plant, $rangeString), "wi-korlap-report-{$plant}.xlsx");
+        return Excel::download(
+            new \App\Exports\WiKorlapExport($data, $plant, $rangeString),
+            "wi-korlap-report-{$plant}.xlsx"
+        );
     }
-
 
     protected function getRangeStrings(Carbon $start, Carbon $end): array
     {

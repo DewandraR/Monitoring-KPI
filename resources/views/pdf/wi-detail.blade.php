@@ -78,10 +78,10 @@
                 <th class="col-nama">Nama</th>
                 <th class="col-devisi">Devisi</th>
                 <th class="col-wc">WC</th>
-                <th class="col-num">Time WI</th>
-                <th class="col-num">Time CONF</th> {{-- ✅ KOLOM BARU --}}
+                <th class="col-num">Menit WI</th>
+                <th class="col-num">Menit CONF</th> {{-- ✅ KOLOM BARU --}}
                 <th class="col-num">Time QM</th>
-                <th class="col-kpi">% HASIL MENIT WI</th>
+                <th class="col-kpi">% HASIL MENIT CONF</th>
                 <th class="col-kpi">% HASIL MENIT QM</th>
             </tr>
         </thead>
@@ -141,16 +141,16 @@
                     <td class="text-center font-mono">{{ $r->wc ?? '-' }}</td>
 
                     <td class="text-center font-mono">
-                        {{ is_null($timeWi) ? '-' : number_format((float)$timeWi, 2) }}
+                        {{ is_null($timeWi) ? '-' : number_format((float)$timeWi, 2, ',', '.') }}
                     </td>
 
                     {{-- ✅ TAMPILKAN CONF --}}
                     <td class="text-center font-mono">
-                        {{ is_null($timeConf) ? '-' : number_format((float)$timeConf, 2) }}
+                        {{ is_null($timeConf) ? '-' : number_format((float)$timeConf, 2, ',', '.') }}
                     </td>
 
                     <td class="text-center font-mono">
-                        {{ is_null($timeQm) ? '-' : number_format((float)$timeQm, 2) }}
+                        {{ is_null($timeQm) ? '-' : number_format((float)$timeQm, 2, ',', '.') }}
                     </td>
 
                     <td class="text-center font-mono">

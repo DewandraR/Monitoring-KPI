@@ -42,10 +42,10 @@ class WiSummaryExport implements
             'Nama',            // D
             'WC',              // E
             'Devisi',          // F
-            'Time WI',         // G
-            'Time CONF',       // H
+            'Menit WI',         // G
+            'Menit CONF',       // H
             'Time QM',         // I
-            '% HASIL MENIT WI',       // J
+            '% HASIL MENIT CONF',       // J
             '% HASIL MENIT QM',   // K
         ];
     }
@@ -65,7 +65,7 @@ class WiSummaryExport implements
             $conf = (float)($row->time_conf_sum ?? 0);
             $qm   = (float)($row->time_qm_sum ?? 0);
 
-            // HASIL MENIT WI  = WI / CONF
+            // HASIL MENIT CONF  = WI / CONF
             $kpiQty = isset($row->kpi_qty_pct)
                 ? (float)$row->kpi_qty_pct
                 : ($wi == 0.0 ? 0.0 : (($conf / $wi) * 100));
@@ -118,10 +118,10 @@ class WiSummaryExport implements
     public function columnFormats(): array
     {
         return [
-            'G' => '#,##0.00', // Time WI
-            'H' => '#,##0.00', // Time CONF
+            'G' => '#,##0.00', // Menit WI
+            'H' => '#,##0.00', // Menit CONF
             'I' => '#,##0.00', // Time QM
-            'J' => '0.00',     // HASIL MENIT WI (2 decimal)
+            'J' => '0.00',     // HASIL MENIT CONF (2 decimal)
             'K' => '0.00',     // HASIL MENIT QM (2 decimal)
         ];
     }

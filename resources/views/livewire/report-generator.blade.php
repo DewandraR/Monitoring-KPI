@@ -967,25 +967,25 @@
 
                             {{-- UPAH HADIR (gji) --}}
                             <td class="px-6 py-4 text-center text-gray-900 font-semibold tracking-tight">
-                                {{ number_format((float) $data->gji, 2) }}
+                                {{ number_format((float) $data->gji, 2, ',', '.') }}
                             </td>
 
                             {{-- UPAH INSPECT (gji2) --}}
                             <td class="px-6 py-4 text-center text-gray-900 font-semibold tracking-tight">
-                                {{ number_format((float) $data->gji2, 2) }}
+                                {{ number_format((float) $data->gji2, 2, ',', '.') }}
                             </td>
 
                             {{-- VAR UPAH (varnt) --}}
                             <td
                                 class="px-6 py-4 text-center font-semibold {{ $data->varnt < 0 ? 'text-red-600' : 'text-gray-800' }}">
-                                {{ number_format($data->varnt, 2) }}
+                                {{ number_format($data->varnt, 2, ',', '.') }}
                             </td>
 
                             {{-- PERSENTASE VAR (varnt1) --}}
                             <td class="px-6 py-4 text-center">
                                 <span
                                     class="inline-flex items-center px-2.5 py-1 rounded text-[11px] font-semibold {{ $data->varnt1 < 100 ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800' }}">
-                                    {{ number_format($data->varnt1, 2) }}%
+                                    {{ number_format($data->varnt1, 2, ',', '.') }}%
                                 </span>
                             </td>
                         </tr>
@@ -1245,7 +1245,7 @@
                                                         @elseif ($column === 'total_jam')
                                                             {{ number_format($val, 1) }}
                                                         @elseif ($isMoney)
-                                                            {{ number_format($val, 2) }}
+                                                            {{ number_format($val, 2, ',', '.') }}
                                                         @elseif ($isNum)
                                                             {{ (int) $val }}
                                                         @elseif ($isDate)

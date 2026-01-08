@@ -71,10 +71,10 @@
                 <th class="w-nama">Nama</th>
                 <th class="w-devisi">Devisi</th>
                 <th class="w-wc">WC</th>
-                <th class="w-num">Time WI</th>
-                <th class="w-num">Time CONF</th> {{-- ✅ KOLOM BARU --}}
+                <th class="w-num">Menit WI</th>
+                <th class="w-num">Menit CONF</th> {{-- ✅ KOLOM BARU --}}
                 <th class="w-num">Time QM</th>
-                <th class="w-kpi">% HASIL MENIT WI</th>
+                <th class="w-kpi">% HASIL MENIT CONF</th>
                 <th class="w-kpi">% HASIL MENIT QM</th>
             </tr>
         </thead>
@@ -107,12 +107,13 @@
                     <td class="text-center font-mono nowrap">{{ $devisiShow }}</td>
                     <td class="text-center font-mono nowrap">{{ $row->wc ?? '-' }}</td>
                     
-                    <td class="text-center font-mono nowrap">{{ number_format($wiSum, 2) }}</td>
-                    <td class="text-center font-mono nowrap">{{ number_format($confSum, 2) }}</td> {{-- ✅ TAMPILKAN CONF --}}
-                    <td class="text-center font-mono nowrap">{{ number_format($qmSum, 2) }}</td>
+                    <td class="text-center font-mono nowrap">{{ number_format((float)$wiSum, 2, ',', '.') }}
+</td>
+                    <td class="text-center font-mono nowrap">{{ number_format($confSum, 2, ',', '.') }}</td> {{-- ✅ TAMPILKAN CONF --}}
+                    <td class="text-center font-mono nowrap">{{ number_format($qmSum, 2, ',', '.') }}</td>
                     
-                    <td class="text-center font-mono nowrap">{{ number_format($kpiQty, 2) }}%</td>
-                    <td class="text-center font-mono nowrap">{{ number_format($kpiQuality, 2) }}%</td>
+                    <td class="text-center font-mono nowrap">{{ number_format($kpiQty, 2, ',', '.') }}%</td>
+                    <td class="text-center font-mono nowrap">{{ number_format($kpiQuality, 2, ',', '.') }}%</td>
                 </tr>
             @endforeach
         </tbody>
