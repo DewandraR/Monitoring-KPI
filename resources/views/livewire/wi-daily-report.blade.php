@@ -806,6 +806,7 @@
                             <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">NIK Korlap</th>
                             <th class="px-6 py-4 text-left   text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">Nama Korlap</th>
                             <th class="px-6 py-4 text-left   text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">WC Anggota</th>
+                            <th class="px-6 py-4 text-left text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90"> Devisi</th>
                             <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">Jumlah NIK Induk WI</th>
                             <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">Menit WI</th>
                             <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">Menit CONF</th>
@@ -863,6 +864,29 @@
                                     {{ $wcPreview ?: '-' }}
                                 </td>
 
+                                @php
+                                    $devStr = (string)($k['devisi_list'] ?? '');
+                                    $devs = collect(explode(',', $devStr))
+                                        ->map(fn($v) => strtoupper(trim($v)))
+                                        ->filter()
+                                        ->unique()
+                                        ->values();
+                                @endphp
+
+                                <td wire:click="toggleKorlap({{ \Illuminate\Support\Js::from($korlapNik) }})"
+                                    class="px-6 py-4 text-left text-sm font-mono text-slate-700 whitespace-normal break-words">
+                                    @if($devs->isEmpty())
+                                        -
+                                    @else
+                                        <div class="flex flex-wrap gap-1">
+                                            @foreach($devs as $dv)
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 text-[11px] font-black ring-1 ring-emerald-100">
+                                                    {{ $dv }}
+                                                </span>
+                                            @endforeach
+                                        </div>
+                                    @endif
+                                </td>
                                 <td wire:click="toggleKorlap({{ \Illuminate\Support\Js::from($korlapNik) }})" class="px-6 py-4 text-center font-extrabold text-slate-800">
                                     <span class="inline-flex items-center justify-center px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs">
                                         {{ (int)($k['nik_count'] ?? 0) }} Orang
@@ -901,8 +925,8 @@
                             {{-- EXPAND AREA: LIST NIK SUMMARY --}}
                             @if($isExpanded)
                                 <tr wire:key="korlap-expand-{{ $korlapNik }}">
-                                    {{-- COLSPAN 11 (checkbox + 10 kolom) --}}
-                                    <td colspan="11" class="p-0 border-b border-emerald-100/50">
+                                    {{-- COLSPAN 12 (checkbox + 11 kolom) --}}
+                                    <td colspan="12" class="p-0 border-b border-emerald-100/50">
 
                                         <div class="px-6 py-6 bg-gradient-to-b from-emerald-50/50 to-white shadow-inner">
                                             <div class="flex items-center justify-between mb-4 px-1">

@@ -1033,18 +1033,26 @@ class WiDailyReport extends Component
                     nk.nik as korlap_nik,
                     nk.nama as korlap_nama,
                     MAX(nk.wc_korlap) as wc_korlap,
+
+                    -- ✅ DEVISI unik gabungan dari semua anggota korlap
+                    GROUP_CONCAT(
+                        DISTINCT NULLIF(UPPER(TRIM(d.devisi)), '')
+                        ORDER BY UPPER(TRIM(d.devisi))
+                        SEPARATOR ', '
+                    ) as devisi_list,
+
+                    COUNT(DISTINCT NULLIF(UPPER(TRIM(d.devisi)), '')) as devisi_count,
+
                     COUNT(DISTINCT d.nik) as nik_count,
                     COALESCE(SUM(d.time_wi),0) as time_wi_sum,
                     COALESCE(SUM(d.time_conf),0) as time_conf_sum,
                     COALESCE(SUM(d.time_qm),0) as time_qm_sum,
-                    
-                    -- HASIL MENIT QM (QM/WI)
+
                     CASE
                         WHEN COALESCE(SUM(d.time_wi),0)=0 THEN 0
                         ELSE (COALESCE(SUM(d.time_qm),0)/COALESCE(SUM(d.time_wi),0))*100
                     END as kpi_quality_pct,
 
-                    -- HASIL MENIT WI (WI/CONF)
                     CASE
                         WHEN COALESCE(SUM(d.time_wi),0)=0 THEN 0
                         ELSE (COALESCE(SUM(d.time_conf),0)/COALESCE(SUM(d.time_wi),0))*100
@@ -1074,6 +1082,8 @@ class WiDailyReport extends Component
                     'korlap_nik'     => (string)$r->korlap_nik,
                     'korlap_nama'    => (string)$r->korlap_nama,
                     'wc_korlap'      => (json_decode($r->wc_korlap ?? '[]', true) ?: []),
+                    'devisi_list'     => (string)($r->devisi_list ?? ''),
+                    'devisi_count'    => (int)($r->devisi_count ?? 0),
                     'nik_count'      => (int)$r->nik_count,
                     'time_wi_sum'    => (float)$r->time_wi_sum,
                     'time_conf_sum'  => (float)$r->time_conf_sum,
