@@ -650,7 +650,7 @@ class WiDailyReport extends Component
 
         $nikTokens  = $tokens->filter(fn($t) => preg_match('/^\d{6,}$/', $t));
         $dateTokens = $tokens->filter(fn($t) => preg_match('/^\d{4}-\d{2}-\d{2}$/', $t));
-        $kodeTokens = $tokens->filter(fn($t) => preg_match('/^\d{4}$/', $t)); // buat kode_laravel
+        $kodeTokens = $tokens->filter(fn($t) => preg_match('/^\d{4}$/', $t)); // kode_laravel
         $wcTokens   = $tokens->filter(fn($t) => preg_match('/^wc[\w\-]*$/i', $t))->values();
 
         $textTokens = $tokens
@@ -660,7 +660,12 @@ class WiDailyReport extends Component
             ->diff($wcTokens)
             ->values();
 
-        $query->where(function ($q) use ($nikTokens, $dateTokens, $kodeTokens, $wcTokens, $textTokens, $phrases) {
+        // ✅ normalisasi khusus devisi: buang spasi, -, _, /, .
+        $normDevisiExpr = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(qm.devisi),' ',''),'-',''),'_',''),'/',''),'.','')";
+
+        $query->where(function ($q) use (
+            $nikTokens, $dateTokens, $kodeTokens, $wcTokens, $textTokens, $phrases, $normDevisiExpr
+        ) {
 
             foreach ($nikTokens as $t) {
                 $q->orWhere('qm.pernr', 'LIKE', "%{$t}%");
@@ -671,7 +676,7 @@ class WiDailyReport extends Component
             }
 
             foreach ($dateTokens as $t) {
-                $ymd = str_replace('-', '', $t); // 2026-01-02 -> 20260102
+                $ymd = str_replace('-', '', $t);
                 $q->orWhere('qm.begda', $ymd);
             }
 
@@ -680,14 +685,23 @@ class WiDailyReport extends Component
                 $q->orWhereRaw('LOWER(qm.wc) LIKE ?', [$like]);
             }
 
+            // ✅ token biasa: cari di NAMA + DEVISI (biar "painting alpha" tanpa petik tetap bisa)
             foreach ($textTokens as $t) {
                 $lower = mb_strtolower($t);
                 $q->orWhereRaw('LOWER(qm.nama) LIKE ?', ["%{$lower}%"]);
+                $q->orWhereRaw('LOWER(qm.devisi) LIKE ?', ["%{$lower}%"]); // ✅ tambah devisi
             }
 
+            // ✅ phrase pakai petik: lebih “spesifik”
             foreach ($phrases as $p) {
                 $q->orWhereRaw('LOWER(qm.nama) LIKE ?', ["%{$p}%"]);
                 $q->orWhereRaw('LOWER(qm.wc) LIKE ?', ["%{$p}%"]);
+
+                // ✅ match devisi yang “tahan simbol” (PAINTING - ALPHA == "painting alpha")
+                $norm = preg_replace('/[ \-_.\/]+/u', '', mb_strtolower($p));
+                if ($norm !== '') {
+                    $q->orWhereRaw("{$normDevisiExpr} LIKE ?", ["%{$norm}%"]);
+                }
 
                 if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $p)) {
                     $q->orWhere('qm.begda', str_replace('-', '', $p));
@@ -1034,6 +1048,13 @@ class WiDailyReport extends Component
                     nk.nama as korlap_nama,
                     MAX(nk.wc_korlap) as wc_korlap,
 
+                    -- ✅ WC HASIL MATCH (dari join yang sudah kena search)
+                    GROUP_CONCAT(
+                        DISTINCT NULLIF(TRIM(d.wc), '')
+                        ORDER BY TRIM(d.wc)
+                        SEPARATOR ','
+                    ) as wc_match_list,
+
                     -- ✅ DEVISI unik gabungan dari semua anggota korlap
                     GROUP_CONCAT(
                         DISTINCT NULLIF(UPPER(TRIM(d.devisi)), '')
@@ -1073,24 +1094,45 @@ class WiDailyReport extends Component
                 });
             }
 
+            $wcMatch = collect(explode(',', (string)($r->wc_match_list ?? '')))
+                ->map(fn($v) => trim((string)$v))
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+
             // Grouping dilakukan SETELAH filter where
             $korlapData = $korlapQuery
                 ->groupBy('nk.nik', 'nk.nama')
                 ->orderBy('nk.nama')
                 ->get()
-                ->map(fn($r) => [
-                    'korlap_nik'     => (string)$r->korlap_nik,
-                    'korlap_nama'    => (string)$r->korlap_nama,
-                    'wc_korlap'      => (json_decode($r->wc_korlap ?? '[]', true) ?: []),
-                    'devisi_list'     => (string)($r->devisi_list ?? ''),
-                    'devisi_count'    => (int)($r->devisi_count ?? 0),
-                    'nik_count'      => (int)$r->nik_count,
-                    'time_wi_sum'    => (float)$r->time_wi_sum,
-                    'time_conf_sum'  => (float)$r->time_conf_sum,
-                    'time_qm_sum'    => (float)$r->time_qm_sum,
-                    'kpi_quality_pct' => (float)$r->kpi_quality_pct, // Rename
-                    'kpi_qty_pct'     => (float)$r->kpi_qty_pct,     // New
-                ])
+                ->map(function ($r) {
+
+                    $wcMatch = collect(explode(',', (string)($r->wc_match_list ?? '')))
+                        ->map(fn($v) => trim((string)$v))
+                        ->filter()
+                        ->unique()
+                        ->values()
+                        ->all();
+
+                    return [
+                        'korlap_nik'      => (string)$r->korlap_nik,
+                        'korlap_nama'     => (string)$r->korlap_nama,
+                        'wc_korlap'       => (json_decode($r->wc_korlap ?? '[]', true) ?: []),
+
+                        // ✅ ini baru bener per-row
+                        'wc_match'        => $wcMatch,
+
+                        'devisi_list'     => (string)($r->devisi_list ?? ''),
+                        'devisi_count'    => (int)($r->devisi_count ?? 0),
+                        'nik_count'       => (int)$r->nik_count,
+                        'time_wi_sum'     => (float)$r->time_wi_sum,
+                        'time_conf_sum'   => (float)$r->time_conf_sum,
+                        'time_qm_sum'     => (float)$r->time_qm_sum,
+                        'kpi_quality_pct' => (float)$r->kpi_quality_pct,
+                        'kpi_qty_pct'     => (float)$r->kpi_qty_pct,
+                    ];
+                })
                 ->all();
 
             return view('livewire.wi-daily-report', [

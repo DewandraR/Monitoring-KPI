@@ -819,21 +819,28 @@
                     <tbody class="bg-white divide-y divide-gray-200">
 
                         @forelse(($korlapData ?? []) as $k)
-                            @php
-                                $korlapNik = (string)($k['korlap_nik'] ?? '');
+                                @php
+                                    $korlapNik = (string) data_get($k, 'korlap_nik', '');
+                                    // fallback biar wire:key gak duplikat kalau kosong
+                                    $korlapNikKey = $korlapNik !== '' ? $korlapNik : ('idx-'.$loop->index);
 
-                                $kpiQty = (float)($k['kpi_qty_pct'] ?? 0);
-                                $kpiQuality = (float)($k['kpi_quality_pct'] ?? 0);
+                                    $kpiQty     = (float) data_get($k, 'kpi_qty_pct', 0);
+                                    $kpiQuality = (float) data_get($k, 'kpi_quality_pct', 0);
 
-                                $wcList = $k['wc_korlap'] ?? [];
-                                if (!is_array($wcList)) $wcList = [];
-                                $wcList = array_values(array_unique(array_map('trim', $wcList)));
-                                sort($wcList);
-                                $wcPreview = implode(', ', $wcList);
+                                    $isExpanded = in_array($korlapNik, ($expandedKorlaps ?? []), true);
+                                    $childRows  = ($korlapNik !== '' && isset($korlapNikSummaries[$korlapNik]))
+                                        ? $korlapNikSummaries[$korlapNik]
+                                        : [];
 
-                                $isExpanded = in_array($korlapNik, ($expandedKorlaps ?? []), true);
-                                $childRows = $korlapNikSummaries[$korlapNik] ?? [];
-                            @endphp
+                                    $qStr = trim((string)($q ?? ''));
+                                    $isFiltered = ($qStr !== '') || (($wiMode ?? 'all') !== 'all');
+
+                                    $wcList = $isFiltered ? (data_get($k, 'wc_match', [])) : (data_get($k, 'wc_korlap', []));
+                                    if (!is_array($wcList)) $wcList = [];
+                                    $wcList = array_values(array_unique(array_map('trim', $wcList)));
+                                    sort($wcList);
+                                    $wcPreview = implode(', ', $wcList);
+                                @endphp
 
                             {{-- ROW KORLAP --}}
                             <tr wire:key="korlap-row-{{ $korlapNik }}"
