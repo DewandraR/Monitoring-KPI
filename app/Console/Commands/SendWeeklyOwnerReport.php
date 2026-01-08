@@ -11,42 +11,36 @@ use Barryvdh\DomPDF\Facade\Pdf;
 class SendWeeklyOwnerReport extends Command
 {
     protected $signature = 'report:send-weekly-owner';
-    protected $description = 'Mengirim email report mingguan Korlap ke Owner sesuai konfigurasi Plant';
+    protected $description = 'Mengirim 1 email berisi file PDF report mingguan Korlap ke Owner';
 
-    // KONFIGURASI TEKNIS (JANGAN DIUBAH)
+    // KONFIGURASI TEKNIS
     protected string $qmTable = 'yppr058_data';   
     protected string $wiTable = 'daily_time_wi';  
     protected float $qmDivisor = 1.0;             
 
     /**
      * =========================================================================
-     * AREA KONFIGURASI PENERIMA (SANGAT MUDAH)
+     * AREA KONFIGURASI PENERIMA
      * =========================================================================
      */
     protected function getRecipientConfiguration()
     {
-        // 1. DEFINISIKAN GRUP PLANT DULU BIAR GAMPANG
-        // -----------------------------------------------------
+        // 1. DEFINISI GRUP PLANT
         $semua_plant      = ['1000', '1001', '2000', '3000'];
-        $hanya_plant_1_2  = ['1000', '1001', '2000'];
         $hanya_plant_3    = ['3000'];
+        $hanya_plant_1_2  = ['1000', '1001', '2000'];
 
-        // 2. TENTUKAN SIAPA MENERIMA APA
-        // -----------------------------------------------------
+        // 2. ASSIGN KE EMAIL
         return [
-            // --- LEVEL BOSS (Menerima Semua) ---
-            'andraku76@gmail.com' => $semua_plant,
+            // Level Pimpinan / Owner (Semua Akses)
+            'kmi3.61.smg@gmail.com' => $semua_plant,
 
-            // --- STAFF LAIN (Hanya Plant 3000) ---
+            // Level Manager / Staff Khusus
             'mankyau76@gmail.com' => $hanya_plant_3,
+            // 'staff_lain@gmail.com' => $hanya_plant_1_2,
         ];
     }
 
-    /**
-     * =========================================================================
-     * LOGIC UTAMA (JANGAN DIUBAH KECUALI PAHAM)
-     * =========================================================================
-     */
     public function handle()
     {
         $this->info('Memulai proses pengiriman laporan mingguan...');
@@ -59,6 +53,10 @@ class SendWeeklyOwnerReport extends Command
         $startStr = $startDate->format('Y-m-d');
         $endStr   = $endDate->format('Y-m-d');
         
+        // Format Tampilan di Email (01 Januari 2026) agar lebih resmi
+        $startDisplay = $startDate->isoFormat('D MMMM Y');
+        $endDisplay   = $endDate->isoFormat('D MMMM Y');
+        
         $dateIso = [$startStr, $endStr];
         $dateYmd = [$startDate->format('Ymd'), $endDate->format('Ymd')];
 
@@ -67,15 +65,14 @@ class SendWeeklyOwnerReport extends Command
         // 2. Load Konfigurasi
         $emailConfig = $this->getRecipientConfiguration();
 
-        // Cari tahu plant mana saja yang PERLU digenerate (gabungan unik dari semua orang)
         $allPlantsNeeded = [];
         foreach ($emailConfig as $plants) {
             $allPlantsNeeded = array_merge($allPlantsNeeded, $plants);
         }
-        $allPlantsNeeded = array_unique($allPlantsNeeded); // Hapus duplikat
+        $allPlantsNeeded = array_unique($allPlantsNeeded);
 
-        // 3. Generate PDF untuk setiap Plant (Simpan di Memory)
-        $generatedPdfs = []; // Format: ['1000' => ['content' => binary, 'name' => string], ...]
+        // 3. Generate PDF (Simpan di Memory)
+        $generatedPdfs = []; 
 
         foreach ($allPlantsNeeded as $plantCode) {
             $this->info("Generating PDF untuk Plant: {$plantCode}...");
@@ -83,7 +80,7 @@ class SendWeeklyOwnerReport extends Command
             $dataForPdf = $this->getKorlapDataFullLogic($plantCode, $dateIso, $dateYmd);
 
             if ($dataForPdf->isEmpty()) {
-                $this->warn(">> Tidak ada data Korlap untuk Plant {$plantCode}. Skip generation.");
+                $this->warn(">> Data kosong untuk Plant {$plantCode}. Skip.");
                 continue;
             }
 
@@ -100,7 +97,7 @@ class SendWeeklyOwnerReport extends Command
                 
                 $generatedPdfs[$plantCode] = [
                     'content' => $pdf->output(),
-                    'name'    => "Laporan_Korlap_Plant_{$plantCode}_{$startStr}_sd_{$endStr}.pdf",
+                    'name'    => "Laporan_KPI_Korlap_Plant_{$plantCode}_{$startStr}.pdf",
                     'mime'    => 'application/pdf',
                 ];
 
@@ -111,23 +108,18 @@ class SendWeeklyOwnerReport extends Command
             }
         }
 
-        // 4. Kirim Email ke Setiap Penerima sesuai Hak Aksesnya
+        // 4. Kirim Email
         foreach ($emailConfig as $email => $allowedPlants) {
             
-            // Kumpulkan attachment khusus untuk user ini
             $userAttachments = [];
-            
-            // Cek setiap plant yang boleh dia akses
             foreach ($allowedPlants as $plantCode) {
-                // Jika PDF plant tersebut berhasil digenerate tadi, masukkan ke attachment
                 if (isset($generatedPdfs[$plantCode])) {
                     $userAttachments[] = $generatedPdfs[$plantCode];
                 }
             }
 
-            // Jika tidak ada attachment sama sekali untuk user ini (misal datanya kosong semua), skip kirim
             if (empty($userAttachments)) {
-                $this->warn("User {$email} tidak mendapatkan attachment apapun (Data kosong). Email skip.");
+                $this->warn("User {$email} tidak mendapatkan data (Kosong). Email skip.");
                 continue;
             }
 
@@ -135,17 +127,84 @@ class SendWeeklyOwnerReport extends Command
             $this->info("Mengirim email ke: {$email} ({$countFiles} file)...");
 
             try {
-                Mail::send([], [], function ($message) use ($email, $userAttachments, $startStr, $endStr) {
+                // =============================================================
+                // FORMAT EMAIL HTML (REVISI: LEBIH PANJANG & PROFESIONAL)
+                // =============================================================
+                $emailBody = <<<HTML
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #374151; line-height: 1.6; margin: 0; padding: 0; font-size: 14px; }
+        .container { max-width: 680px; margin: 0 auto; padding: 30px; background-color: #ffffff; }
+        h3 { color: #111827; margin-bottom: 20px; font-size: 18px; font-weight: 700; border-bottom: 2px solid #e5e7eb; padding-bottom: 10px; }
+        p { margin-bottom: 15px; text-align: justify; }
+        .highlight { font-weight: bold; color: #059669; }
+        .info-box { background-color: #f9fafb; border-left: 4px solid #059669; padding: 15px; margin: 20px 0; font-size: 13px; color: #4b5563; }
+        .footer { 
+            background-color: #f3f4f6; 
+            padding: 20px; 
+            font-size: 11px; 
+            color: #6b7280; 
+            text-align: center; 
+            border-radius: 6px; 
+            margin-top: 40px; 
+            line-height: 1.5;
+        }
+        .footer strong { color: #374151; }
+        .confidential { font-style: italic; color: #9ca3af; margin-top: 10px; font-size: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h3>Laporan Evaluasi Kinerja Korlap Mingguan</h3>
+
+        <p>Yth. Bapak/Ibu,</p>
+
+        <p>Melalui email ini, kami sampaikan laporan rekapitulasi <b>Key Performance Indicator (KPI) Tim Korlap</b> untuk periode:</p>
+        
+        <p style="font-size: 16px; font-weight: bold; text-align: center; color: #1f2937; margin: 20px 0;">
+            {$startDisplay} &mdash; {$endDisplay}
+        </p>
+
+        <p>Dokumen terlampir memuat rincian data kinerja operasional lapangan yang mencakup:</p>
+        <ul style="margin-bottom: 20px; color: #4b5563;">
+            <li>Akumulasi waktu pengerjaan instruksi kerja (<b>Total Menit WI</b>).</li>
+            <li>Realisasi konfirmasi produksi (<b>Total Menit Conf</b>).</li>
+            <li>Parameter kualitas pengerjaan (<b>Quality Management/QM</b>).</li>
+            <li>Persentase pencapaian KPI per masing-masing Koordinator Lapangan.</li>
+        </ul>
+
+        <div class="info-box">
+            <strong>Catatan:</strong><br>
+            Data ini disajikan sebagai instrumen monitoring produktivitas dan dasar evaluasi kinerja mingguan di masing-masing Plant. Mohon untuk dapat ditinjau sebagai acuan dalam pengambilan keputusan operasional.
+        </div>
+        
+        <p>Demikian disampaikan, atas perhatian dan arahannya kami ucapkan terima kasih.</p>
+
+        <br>
+        
+        <p>Hormat Kami,<br>
+        <strong style="color: #111827;">Tim ERP & IT - PT. Kayu Mebel Indonesia</strong></p>
+
+        <div class="footer">
+            <strong>&copy; 2026 PT. Kayu Mebel Indonesia.</strong><br>
+            Email ini dibuat secara otomatis oleh sistem (Auto-Generated).<br>
+            Mohon untuk tidak membalas email ini secara langsung. Jika terdapat ketidaksesuaian data, silakan hubungi bagian IT atau Admin Produksi.
+            
+            <div class="confidential">
+                Confidentiality Notice: This email and any attachments are confidential and intended solely for the use of the individual or entity to whom they are addressed.
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+HTML;
+
+                Mail::send([], [], function ($message) use ($email, $userAttachments, $startStr, $endStr, $emailBody) {
                     $message->to($email)
-                            ->subject("Laporan Mingguan Korlap ({$startStr} s.d {$endStr})")
-                            ->html("
-                                <h3 style='color:#047857;'>Laporan Mingguan Tim Korlap</h3>
-                                <p>Halo,</p>
-                                <p>Berikut terlampir laporan kinerja Korlap untuk area Anda.</p>
-                                <p>Periode Data: <b>{$startStr}</b> s.d <b>{$endStr}</b></p>
-                                <br>
-                                <p><i>Email ini dikirim otomatis oleh sistem Monitoring KPI.</i></p>
-                            ");
+                            ->subject("Laporan KPI Mingguan Korlap ({$startStr} s.d {$endStr})")
+                            ->html($emailBody);
 
                     foreach ($userAttachments as $file) {
                         $message->attachData($file['content'], $file['name'], ['mime' => $file['mime']]);
@@ -164,7 +223,7 @@ class SendWeeklyOwnerReport extends Command
 
     /**
      * =========================================================================
-     * CORE LOGIC DATABASE (SAMA SEPERTI SEBELUMNYA)
+     * CORE LOGIC DATABASE (TIDAK PERLU DIUBAH LAGI)
      * =========================================================================
      */
     private function getKorlapDataFullLogic(string $plant, array $dateIso, array $dateYmd)
