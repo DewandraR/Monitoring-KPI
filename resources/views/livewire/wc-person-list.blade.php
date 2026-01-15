@@ -116,13 +116,17 @@
                             </label>
 
                             <div class="relative">
-                                <input type="text" id="manual-arbpl" placeholder="Contoh: WC007"
+                                <input type="text" id="manual-arbpl" placeholder="Contoh: WC001, WC002, WC003"
                                     class="w-full h-10 rounded-xl border border-slate-300 bg-white
-                   text-sm uppercase font-mono font-semibold
-                   placeholder:font-sans placeholder:font-normal placeholder:text-xs placeholder:text-slate-400
-                   shadow-sm
-                   focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/70
-                   transition-all duration-200" />
+                                            text-sm uppercase font-mono font-semibold
+                                            placeholder:font-sans placeholder:font-normal placeholder:text-xs placeholder:text-slate-400
+                                            shadow-sm
+                                            focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/70
+                                            transition-all duration-200" />
+
+                                    <p class="mt-1 text-[10px] text-slate-400">
+                                        Bisa isi lebih dari 1 WC (pisahkan dengan koma / spasi / enter).
+                                    </p>
 
                                 <div
                                     class="pointer-events-none absolute inset-y-0 right-3 flex items-center
@@ -950,9 +954,15 @@
                             summary = null;
                         }
                         if (summary) {
-                            showWcPersonSummaryToast(summary);
+                            if (Array.isArray(summary)) {
+                                summary.forEach((s, idx) => {
+                                setTimeout(() => showWcPersonSummaryToast(s), idx * 450);
+                                });
+                            } else {
+                                showWcPersonSummaryToast(summary);
+                            }
                         }
-                        window.localStorage.removeItem(WC_PERSON_LS_SUMMARY);
+                                                    window.localStorage.removeItem(WC_PERSON_LS_SUMMARY);
                     }
                 } catch (e) {
                     console.error('WC Person after reload error', e);
@@ -1096,6 +1106,17 @@
                     }
                 }
 
+                function parseWorkCenters(raw) {
+                    return Array.from(new Set(
+                        (raw || '')
+                        .split(/[\s,;]+/g)          // pisah spasi, newline, koma, titik koma
+                        .map(s => (s || '').trim())
+                        .filter(Boolean)
+                        .map(s => s.toUpperCase())
+                    ));
+                }
+
+
                 function setStatus(text, mode) {
                     if (!statusPill) return;
                     let base =
@@ -1165,20 +1186,26 @@
                     feedback.appendChild(row);
                 }
 
-                function resetLog() {
+                function resetLog(opts = {}) {
+                    const { append = false, title = 'Menjalankan sinkronisasi...' } = opts;
+
                     showLogCard();
-                    if (feedback) {
-                        feedback.innerHTML = '';
+                    if (feedback && !append) feedback.innerHTML = '';
+
+                    if (append && feedback) {
+                        const sep = document.createElement('div');
+                        sep.className = 'my-3 border-t border-emerald-100';
+                        feedback.appendChild(sep);
                     }
-                    if (logTitle) {
-                        logTitle.textContent = 'Menjalankan sinkronisasi...';
-                    }
+
+                    if (logTitle) logTitle.textContent = title;
+
                     if (statusTime) {
                         const now = new Date();
                         const pad = (n) => String(n).padStart(2, '0');
-                        statusTime.textContent =
-                            pad(now.getHours()) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds());
+                        statusTime.textContent = pad(now.getHours()) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds());
                     }
+
                     setStatus('Sedang berjalan', 'warn');
                     setProgress(8, 'Menyiapkan koneksi SAP...');
                 }
@@ -1315,37 +1342,10 @@
                     return items;
                 }
 
-                // ======================================================
-                // EVENT HANDLER TOMBOL SYNC
-                // ======================================================
-                btn.addEventListener('click', async () => {
-                    const arbpl = inpArbpl.value.trim();
-                    const werks = inpWerks.value;
-
-                    if (!arbpl || !werks) {
-                        alert('Harap isi Work Center dan pilih Plant!');
-                        return;
-                    }
-
-                    // UI Loading
-                    btn.disabled = true;
-                    btn.classList.add('opacity-75', 'cursor-not-allowed');
-                    if (iconReady) iconReady.classList.add('hidden');
-                    if (iconLoad) iconLoad.classList.remove('hidden');
-
-                    resetLog();
-                    appendLogLine(
-                        'Menghubungkan ke <b>SAP</b> untuk <span class="font-mono font-semibold">' +
-                        arbpl.toUpperCase() +
-                        '</span> (Plant ' +
-                        werks +
-                        ')...',
-                        'info'
-                    );
-
-                    // Summary yang akan disimpan ke localStorage
+                async function syncOneWorkCenter(arbpl, werks, { append = false, index = 1, total = 1 } = {}) {
+                    // Summary per WC
                     let summary = {
-                        wc: arbpl.toUpperCase(),
+                        wc: (arbpl || '').toUpperCase(),
                         werks: werks,
                         ts: Date.now(),
                         wcInserted: 0,
@@ -1356,291 +1356,261 @@
                         refreshFail: 0,
                         ok: false,
                         errorMessage: null,
-                        // info NIK baru & lama
                         newPernrsCount: null,
                         oldPernrsCount: null,
                         jobId: null,
                     };
 
-                    let shouldReload = false;
+                    // reset log (append kalau WC ke-2 dst)
+                    resetLog({
+                        append,
+                        title: total > 1
+                        ? `Menjalankan sinkronisasi (${index}/${total}) - WC ${summary.wc}`
+                        : `Menjalankan sinkronisasi - WC ${summary.wc}`,
+                    });
+
+                    appendLogLine(
+                        'Menghubungkan ke <b>SAP</b> untuk <span class="font-mono font-semibold">' +
+                        summary.wc +
+                        '</span> (Plant ' +
+                        werks +
+                        ')...',
+                        'info'
+                    );
 
                     try {
                         // 1) SYNC MASTER WC PERSON
                         const response = await fetch(API_URL_SYNC_WC, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Accept': 'application/json',
-                            },
-                            body: JSON.stringify({
-                                arbpl: arbpl,
-                                werks: werks,
-                            }),
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                        body: JSON.stringify({ arbpl, werks }),
                         });
 
                         const data = await response.json();
 
                         if (!response.ok) {
-                            throw new Error(data.message || 'Terjadi kesalahan pada server API.');
+                        throw new Error(data.message || 'Terjadi kesalahan pada server API.');
                         }
 
                         const inserted = typeof data.inserted === 'number' ? data.inserted : 0;
                         const deleted = typeof data.deleted === 'number' ? data.deleted : 0;
+
                         const wcTotalPulled =
-                            typeof data.pernrs_count === 'number' ?
-                            data.pernrs_count :
-                            (typeof data.total === 'number' ?
-                                data.total :
-                                (typeof data.count === 'number' ?
-                                    data.count :
-                                    (Array.isArray(data.pernrs) ?
-                                        data.pernrs.length :
-                                        inserted)));
+                        typeof data.pernrs_count === 'number'
+                            ? data.pernrs_count
+                            : (Array.isArray(data.pernrs) ? data.pernrs.length : inserted);
 
                         summary.wcInserted = inserted;
                         summary.wcDeleted = deleted;
                         summary.wcTotalPulled = wcTotalPulled;
 
-                        // --- ambil daftar PERNR all & PERNR baru dari API ---
                         const pernrsAll = Array.isArray(data.pernrs) ? data.pernrs : [];
-                        const pernrsNew = Array.isArray(data.pernrs_new) ? data.pernrs_new :
-                            pernrsAll; // fallback
+                        const pernrsNew = Array.isArray(data.pernrs_new) ? data.pernrs_new : [];
                         const pernrsRemoved = Array.isArray(data.pernrs_removed) ? data.pernrs_removed : [];
 
                         const totalAll = pernrsAll.length;
                         const totalNew = pernrsNew.length;
-                        const totalOld = typeof data.pernrs_old_count === 'number' ?
-                            data.pernrs_old_count :
-                            Math.max(0, totalAll - totalNew);
+                        const totalOld = typeof data.pernrs_old_count === 'number'
+                        ? data.pernrs_old_count
+                        : Math.max(0, totalAll - totalNew);
 
-                        const deletedYppr = typeof data.yppr058_deleted === 'number' ?
-                            data.yppr058_deleted :
-                            0;
+                        const deletedYppr = typeof data.yppr058_deleted === 'number' ? data.yppr058_deleted : 0;
 
                         summary.newPernrsCount = totalNew;
                         summary.oldPernrsCount = totalOld;
 
                         let logLine =
-                            '✅ Sinkron WC <span class="font-mono font-semibold">' +
-                            arbpl.toUpperCase() +
-                            '</span> selesai. Tarikan data: <b>' +
-                            wcTotalPulled +
-                            '</b> baris (insert: ' +
-                            inserted +
-                            ', hapus: ' +
-                            deleted +
-                            ')';
+                        '✅ Sinkron WC <span class="font-mono font-semibold">' +
+                        summary.wc +
+                        '</span> selesai. Tarikan data: <b>' +
+                        wcTotalPulled +
+                        '</b> baris (insert: ' +
+                        inserted +
+                        ', hapus: ' +
+                        deleted +
+                        ')';
 
                         if (totalNew || totalOld) {
-                            logLine +=
-                                '. NIK baru: <b>' + totalNew + '</b>' +
-                                ', NIK lama (sudah ada sebelumnya): <span class="font-mono">' + totalOld +
-                                '</span>.';
+                        logLine += '. NIK baru: <b>' + totalNew + '</b>, NIK lama: <span class="font-mono">' + totalOld + '</span>.';
                         } else {
-                            logLine += '.';
+                        logLine += '.';
                         }
 
                         appendLogLine(logLine, 'success');
 
                         if (data.desc) {
-                            appendLogLine(
-                                '📋 Deskripsi WC: <span class="italic text-emerald-800">' +
-                                String(data.desc) +
-                                '</span>',
-                                'info'
-                            );
+                        appendLogLine(
+                            '📋 Deskripsi WC: <span class="italic text-emerald-800">' + String(data.desc) + '</span>',
+                            'info'
+                        );
                         }
+
                         setProgress(45, 'Master WC berhasil disinkronkan.');
 
-                        // ===============================
-                        // HANYA REFRESH NIK BARU SAJA
-                        // ===============================
+                        // 2) REFRESH DETAIL YPPR058: hanya jika ada NIK baru
                         if (pernrsNew.length > 0) {
-                            // Buat ITEMS sesuai aturan tanggal / bulan
-                            const items = buildMonthlyItemsForNewPernrs(pernrsNew, arbpl, werks);
-                            summary.refreshTotal = items.length;
+                        const items = buildMonthlyItemsForNewPernrs(pernrsNew, arbpl, werks);
+                        summary.refreshTotal = items.length;
 
-                            // Berapa hari unik yang direfresh
-                            const daySet = new Set(items.map(it => it.begda));
-                            const daysCount = daySet.size;
+                        const daySet = new Set(items.map(it => it.begda));
+                        const daysCount = daySet.size;
 
-                            appendLogLine(
-                                'Menyiapkan refresh <code>yppr058_data</code> untuk <b>' +
-                                pernrsNew.length +
-                                '</b> NIK <b>baru</b> pada <b>' +
-                                daysCount +
-                                '</b> tanggal (' +
-                                items.length +
-                                ' kombinasi NIK-tanggal). ',
-                                'info'
-                            );
+                        appendLogLine(
+                            'Menyiapkan refresh <code>yppr058_data</code> untuk <b>' +
+                            pernrsNew.length +
+                            '</b> NIK <b>baru</b> pada <b>' +
+                            daysCount +
+                            '</b> tanggal (' +
+                            items.length +
+                            ' kombinasi NIK-tanggal).',
+                            'info'
+                        );
 
-                            // job_id untuk tracking progress sebenarnya
-                            const jobId = 'wc-' + Date.now() + '-' + Math.floor(Math.random() * 1000000);
-                            summary.jobId = jobId;
+                        const jobId = 'wc-' + Date.now() + '-' + Math.floor(Math.random() * 1000000);
+                        summary.jobId = jobId;
 
-                            setProgress(70, 'Mengirim permintaan refresh yppr058_data untuk NIK baru...');
-                            appendLogLine(
-                                'Permintaan refresh akan dikirim ke backend. ' +
-                                'Server akan memproses <b>' + items.length + '</b> kombinasi ' +
-                                '(' + pernrsNew.length + ' NIK × ' + daysCount + ' tanggal). ' +
-                                'Progress bar akan mengikuti status nyata dari server.',
-                                'info'
-                            );
+                        setProgress(70, 'Mengirim permintaan refresh yppr058_data untuk NIK baru...');
+                        startRefreshProgress(jobId, items.length, daysCount);
 
-                            try {
-                                // Mulai polling progress nyata
-                                startRefreshProgress(jobId, items.length, daysCount);
+                        const resp2 = await fetch(API_URL_REFRESH_YPPR, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                            body: JSON.stringify({ job_id: jobId, items }),
+                        });
 
-                                const resp2 = await fetch(API_URL_REFRESH_YPPR, {
-                                    method: 'POST',
-                                    headers: {
-                                        'Content-Type': 'application/json',
-                                        'Accept': 'application/json',
-                                    },
-                                    body: JSON.stringify({
-                                        job_id: jobId,
-                                        items: items,
-                                    }),
-                                });
-
-                                const data2 = await resp2.json().catch(() => ({}));
-
-                                // Hentikan polling, lanjutkan progress final
-                                stopRefreshProgress();
-
-                                if (!resp2.ok || !data2.ok) {
-                                    throw new Error(data2.error || 'Refresh yppr058_data gagal.');
-                                }
-
-                                let okCount = 0;
-                                let failCount = 0;
-                                if (Array.isArray(data2.results)) {
-                                    data2.results.forEach((r) => {
-                                        if (r && r.ok) {
-                                            okCount++;
-                                        } else {
-                                            failCount++;
-                                        }
-                                    });
-                                } else {
-                                    okCount = items.length;
-                                    failCount = 0;
-                                }
-
-                                summary.refreshOk = okCount;
-                                summary.refreshFail = failCount;
-                                summary.ok = failCount === 0;
-
-                                appendLogLine(
-                                    'Hasil refresh <code>yppr058_data</code> untuk NIK baru: <b>' +
-                                    okCount +
-                                    '</b> kombinasi berhasil, <b>' +
-                                    failCount +
-                                    '</b> kombinasi gagal ' +
-                                    `(target ${items.length} kombinasi, sekitar ${daysCount} hari).`,
-                                    failCount ? 'warn' : 'success'
-                                );
-
-                                setProgress(100, 'Sinkronisasi dan refresh NIK baru selesai.');
-                                setStatus(
-                                    failCount ? 'Selesai (dengan catatan)' : 'Selesai',
-                                    failCount ? 'warn' : 'success'
-                                );
-                            } catch (e2) {
-                                console.error(e2);
-                                stopRefreshProgress();
-
-                                summary.refreshFail = summary.refreshTotal || items.length;
-                                summary.refreshOk = 0;
-                                summary.ok = false;
-                                summary.errorMessage = e2 && e2.message ? e2.message : String(e2);
-
-                                appendLogLine(
-                                    'Gagal refresh <code>yppr058_data</code> untuk NIK baru: ' +
-                                    summary.errorMessage,
-                                    'error', {
-                                        asHtml: true
-                                    }
-                                );
-                                setProgress(100, 'Sinkronisasi selesai dengan beberapa kegagalan.');
-                                setStatus('Gagal', 'error');
-                            }
-                        } else {
-                            summary.ok = true;
-                            summary.refreshTotal = 0;
-
-                            if (wcTotalPulled === 0) {
-                                // Kasus: WC di SAP sudah benar-benar kosong
-                                appendLogLine(
-                                    'SAP tidak lagi mengembalikan personil untuk WC ini. ' +
-                                    'Semua data <code>yppr058_data</code> dengan WC ' +
-                                    arbpl.toUpperCase() + ' & Plant ' + werks +
-                                    ' telah dihapus (' + deletedYppr + ' baris).',
-                                    'warn'
-                                );
-                                setProgress(100,
-                                    'Sinkronisasi master WC selesai (data yppr058_data dikosongkan).');
-                            } else if (pernrsRemoved.length > 0) {
-                                // Kasus: masih ada personil di WC tsb, tapi ada beberapa NIK yang hilang
-                                appendLogLine(
-                                    'Tidak ada NIK baru, tetapi terdapat <b>' + pernrsRemoved.length +
-                                    '</b> NIK yang sekarang <b>tidak lagi terdaftar</b> di WC ini. ' +
-                                    'Data <code>yppr058_data</code> untuk NIK tersebut telah dihapus ' +
-                                    '(' + deletedYppr + ' baris): ' +
-                                    '<span class="font-mono">' + pernrsRemoved.join(', ') + '</span>.',
-                                    'warn'
-                                );
-                                setProgress(100,
-                                    'Sinkronisasi master WC selesai (hapus data yppr058_data untuk NIK yang tidak aktif).'
-                                );
-                            } else {
-                                // Kasus lama: benar-benar tidak ada perubahan NIK
-                                appendLogLine(
-                                    'Tidak ada NIK baru pada WC ini (hanya NIK lama yang sudah ada di DB). ' +
-                                    'Refresh <code>yppr058_data</code> dilewati.',
-                                    'info'
-                                );
-                                setProgress(100,
-                                    'Sinkronisasi master WC selesai (tanpa refresh yppr058_data).');
-                            }
-
-                            setStatus('Selesai', 'success');
-                        }
-
-                        // Bersihkan input WC di form
-                        inpArbpl.value = '';
-                        shouldReload = true;
-                    } catch (error) {
-                        console.error(error);
+                        const data2 = await resp2.json().catch(() => ({}));
                         stopRefreshProgress();
 
+                        if (!resp2.ok || !data2.ok) {
+                            throw new Error(data2.error || 'Refresh yppr058_data gagal.');
+                        }
+
+                        let okCount = 0;
+                        let failCount = 0;
+                        if (Array.isArray(data2.results)) {
+                            data2.results.forEach(r => (r && r.ok) ? okCount++ : failCount++);
+                        } else {
+                            okCount = items.length;
+                            failCount = 0;
+                        }
+
+                        summary.refreshOk = okCount;
+                        summary.refreshFail = failCount;
+                        summary.ok = failCount === 0;
+
+                        appendLogLine(
+                            'Hasil refresh <code>yppr058_data</code>: <b>' +
+                            okCount +
+                            '</b> berhasil, <b>' +
+                            failCount +
+                            '</b> gagal (target ' +
+                            items.length +
+                            ' kombinasi, sekitar ' +
+                            daysCount +
+                            ' hari).',
+                            failCount ? 'warn' : 'success'
+                        );
+
+                        setProgress(100, 'Sinkronisasi dan refresh NIK baru selesai.');
+                        setStatus(failCount ? 'Selesai (dengan catatan)' : 'Selesai', failCount ? 'warn' : 'success');
+
+                        return summary;
+                        }
+
+                        // Jika tidak ada NIK baru -> refresh dilewati (sesuai requirement kamu)
+                        summary.ok = true;
+                        summary.refreshTotal = 0;
+
+                        if (wcTotalPulled === 0) {
+                        appendLogLine(
+                            'SAP tidak lagi mengembalikan personil untuk WC ini. Semua data <code>yppr058_data</code> ' +
+                            'dengan WC ' + summary.wc + ' & Plant ' + werks +
+                            ' telah dihapus (' + deletedYppr + ' baris).',
+                            'warn'
+                        );
+                        setProgress(100, 'Sinkronisasi master WC selesai (data yppr058_data dikosongkan).');
+                        } else if (pernrsRemoved.length > 0) {
+                        appendLogLine(
+                            'Tidak ada NIK baru, tetapi terdapat <b>' + pernrsRemoved.length + '</b> NIK yang sekarang <b>tidak lagi terdaftar</b>. ' +
+                            'Data <code>yppr058_data</code> untuk NIK tersebut telah dihapus (' + deletedYppr + ' baris): ' +
+                            '<span class="font-mono">' + pernrsRemoved.join(', ') + '</span>.',
+                            'warn'
+                        );
+                        setProgress(100, 'Sinkronisasi master WC selesai (hapus yppr058_data untuk NIK yang tidak aktif).');
+                        } else {
+                        appendLogLine(
+                            'Tidak ada NIK baru pada WC ini (hanya NIK lama). Refresh <code>yppr058_data</code> dilewati.',
+                            'info'
+                        );
+                        setProgress(100, 'Sinkronisasi master WC selesai (tanpa refresh yppr058_data).');
+                        }
+
+                        setStatus('Selesai', 'success');
+                        return summary;
+
+                    } catch (error) {
+                        stopRefreshProgress();
                         summary.ok = false;
                         summary.errorMessage = error && error.message ? error.message : String(error);
 
-                        appendLogLine(
-                            'Gagal: ' + summary.errorMessage,
-                            'error', {
-                                asHtml: false
-                            }
-                        );
+                        appendLogLine('Gagal: ' + summary.errorMessage, 'error', { asHtml: false });
                         setProgress(100, 'Terjadi kesalahan saat sinkronisasi.');
                         setStatus('Gagal', 'error');
-                    } finally {
-                        // Simpan ke localStorage & reload hanya kalau proses utama sukses
-                        if (shouldReload) {
-                            try {
-                                window.localStorage.setItem(WC_PERSON_LS_PREFILL, arbpl.toUpperCase());
-                                window.localStorage.setItem(WC_PERSON_LS_SUMMARY, JSON.stringify(summary));
-                            } catch (e) {
-                                console.error('localStorage WC Person error', e);
-                            }
+                        return summary;
+                    }
+                }
+                btn.addEventListener('click', async () => {
+                    const raw = inpArbpl.value.trim();
+                    const werks = inpWerks.value;
 
-                            setTimeout(() => {
-                                window.location.reload();
-                            }, 2500);
+                    const workCenters = parseWorkCenters(raw);
+
+                    if (!workCenters.length || !werks) {
+                        alert('Harap isi minimal 1 Work Center dan pilih Plant!');
+                        return;
+                    }
+
+                    // UI Loading
+                    btn.disabled = true;
+                    btn.classList.add('opacity-75', 'cursor-not-allowed');
+                    if (iconReady) iconReady.classList.add('hidden');
+                    if (iconLoad) iconLoad.classList.remove('hidden');
+
+                    const summaries = [];
+                    let hasAnyError = false;
+
+                    try {
+                        for (let i = 0; i < workCenters.length; i++) {
+                        const wc = workCenters[i];
+
+                        const summary = await syncOneWorkCenter(wc, werks, {
+                            append: i > 0,
+                            index: i + 1,
+                            total: workCenters.length,
+                        });
+
+                        summaries.push(summary);
+                        if (!summary.ok) hasAnyError = true;
                         }
 
+                        // simpan untuk toast + prefill filter setelah reload
+                        try {
+                        window.localStorage.setItem(WC_PERSON_LS_PREFILL, workCenters[workCenters.length - 1]);
+                        window.localStorage.setItem(WC_PERSON_LS_SUMMARY, JSON.stringify(summaries));
+                        } catch (e) {
+                        console.error('localStorage WC Person error', e);
+                        }
+
+                        // clear input hanya sekali di akhir
+                        inpArbpl.value = '';
+
+                        setStatus(hasAnyError ? 'Selesai (dengan catatan)' : 'Selesai', hasAnyError ? 'warn' : 'success');
+                        setProgress(100, `Batch selesai: ${workCenters.length} WC diproses.`);
+
+                        // reload sekali saja di akhir batch
+                        setTimeout(() => window.location.reload(), 2500);
+
+                    } finally {
                         btn.disabled = false;
                         btn.classList.remove('opacity-75', 'cursor-not-allowed');
                         if (iconReady) iconReady.classList.remove('hidden');
