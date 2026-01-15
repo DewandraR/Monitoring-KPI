@@ -202,6 +202,7 @@
 
                             {{-- hidden input untuk JS sinkronisasi --}}
                             <input type="hidden" id="manual-werks" value="">
+                            <p class="mt-1 text-[10px] text-transparent select-none">.</p>
                         </div>
 
                         {{-- BUTTON ACTION --}}
