@@ -117,23 +117,22 @@
 
                             <div class="relative">
                                 <input type="text" id="manual-arbpl" placeholder="Contoh: WC001, WC002, WC003"
-                                    class="w-full h-10 rounded-xl border border-slate-300 bg-white
-                                            text-sm uppercase font-mono font-semibold
-                                            placeholder:font-sans placeholder:font-normal placeholder:text-xs placeholder:text-slate-400
-                                            shadow-sm
-                                            focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/70
-                                            transition-all duration-200" />
+                                class="w-full h-10 rounded-xl border border-slate-300 bg-white
+                                        text-sm uppercase font-mono font-semibold
+                                        placeholder:font-sans placeholder:font-normal placeholder:text-xs placeholder:text-slate-400
+                                        shadow-sm
+                                        focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/70
+                                        transition-all duration-200" />
 
-                                    <p class="mt-1 text-[10px] text-slate-400">
-                                        Bisa isi lebih dari 1 WC (pisahkan dengan koma / spasi / enter).
-                                    </p>
-
-                                <div
-                                    class="pointer-events-none absolute inset-y-0 right-3 flex items-center
-                   text-[11px] font-mono text-slate-400">
-                                    SAP
+                                <div class="pointer-events-none absolute inset-y-0 right-3 flex items-center
+                                            text-[11px] font-mono text-slate-400">
+                                SAP
                                 </div>
                             </div>
+
+                            <p class="mt-1 text-[10px] text-slate-400">
+                                Bisa isi lebih dari 1 WC (pisahkan dengan koma / spasi / enter).
+                            </p>
                         </div>
 
                         {{-- INPUT PLANT (CUSTOM DROPDOWN) --}}
