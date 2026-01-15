@@ -30,8 +30,29 @@ class WcPersonList extends Component
             'Plant',
         ];
 
-        $query = WcPersonData::query()
-            ->search($this->q);
+        $rawQ = trim((string) $this->q);
+
+        // Ambil semua token WCxxx dari q (misal: "WC007, WC019" -> ["WC007","WC019"])
+        preg_match_all('/\bWC\d+\b/i', $rawQ, $m);
+        $wcTokens = array_values(array_unique(array_map('strtoupper', $m[0] ?? [])));
+
+        // Sisa kata selain WC (untuk search umum: nama, nik, devisi, desc, dll)
+        $otherQ = trim(preg_replace('/\bWC\d+\b/i', '', $rawQ));
+        $otherQ = trim(preg_replace('/[,\s;]+/', ' ', $otherQ));
+
+        $query = WcPersonData::query();
+
+        // ✅ filter arbpl berdasarkan WC tokens
+        if (count($wcTokens) === 1) {
+            $query->where('arbpl', $wcTokens[0]);
+        } elseif (count($wcTokens) > 1) {
+            $query->whereIn('arbpl', $wcTokens);
+        }
+
+        // ✅ jalankan search() hanya kalau ada kata lain selain WC
+        if ($otherQ !== '') {
+            $query->search($otherQ);
+        }
 
         // 🔹 Terapkan filter plant (kecuali ALL)
         if ($this->plant !== 'ALL') {
@@ -90,9 +111,27 @@ class WcPersonList extends Component
 
     public function toggleSelectAll(): void
     {
-        $query = WcPersonData::query()
-            ->search($this->q)
-            ->orderByRaw('CAST(werks AS UNSIGNED), werks')
+        $rawQ = trim((string) $this->q);
+        preg_match_all('/\bWC\d+\b/i', $rawQ, $m);
+        $wcTokens = array_values(array_unique(array_map('strtoupper', $m[0] ?? [])));
+
+        $otherQ = trim(preg_replace('/\bWC\d+\b/i', '', $rawQ));
+        $otherQ = trim(preg_replace('/[,\s;]+/', ' ', $otherQ));
+
+        $query = WcPersonData::query();
+
+        // filter WC sama seperti render()
+        if (count($wcTokens) === 1) {
+            $query->where('arbpl', $wcTokens[0]);
+        } elseif (count($wcTokens) > 1) {
+            $query->whereIn('arbpl', $wcTokens);
+        }
+
+        if ($otherQ !== '') {
+            $query->search($otherQ);
+        }
+
+        $query->orderByRaw('CAST(werks AS UNSIGNED), werks')
             ->orderBy('arbpl')
             ->orderBy('pernr');
 

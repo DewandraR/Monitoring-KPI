@@ -1595,7 +1595,7 @@
 
                         // simpan untuk toast + prefill filter setelah reload
                         try {
-                        window.localStorage.setItem(WC_PERSON_LS_PREFILL, workCenters[workCenters.length - 1]);
+                        window.localStorage.setItem(WC_PERSON_LS_PREFILL, workCenters.join(' '));
                         window.localStorage.setItem(WC_PERSON_LS_SUMMARY, JSON.stringify(summaries));
                         } catch (e) {
                         console.error('localStorage WC Person error', e);
