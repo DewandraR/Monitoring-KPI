@@ -1078,9 +1078,9 @@
             // 2. LOGIKA SYNC WC PERSON + LOG CARD + LOCAL STORAGE
             // ==========================================================
             (function() {
-                const API_URL_SYNC_WC = 'http://127.0.0.1:5010/api/wc_person/sync';
-                const API_URL_REFRESH_YPPR = 'http://127.0.0.1:5010/api/yppr058/refresh';
-                const API_URL_PROGRESS = '127.0.0.1:5010/api/yppr058/progress';
+                const API_URL_SYNC_WC = '/api/wc_person/sync';
+                const API_URL_REFRESH_YPPR = '/api/yppr058/refresh';
+                const API_URL_PROGRESS = '/api/yppr058/progress';
 
                 const btn = document.getElementById('btn-manual-sync');
                 const inpArbpl = document.getElementById('manual-arbpl');
