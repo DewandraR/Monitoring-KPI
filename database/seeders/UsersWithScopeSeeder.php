@@ -85,7 +85,7 @@ class UsersWithScopeSeeder extends Seeder
                 'email' => 'packinfdelta@gmail.com',
                 'password' => $pass,
                 'scope_all' => false,
-                'scope_devisi' => ['PAINTING - DELTA'],
+                'scope_devisi' => ['PACKING - DELTA'],
                 'scope_arbpl' => null,
             ],
 
