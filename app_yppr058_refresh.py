@@ -121,7 +121,7 @@ RFC_LOG_MUTA = "Z_FM_YPP_LOG_MUTA"       # Log Mutasi (untuk YPPR058)
 DB_HOST = os.environ.get("DB_HOST", "127.0.0.1")
 DB_PORT = int(os.environ.get("DB_PORT", "3306"))
 DB_USER = os.environ.get("DB_USER", "root")
-DB_PASS = os.environ.get("DB_PASS", "root")
+DB_PASS = os.environ.get("DB_PASS", "")
 DB_NAME = os.environ.get("DB_NAME", "wc_person")
 
 OUT_TABLE = os.environ.get("DB_TABLE_OUT", "yppr058_data")

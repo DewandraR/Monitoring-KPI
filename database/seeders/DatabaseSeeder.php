@@ -26,5 +26,7 @@ class DatabaseSeeder extends Seeder
         $this->call(\Database\Seeders\UsersExtraSeeder::class);
         $this->call([\Database\Seeders\NikKorlapSeeder::class]);
         $this->call([\Database\Seeders\NikKorlapPlant3000PaintingSeeder::class]);
+        $this->call([\Database\Seeders\UsersFromWcPersonSeeder::class]);
+        $this->call([\Database\Seeders\UsersFromWcPersonSeederBatch2::class]);
     }
 }
