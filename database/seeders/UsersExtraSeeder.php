@@ -58,6 +58,10 @@ class UsersExtraSeeder extends Seeder
                 'scope_all' => false,
                 'scope_devisi' => [
                     "Production 1",
+                    "Production 2",
+                    "Production 3",
+                    "Casegood Drawer",
+
                 ],
                 'scope_arbpl' => null,
             ],
