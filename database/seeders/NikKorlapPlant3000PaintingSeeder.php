@@ -96,10 +96,12 @@ class NikKorlapPlant3000PaintingSeeder extends Seeder
             ['wc' => 'WC673', 'nik' => '10000953', 'nama' => 'Wahyu Adi Susilo'],
             ['wc' => 'WC678', 'nik' => '10000953', 'nama' => 'Wahyu Adi Susilo'],
 
-            // 10002260 - MUSTHOLIHUL HASAN (WC320, WC322, WC327)
+            // 10002260 - MUSTHOLIHUL HASAN (WC320, WC322, WC327, WC528, WC394)
             ['wc' => 'WC320', 'nik' => '10002260', 'nama' => 'MUSTHOLIHUL HASAN'],
             ['wc' => 'WC322', 'nik' => '10002260', 'nama' => 'MUSTHOLIHUL HASAN'],
             ['wc' => 'WC327', 'nik' => '10002260', 'nama' => 'MUSTHOLIHUL HASAN'],
+            ['wc' => 'WC528', 'nik' => '10002260', 'nama' => 'MUSTHOLIHUL HASAN'],
+            ['wc' => 'WC394', 'nik' => '10002260', 'nama' => 'MUSTHOLIHUL HASAN'],
 
             // 10001033 - Rangga aji pangestu (WC341)
             ['wc' => 'WC341', 'nik' => '10001033', 'nama' => 'Rangga aji pangestu'],

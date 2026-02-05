@@ -33,11 +33,22 @@ class SendWeeklyOwnerReport extends Command
         // 2. ASSIGN KE EMAIL
         return [
             // Level Pimpinan / Owner (Semua Akses)
-            'kmi3.61.smg@gmail.com' => $semua_plant,
+            //'kmi3.61.smg@gmail.com' => $semua_plant,
 
             // Level Manager / Staff Khusus
-            'mankyau76@gmail.com' => $hanya_plant_3,
-            // 'staff_lain@gmail.com' => $hanya_plant_1_2,
+            'andraku76@gmail.com' => $hanya_plant_3,
+			'finc.smg@pawindo.com' => $hanya_plant_3,
+			'kmi356smg@gmail.com' => $hanya_plant_3,
+			'adm.mkt5.smg@gmail.com' => $hanya_plant_3,
+			'lily.smg@pawindo.com' => $hanya_plant_3,
+			'kmi3.60.smg@gmail.com' => $hanya_plant_3,
+			'kmi3.31.smg@gmail.com' => $hanya_plant_3,
+			'kmi3.16.smg@gmail.com' => $hanya_plant_3,
+			'kmi3.29.smg@gmail.com' => $hanya_plant_3,
+			'kmi3.58.smg@gmail.com' => $hanya_plant_3,
+			'kmi3.57.smg@gmail.com' => $hanya_plant_3,
+			'kmi3.2.smg@gmail.com'  => $hanya_plant_3,
+			'kmi3.1.smg@gmail.com'  => $hanya_plant_3,
         ];
     }
 
