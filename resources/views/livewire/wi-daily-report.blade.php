@@ -1554,14 +1554,17 @@
                 // setelah update DOM
                 if (window.Livewire?.hook) {
                     Livewire.hook('commit', ({ succeed }) => {
-                    succeed(() => setTimeout(() => {
-                        refreshSummaryCheckAllState();
-                        refreshDetailCheckAllState();
-                        refreshKorlapCheckAllState();
-                    }, 50));
+                        succeed(() => setTimeout(() => {
+                            refreshSummaryCheckAllState();
+                            refreshDetailCheckAllState();
+                            refreshKorlapCheckAllState();
+
+                            // ✅ penting: setelah Livewire rerender, pastikan datepicker kebind lagi
+                            ensureCompactRangePicker();
+                        }, 50));
                     });
                 }
-                });
+            });
 
             // Document click (delegation)
             document.addEventListener('click', (e) => {
@@ -1617,10 +1620,7 @@
                 // prevent double bind
                 if (input.dataset.pickerBound === '1') return;
 
-                if (!window.Litepicker) {
-                console.warn('Litepicker tidak ditemukan. Pastikan library Litepicker sudah di-load.');
-                return;
-                }
+                if (!window.Litepicker) return;
 
                 const maxDateAllowed = input.dataset.maxDate || null;
                 const startHidden = document.getElementById('korlap-print-start');
@@ -1667,6 +1667,33 @@
                 if (startVal && endVal) input.value = `${startVal} s.d ${endVal}`;
             }
 
+            let __ensurePickerTimer = null;
+
+            function ensureCompactRangePicker() {
+                // jangan bikin interval numpuk
+                if (__ensurePickerTimer) return;
+
+                let tries = 0;
+                const maxTries = 50; // 50 x 200ms = 10 detik
+
+                __ensurePickerTimer = setInterval(() => {
+                    tries++;
+
+                    const input = document.getElementById('compact-date-range');
+
+                    // Coba bind kalau sudah siap
+                    if (input && window.Litepicker) {
+                        bindCompactRangePicker(); // sudah ada anti double bind di dalamnya
+                    }
+
+                    // Stop kalau sudah sukses bind atau sudah terlalu lama
+                    if ((input && input.dataset.pickerBound === '1') || tries >= maxTries) {
+                        clearInterval(__ensurePickerTimer);
+                        __ensurePickerTimer = null;
+                    }
+                }, 200);
+            }
+
             // Livewire 3
             document.addEventListener('livewire:init', () => {
                 // Toast dari server
@@ -1685,13 +1712,15 @@
                 });
             });
 
-            // Livewire 2 fallback
-            document.addEventListener('livewire:load', () => {
-                bindCompactRangePicker();
-            });
+            // Jalankan saat HTML siap
+            document.addEventListener('DOMContentLoaded', ensureCompactRangePicker);
 
-            // Fallback plain
-            setTimeout(bindCompactRangePicker, 500);
+            // Livewire 3: saat init dan setelah navigasi (kalau pakai wire:navigate)
+            document.addEventListener('livewire:init', ensureCompactRangePicker);
+            document.addEventListener('livewire:navigated', ensureCompactRangePicker);
+
+            // Fallback tambahan (kalau asset lambat)
+            setTimeout(ensureCompactRangePicker, 500);
 
             })();
         </script>
