@@ -1561,6 +1561,7 @@
 
                             // ✅ penting: setelah Livewire rerender, pastikan datepicker kebind lagi
                             ensureCompactRangePicker();
+                            syncCompactRangePickerFromServer();
                         }, 50));
                     });
                 }
@@ -1611,9 +1612,42 @@
             });
 
             // =========================================================
-            // ✅ LITEPICKER: ADVANCED RANGE (KORLAP ONLY)
+            // ✅ LITEPICKER: ADVANCED RANGE (KORLAP ONLY) + SYNC
             // =========================================================
+            let __wiLitepickerInstance = null;
+            let __wiLastStart = '';
+            let __wiLastEnd = '';
+
+            function isKorlapModeNow() {
+                const root = document.getElementById('wi-root');
+                return String(root?.dataset?.reportMode || 'wi').trim() === 'korlap';
+            }
+
+            function getServerKorlapRange() {
+                const root = document.getElementById('wi-root');
+                return {
+                    start: String(root?.dataset?.korlapPrintStart || '').trim(),
+                    end:   String(root?.dataset?.korlapPrintEnd || '').trim(),
+                };
+            }
+
+            function destroyCompactPickerIfAny(inputEl) {
+                const picker = inputEl?._wiPicker || __wiLitepickerInstance;
+                if (picker && typeof picker.destroy === 'function') {
+                    try { picker.destroy(); } catch (e) {}
+                }
+                if (inputEl) {
+                    inputEl._wiPicker = null;
+                    delete inputEl.dataset.pickerBound;
+                }
+                __wiLitepickerInstance = null;
+                __wiLastStart = '';
+                __wiLastEnd = '';
+            }
+
             function bindCompactRangePicker() {
+                if (!isKorlapModeNow()) return;
+
                 const input = document.getElementById('compact-date-range');
                 if (!input) return;
 
@@ -1623,75 +1657,139 @@
                 if (!window.Litepicker) return;
 
                 const maxDateAllowed = input.dataset.maxDate || null;
+
                 const startHidden = document.getElementById('korlap-print-start');
                 const endHidden   = document.getElementById('korlap-print-end');
 
-                const startVal = startHidden?.value || '';
-                const endVal   = endHidden?.value || '';
+                // ✅ ambil range TERBARU dari server (bukan cuma dari hidden input)
+                const server = getServerKorlapRange();
+                const startVal = server.start || (startHidden?.value || '');
+                const endVal   = server.end   || (endHidden?.value || '');
+
+                // rapikan DOM hidden value (tanpa trigger request lagi)
+                if (startHidden && startVal) startHidden.value = startVal;
+                if (endHidden && endVal)     endHidden.value   = endVal;
+
+                // kalau ada instance nyangkut, bersihkan dulu
+                destroyCompactPickerIfAny(input);
 
                 input.dataset.pickerBound = '1';
 
                 const picker = new window.Litepicker({
-                element: input,
-                singleMode: false,
-                autoApply: true,
-                numberOfMonths: 2,
-                numberOfColumns: 2,
-                format: 'YYYY-MM-DD',
-                delimiter: ' s.d ',
+                    element: input,
+                    singleMode: false,
+                    autoApply: true,
+                    numberOfMonths: 2,
+                    numberOfColumns: 2,
+                    format: 'YYYY-MM-DD',
+                    delimiter: ' s.d ',
+                    startDate: startVal || null,
+                    endDate: endVal || null,
+                    maxDate: maxDateAllowed,
+                    minDate: null,
 
-                startDate: startVal || null,
-                endDate: endVal || null,
+                    setup: (picker) => {
+                        picker.on('selected', (date1, date2) => {
+                            const s = date1.format('YYYY-MM-DD');
+                            const e = date2.format('YYYY-MM-DD');
 
-                maxDate: maxDateAllowed,
-                minDate: null,
+                            // ✅ simpan last range supaya tidak rebind terus
+                            __wiLastStart = s;
+                            __wiLastEnd   = e;
 
-                setup: (picker) => {
-                    picker.on('selected', (date1, date2) => {
-                    const s = date1.format('YYYY-MM-DD');
-                    const e = date2.format('YYYY-MM-DD');
+                            // update text input
+                            input.value = `${s} s.d ${e}`;
 
-                    if (startHidden) {
-                        startHidden.value = s;
-                        startHidden.dispatchEvent(new Event('input', { bubbles: true }));
+                            // sync ke Livewire via hidden inputs (INI YANG KAMU SUDAH PUNYA)
+                            if (startHidden) {
+                                startHidden.value = s;
+                                startHidden.dispatchEvent(new Event('input', { bubbles: true }));
+                            }
+                            if (endHidden) {
+                                endHidden.value = e;
+                                endHidden.dispatchEvent(new Event('input', { bubbles: true }));
+                            }
+                        });
                     }
-                    if (endHidden) {
-                        endHidden.value = e;
-                        endHidden.dispatchEvent(new Event('input', { bubbles: true }));
-                    }
-                    });
-                }
                 });
+
+                // simpan instance
+                input._wiPicker = picker;
+                __wiLitepickerInstance = picker;
+
+                __wiLastStart = startVal || '';
+                __wiLastEnd   = endVal || '';
 
                 // Set text visual awal
                 if (startVal && endVal) input.value = `${startVal} s.d ${endVal}`;
             }
 
+            function syncCompactRangePickerFromServer() {
+                if (!isKorlapModeNow()) return;
+
+                const input = document.getElementById('compact-date-range');
+                if (!input) return;
+
+                const { start, end } = getServerKorlapRange();
+                if (!start || !end) return;
+
+                // pastikan teks input selalu sama dengan server
+                input.value = `${start} s.d ${end}`;
+
+                // kalau belum kebind, cukup biarkan ensure yang handle
+                if (input.dataset.pickerBound !== '1') return;
+
+                // ✅ kalau range server berubah (contoh klik Bulan Lalu),
+                //     maka Litepicker harus di-reset supaya highlight ikut berubah
+                if (__wiLastStart === start && __wiLastEnd === end) return;
+
+                // update hidden input (tanpa trigger request lagi)
+                const startHidden = document.getElementById('korlap-print-start');
+                const endHidden   = document.getElementById('korlap-print-end');
+                if (startHidden) startHidden.value = start;
+                if (endHidden)   endHidden.value   = end;
+
+                // destroy & rebind dengan range terbaru
+                destroyCompactPickerIfAny(input);
+                bindCompactRangePicker();
+            }
+
             let __ensurePickerTimer = null;
 
             function ensureCompactRangePicker() {
-                // jangan bikin interval numpuk
+                // ✅ jangan jalan kalau bukan mode korlap (biar gak bikin timer 10 detik di mode WI)
+                if (!isKorlapModeNow()) return;
+
+                const input = document.getElementById('compact-date-range');
+                if (input && input.dataset.pickerBound === '1') return;
+
                 if (__ensurePickerTimer) return;
 
                 let tries = 0;
-                const maxTries = 50; // 50 x 200ms = 10 detik
+                const maxTries = 50; // 10 detik (50 x 200ms)
 
                 __ensurePickerTimer = setInterval(() => {
                     tries++;
 
-                    const input = document.getElementById('compact-date-range');
+                    const inp = document.getElementById('compact-date-range');
 
-                    // Coba bind kalau sudah siap
-                    if (input && window.Litepicker) {
-                        bindCompactRangePicker(); // sudah ada anti double bind di dalamnya
+                    if (inp && window.Litepicker) {
+                        bindCompactRangePicker();
+                        syncCompactRangePickerFromServer();
                     }
 
-                    // Stop kalau sudah sukses bind atau sudah terlalu lama
-                    if ((input && input.dataset.pickerBound === '1') || tries >= maxTries) {
+                    if ((inp && inp.dataset.pickerBound === '1') || tries >= maxTries) {
                         clearInterval(__ensurePickerTimer);
                         __ensurePickerTimer = null;
                     }
                 }, 200);
+            }
+
+            // helper boot (biar rapi)
+            function bootKorlapDatepicker() {
+                ensureCompactRangePicker();
+                // sync juga (kalau sudah ada picker)
+                setTimeout(syncCompactRangePickerFromServer, 0);
             }
 
             // Livewire 3
@@ -1713,14 +1811,10 @@
             });
 
             // Jalankan saat HTML siap
-            document.addEventListener('DOMContentLoaded', ensureCompactRangePicker);
-
-            // Livewire 3: saat init dan setelah navigasi (kalau pakai wire:navigate)
-            document.addEventListener('livewire:init', ensureCompactRangePicker);
-            document.addEventListener('livewire:navigated', ensureCompactRangePicker);
-
-            // Fallback tambahan (kalau asset lambat)
-            setTimeout(ensureCompactRangePicker, 500);
+            document.addEventListener('DOMContentLoaded', bootKorlapDatepicker);
+            document.addEventListener('livewire:init', bootKorlapDatepicker);
+            document.addEventListener('livewire:navigated', bootKorlapDatepicker);
+            setTimeout(bootKorlapDatepicker, 500);
 
             })();
         </script>
