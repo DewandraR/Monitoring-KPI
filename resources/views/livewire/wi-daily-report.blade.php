@@ -8,7 +8,7 @@
      * =========================================================
      */
     $headersSummary = ['No','NIK','Rentang Tanggal','Nama','WC','Devisi','Menit WI','Menit CONF','Time QM','% HASIL MENIT CONF','% HASIL MENIT QM'];
-    $headersDetail  = ['No','NIK','Tanggal','Nama','WC','Devisi','Menit WI','Menit CONF','Time QM','% HASIL MENIT CONF','% HASIL MENIT QM'];
+    $headersDetail  = ['No','NIK','Tanggal','Nama','WC','Devisi','Menit WI','Menit CONF','Time QM','% HASIL MENIT CONF','% HASIL MENIT QM','Remark'];
 
     /**
      * =========================================================
@@ -660,7 +660,6 @@
                                 $confSum = (float)($row->time_conf_sum ?? 0);
                                 $qmSum   = (float)($row->time_qm_sum ?? 0);
 
-                                // HASIL MENIT CONF  = WI / CONF
                                 $kpiQty = isset($row->kpi_qty_pct)
                                     ? (float)$row->kpi_qty_pct
                                     : ($confSum == 0 ? 0 : (($wiSum / $confSum) * 100));
@@ -813,6 +812,9 @@
                             <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">Time QM</th>
                             <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">% HASIL MENIT CONF</th>
                             <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">% HASIL MENIT QM</th>
+                            <th class="px-6 py-4 text-center text-sm font-bold uppercase tracking-wider whitespace-nowrap text-emerald-50/90">
+                                TOTAL REMARK
+                            </th>
                         </tr>
                     </thead>
 
@@ -927,13 +929,28 @@
                                         {{ number_format($kpiQuality, 2, ',', '.') }}%
                                     </span>
                                 </td>
+
+                                @php
+                                    $rt = (int)($k['remark_total'] ?? 0);
+                                    $prevLines = (array)($k['remark_preview_lines'] ?? []);
+                                @endphp
+
+                                <td wire:click="toggleKorlap({{ \Illuminate\Support\Js::from($korlapNik) }})" class="px-6 py-4 text-center">
+                                    <div class="flex flex-col items-center gap-1">
+                                        <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-black text-white shadow-md
+                                                    bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700">
+                                            {{ $rt }} Task
+                                        </span>
+                                    </div>
+                                </td>
+
                             </tr>
 
                             {{-- EXPAND AREA: LIST NIK SUMMARY --}}
                             @if($isExpanded)
                                 <tr wire:key="korlap-expand-{{ $korlapNik }}">
-                                    {{-- COLSPAN 12 (checkbox + 11 kolom) --}}
-                                    <td colspan="12" class="p-0 border-b border-emerald-100/50">
+                                    {{-- COLSPAN 13 (checkbox + 12 kolom) --}}
+                                    <td colspan="13" class="p-0 border-b border-emerald-100/50">
 
                                         <div class="px-6 py-6 bg-gradient-to-b from-emerald-50/50 to-white shadow-inner">
                                             <div class="flex items-center justify-between mb-4 px-1">
@@ -965,6 +982,7 @@
                                                             <th class="px-4 py-3 text-center text-xs font-black text-emerald-800/70 uppercase">Time QM</th>
                                                             <th class="px-4 py-3 text-center text-xs font-black text-emerald-800/70 uppercase">% HASIL MENIT CONF</th>
                                                             <th class="px-4 py-3 text-center text-xs font-black text-emerald-800/70 uppercase">% HASIL MENIT QM</th>
+                                                            <th class="px-4 py-3 text-center text-xs font-black text-emerald-800/70 uppercase">Remark</th>
                                                         </tr>
                                                     </thead>
 
@@ -1012,6 +1030,46 @@
                                                                         {{ number_format($kpiQuality2, 2, ',', '.') }}%
                                                                     </span>
                                                                 </td>
+
+                                                                <td class="px-4 py-3 text-left align-top min-w-[340px] w-[340px]">
+                                                                    @php $remarkLines = (array)($r['remark_lines'] ?? []); @endphp
+
+                                                                    @if(!empty($remarkLines))
+                                                                        <div class="rounded-2xl border border-emerald-200/70 bg-gradient-to-br from-emerald-50 to-white p-2.5 shadow-sm">
+                                                                            <ul class="space-y-1.5">
+                                                                                @foreach($remarkLines as $ln)
+                                                                                    @php
+                                                                                        $qty = null; $label = trim((string)$ln);
+                                                                                        if (preg_match('/\((\d+)\s*Task\)/', $label, $m)) {
+                                                                                            $qty = (int)$m[1];
+                                                                                            $label = trim(preg_replace('/\(\d+\s*Task\)/', '', $label));
+                                                                                        }
+                                                                                    @endphp
+
+                                                                                    <li class="flex items-start gap-2">
+                                                                                        <span class="mt-2 h-1.5 w-1.5 rounded-full bg-emerald-500 flex-none"></span>
+
+                                                                                        <div class="min-w-0">
+                                                                                            <div class="flex flex-wrap items-center gap-2">
+                                                                                                <span class="text-[11px] font-semibold text-slate-700 break-words">
+                                                                                                    {{ $label }}
+                                                                                                </span>
+
+                                                                                                @if(!is_null($qty))
+                                                                                                    <span class="inline-flex items-center rounded-full bg-emerald-700 text-white text-[10px] font-black px-2 py-0.5 shadow">
+                                                                                                        {{ $qty }} Task
+                                                                                                    </span>
+                                                                                                @endif
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    </li>
+                                                                                @endforeach
+                                                                            </ul>
+                                                                        </div>
+                                                                    @else
+                                                                        <span class="text-slate-400">-</span>
+                                                                    @endif
+                                                                </td>
                                                             </tr>
                                                         @empty
                                                             <tr>
@@ -1032,7 +1090,7 @@
 
                         @empty
                             <tr>
-                                <td colspan="11" class="px-6 py-16 text-center text-slate-500">
+                                <td colspan="13" class="px-6 py-16 text-center text-slate-500">
                                     <div class="flex flex-col items-center">
                                         <span class="text-lg font-medium text-slate-400">Tidak ada data Korlap untuk filter saat ini.</span>
                                     </div>
@@ -1116,8 +1174,11 @@
                                         </th>
 
                                         @foreach($headersDetail as $header)
+                                            @php $isRemark = strtolower((string)$header) === 'remark'; @endphp
+
                                             <th scope="col"
-                                                class="px-4 py-3 text-center text-xs font-bold text-emerald-800 uppercase tracking-wider border-b-2 border-emerald-100 whitespace-nowrap">
+                                                class="px-4 py-3 border-b-2 border-emerald-100 text-xs font-bold text-emerald-800 uppercase tracking-wider
+                                                    {{ $isRemark ? 'text-left min-w-[420px] w-[420px] whitespace-normal' : 'text-center whitespace-nowrap' }}">
                                                 {{ __($header) }}
                                             </th>
                                         @endforeach
@@ -1224,6 +1285,52 @@
                                                     {{ is_null($kpiQualityRow) ? 'bg-slate-100 text-slate-500' : ($kpiQualityRow < 100 ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800') }}">
                                                     {{ is_null($kpiQualityRow) ? '-' : (number_format((float)$kpiQualityRow, 2) . '%') }}
                                                 </span>
+                                            </td>
+
+                                            {{-- REMARK --}}
+                                            <td class="px-4 py-2 text-left align-top min-w-[420px] w-[420px]">
+                                                @php $remarkLines = (array)($d['remark_lines'] ?? []); @endphp
+
+                                                @if(!empty($remarkLines))
+                                                    <div class="rounded-2xl border border-emerald-200/70 bg-gradient-to-br from-white to-emerald-50 p-3 shadow-sm">
+                                                        <div class="text-[10px] font-extrabold uppercase tracking-widest text-emerald-700/80 mb-2">
+                                                            Remark
+                                                        </div>
+
+                                                        <ul class="space-y-2">
+                                                            @foreach($remarkLines as $ln)
+                                                                @php
+                                                                    $qty = null; $label = trim((string)$ln);
+                                                                    if (preg_match('/\((\d+)\s*Task\)/', $label, $m)) {
+                                                                        $qty = (int)$m[1];
+                                                                        $label = trim(preg_replace('/\(\d+\s*Task\)/', '', $label));
+                                                                    }
+                                                                @endphp
+
+                                                                <li class="flex items-start gap-2">
+                                                                    <span class="mt-2 h-1.5 w-1.5 rounded-full bg-teal-600 flex-none"></span>
+
+                                                                    <div class="min-w-0">
+                                                                        <div class="flex flex-wrap items-center gap-2">
+                                                                            <span class="text-[12px] font-semibold text-slate-700 break-words">
+                                                                                {{ $label }}
+                                                                            </span>
+
+                                                                            @if(!is_null($qty))
+                                                                                <span class="inline-flex items-center rounded-full bg-gradient-to-r from-emerald-600 to-teal-700
+                                                                                            text-white text-[10px] font-black px-2.5 py-0.5 shadow">
+                                                                                    {{ $qty }} Task
+                                                                                </span>
+                                                                            @endif
+                                                                        </div>
+                                                                    </div>
+                                                                </li>
+                                                            @endforeach
+                                                        </ul>
+                                                    </div>
+                                                @else
+                                                    <span class="text-slate-400">-</span>
+                                                @endif
                                             </td>
 
                                         </tr>

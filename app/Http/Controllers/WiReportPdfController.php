@@ -279,7 +279,13 @@ class WiReportPdfController extends Controller
             'rangeStart' => $range['iso'][0],
             'rangeEnd'   => $range['iso'][1],
             'wiMode'     => $wiMode
-        ])->setPaper('a4', 'landscape'); // ✅ cocok dengan template @page size: landscape
+        ])
+        ->setPaper('a4', 'landscape')
+        ->setOptions([
+            'isPhpEnabled' => true,          // ✅ wajib untuk <script type="text/php">
+            'isHtml5ParserEnabled' => true,  // opsional
+            // 'isRemoteEnabled' => true,     // opsional kalau load image/font dari URL
+        ]);
 
         return $pdf->download("wi-korlap-report-{$plant}.pdf");
     }

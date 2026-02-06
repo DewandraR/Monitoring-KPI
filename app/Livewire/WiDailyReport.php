@@ -216,6 +216,371 @@ class WiDailyReport extends Component
         $q->where('tanggal', '>=', $vf->toDateString());
     }
 
+    protected function parseWiTagJson(mixed $raw): array
+    {
+        if ($raw === null) return [];
+
+        // kalau sudah array (mis. karena $casts), pakai langsung
+        if (is_array($raw)) {
+            $decoded = $raw;
+        } elseif (is_object($raw)) {
+            // object -> array
+            $decoded = json_decode(json_encode($raw), true);
+            if (!is_array($decoded)) return [];
+        } else {
+            $str = trim((string) $raw);
+            if ($str === '' || strtolower($str) === 'null') return [];
+            $decoded = json_decode($str, true);
+            if (!is_array($decoded)) return [];
+        }
+
+        // kalau bentuknya 1 object -> bungkus jadi array
+        if (array_key_exists('tag', $decoded) || array_key_exists('qty', $decoded)) {
+            $decoded = [$decoded];
+        }
+
+        $out = [];
+        foreach ($decoded as $item) {
+            if (is_object($item)) $item = json_decode(json_encode($item), true);
+            if (!is_array($item)) continue;
+
+            $tag = trim((string) ($item['tag'] ?? ''));
+            if ($tag === '') continue;
+
+            $qty = (int) ($item['qty'] ?? 0);
+            if ($qty <= 0) continue;
+
+            $out[] = ['tag' => $tag, 'qty' => $qty];
+        }
+
+        return $out;
+    }
+
+    /** Output line: "Tag Name (X Task)" */
+    protected function buildRemarkLines(array $tagQtyMap): array
+    {
+        $pairs = [];
+        foreach ($tagQtyMap as $tag => $qty) {
+            $tag = trim((string) $tag);
+            $qty = (int) $qty;
+            if ($tag === '' || $qty <= 0) continue;
+            $pairs[] = ['tag' => $tag, 'qty' => $qty];
+        }
+
+        // sort qty desc, lalu tag asc
+        usort($pairs, function ($a, $b) {
+            if ($a['qty'] === $b['qty']) return strcmp($a['tag'], $b['tag']);
+            return $b['qty'] <=> $a['qty'];
+        });
+
+        $lines = [];
+        foreach ($pairs as $p) {
+            $lines[] = $p['tag'] . ' (' . $p['qty'] . ' Task)';
+        }
+
+        return $lines;
+    }
+
+    protected function remarkQtyMapForNiks(array $niks, Carbon $start, Carbon $end): array
+    {
+        $niks = collect($niks)
+            ->map(fn($v) => trim((string) $v))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($niks)) return [];
+
+        $plant = trim($this->plant);
+
+        $q = DailyTimeWi::query()
+            ->select(['nik', 'tag', 'kode_laravel', 'tanggal'])
+            ->whereIn('nik', $niks)
+            ->whereBetween('tanggal', [$start->toDateString(), $end->toDateString()])
+            ->whereNotNull('kode_laravel')
+            ->whereRaw("TRIM(kode_laravel) <> ''")
+            ->whereRaw("TRIM(kode_laravel) REGEXP '^[0-9]{4}'")
+            ->whereRaw("
+                CASE
+                    WHEN LEFT(TRIM(kode_laravel),4) IN ('1001','1002','1003','1015') THEN '1001'
+                    WHEN LEFT(TRIM(kode_laravel),1) = '1' THEN '1000'
+                    ELSE CONCAT(LEFT(TRIM(kode_laravel),1),'000')
+                END = ?
+            ", [$plant])
+            ->whereNotNull('tag');
+
+        // cutoff visible-from
+        $this->applyVisibleFromToWi($q);
+
+        $rows = $q->get();
+
+        $acc = []; // nik => [tag => qty]
+        foreach ($rows as $row) {
+            $nik = trim((string) $row->nik);
+            if ($nik === '') continue;
+
+            foreach ($this->parseWiTagJson($row->tag) as $it) {
+                $tag = $it['tag'];
+                $qty = (int) $it['qty'];
+                $acc[$nik][$tag] = ($acc[$nik][$tag] ?? 0) + $qty;
+            }
+        }
+
+        return $acc;
+    }
+    
+    protected function remarkMapForNiks(array $niks, Carbon $start, Carbon $end): array
+    {
+        $acc = $this->remarkQtyMapForNiks($niks, $start, $end);
+
+        $out = [];
+        foreach ($acc as $nik => $tagMap) {
+            $out[$nik] = $this->buildRemarkLines($tagMap);
+        }
+
+        return $out;
+    }
+
+    protected function remarkMapByDateForNik(string $nik, Carbon $start, Carbon $end): array
+    {
+        $nik = trim($nik);
+        if ($nik === '') return [];
+
+        $plant = trim($this->plant);
+
+        $q = DailyTimeWi::query()
+            ->select(['tanggal', 'tag', 'kode_laravel'])
+            ->where('nik', $nik)
+            ->whereBetween('tanggal', [$start->toDateString(), $end->toDateString()])
+            ->whereNotNull('kode_laravel')
+            ->whereRaw("TRIM(kode_laravel) <> ''")
+            ->whereRaw("TRIM(kode_laravel) REGEXP '^[0-9]{4}'")
+            ->whereRaw("
+                CASE
+                    WHEN LEFT(TRIM(kode_laravel),4) IN ('1001','1002','1003','1015') THEN '1001'
+                    WHEN LEFT(TRIM(kode_laravel),1) = '1' THEN '1000'
+                    ELSE CONCAT(LEFT(TRIM(kode_laravel),1),'000')
+                END = ?
+            ", [$plant])
+            ->whereNotNull('tag');
+
+        $this->applyVisibleFromToWi($q);
+
+        $rows = $q->get();
+
+        $acc = []; // tanggal => [tag => qty]
+        foreach ($rows as $row) {
+            try {
+                $tgl = Carbon::parse($row->tanggal)->toDateString();
+            } catch (\Throwable $e) {
+                continue;
+            }
+
+            foreach ($this->parseWiTagJson($row->tag) as $it) {
+                $tag = $it['tag'];
+                $qty = (int) $it['qty'];
+                $acc[$tgl][$tag] = ($acc[$tgl][$tag] ?? 0) + $qty;
+            }
+        }
+
+        $out = [];
+        foreach ($acc as $tgl => $tagMap) {
+            $out[$tgl] = $this->buildRemarkLines($tagMap);
+        }
+
+        return $out;
+    }
+
+    protected static function export_parseWiTagJson(mixed $raw): array
+    {
+        if ($raw === null) return [];
+
+        if (is_array($raw)) {
+            $decoded = $raw;
+        } elseif (is_object($raw)) {
+            $decoded = json_decode(json_encode($raw), true);
+            if (!is_array($decoded)) return [];
+        } else {
+            $str = trim((string) $raw);
+            if ($str === '' || strtolower($str) === 'null') return [];
+            $decoded = json_decode($str, true);
+            if (!is_array($decoded)) return [];
+        }
+
+        if (array_key_exists('tag', $decoded) || array_key_exists('qty', $decoded)) {
+            $decoded = [$decoded];
+        }
+
+        $out = [];
+        foreach ($decoded as $item) {
+            if (is_object($item)) $item = json_decode(json_encode($item), true);
+            if (!is_array($item)) continue;
+
+            $tag = trim((string) ($item['tag'] ?? ''));
+            if ($tag === '') continue;
+
+            $qty = (int) ($item['qty'] ?? 0);
+            if ($qty <= 0) continue;
+
+            $out[] = ['tag' => $tag, 'qty' => $qty];
+        }
+
+        return $out;
+    }
+
+    protected static function export_buildRemarkLines(array $tagQtyMap): array
+    {
+        $pairs = [];
+        foreach ($tagQtyMap as $tag => $qty) {
+            $tag = trim((string)$tag);
+            $qty = (int)$qty;
+            if ($tag === '' || $qty <= 0) continue;
+            $pairs[] = ['tag' => $tag, 'qty' => $qty];
+        }
+
+        usort($pairs, function ($a, $b) {
+            if ($a['qty'] === $b['qty']) return strcmp($a['tag'], $b['tag']);
+            return $b['qty'] <=> $a['qty'];
+        });
+
+        $lines = [];
+        foreach ($pairs as $p) {
+            $lines[] = $p['tag'] . ' (' . $p['qty'] . ' Task)';
+        }
+
+        return $lines;
+    }
+
+    /** return: [nik => [tag => qty]] */
+    public static function export_remarkQtyMapForNiks(
+        string $plant,
+        ?string $dataVisibleFrom,
+        array $niks,
+        Carbon $start,
+        Carbon $end
+    ): array {
+        $niks = collect($niks)->map(fn($v)=>trim((string)$v))->filter()->unique()->values()->all();
+        if (empty($niks)) return [];
+
+        $plant = trim($plant);
+
+        $q = DailyTimeWi::query()
+            ->select(['nik','tag','kode_laravel','tanggal'])
+            ->whereIn('nik', $niks)
+            ->whereBetween('tanggal', [$start->toDateString(), $end->toDateString()])
+            ->whereNotNull('kode_laravel')
+            ->whereRaw("TRIM(kode_laravel) <> ''")
+            ->whereRaw("TRIM(kode_laravel) REGEXP '^[0-9]{4}'")
+            ->whereRaw("
+                CASE
+                    WHEN LEFT(TRIM(kode_laravel),4) IN ('1001','1002','1003','1015') THEN '1001'
+                    WHEN LEFT(TRIM(kode_laravel),1) = '1' THEN '1000'
+                    ELSE CONCAT(LEFT(TRIM(kode_laravel),1),'000')
+                END = ?
+            ", [$plant])
+            ->whereNotNull('tag');
+
+        // cutoff visible-from (samakan dengan layar)
+        $vfRaw = trim((string)$dataVisibleFrom);
+        if ($vfRaw !== '') {
+            try {
+                $vf = Carbon::parse($vfRaw)->startOfDay();
+                $q->where('tanggal', '>=', $vf->toDateString());
+            } catch (\Throwable $e) {}
+        }
+
+        $rows = $q->get();
+
+        $acc = []; // nik => [tag => qty]
+        foreach ($rows as $row) {
+            $nik = trim((string)$row->nik);
+            if ($nik === '') continue;
+
+            foreach (self::export_parseWiTagJson($row->tag) as $it) {
+                $tag = $it['tag'];
+                $qty = (int)$it['qty'];
+                $acc[$nik][$tag] = ($acc[$nik][$tag] ?? 0) + $qty;
+            }
+        }
+
+        return $acc;
+    }
+
+    /** return: [nik => ["Tag (X Task)", ...]] */
+    public static function export_remarkMapForNiks(
+        string $plant,
+        ?string $dataVisibleFrom,
+        array $niks,
+        Carbon $start,
+        Carbon $end
+    ): array {
+        $qtyMap = self::export_remarkQtyMapForNiks($plant, $dataVisibleFrom, $niks, $start, $end);
+
+        $out = [];
+        foreach ($qtyMap as $nik => $tagMap) {
+            $out[$nik] = self::export_buildRemarkLines($tagMap);
+        }
+        return $out;
+    }
+
+    /**
+     * Input: $membersByKorlap = ['KORLAP_NIK' => ['NIK1','NIK2',...], ...]
+     * Output: [ $remarkTotalByKorlap, $remarkPreviewByKorlap ]
+     */
+    public static function export_korlapRemarkTotalPreview(
+        string $plant,
+        ?string $dataVisibleFrom,
+        array $membersByKorlap,
+        Carbon $start,
+        Carbon $end,
+        int $previewTop = 3
+    ): array {
+        // gabung semua member nik
+        $allMemberNiks = collect($membersByKorlap)
+            ->flatten()
+            ->map(fn($v)=>trim((string)$v))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($allMemberNiks)) return [[], []];
+
+        $qtyMapByNik = self::export_remarkQtyMapForNiks($plant, $dataVisibleFrom, $allMemberNiks, $start, $end);
+
+        // total per nik
+        $totalByNik = [];
+        foreach ($qtyMapByNik as $nik => $tagMap) {
+            $totalByNik[$nik] = array_sum(array_map('intval', $tagMap));
+        }
+
+        $remarkTotalByKorlap = [];
+        $remarkPreviewByKorlap = [];
+
+        foreach ($membersByKorlap as $korlapNik => $niks) {
+            $korlapNik = (string)$korlapNik;
+
+            $sum = 0;
+            $tagAgg = [];
+
+            foreach ((array)$niks as $n) {
+                $n = trim((string)$n);
+                if ($n === '') continue;
+
+                $sum += (int)($totalByNik[$n] ?? 0);
+
+                foreach (($qtyMapByNik[$n] ?? []) as $tag => $qty) {
+                    $tagAgg[$tag] = ($tagAgg[$tag] ?? 0) + (int)$qty;
+                }
+            }
+
+            $remarkTotalByKorlap[$korlapNik] = (int)$sum;
+            $remarkPreviewByKorlap[$korlapNik] = array_slice(self::export_buildRemarkLines($tagAgg), 0, $previewTop);
+        }
+
+        return [$remarkTotalByKorlap, $remarkPreviewByKorlap];
+    }
 
     public function setReportMode(string $mode): void
     {
@@ -285,7 +650,7 @@ class WiDailyReport extends Component
 
     protected function queryKorlapNikSummaries(string $korlapNik): array
     {
-        [$detailJoined] = $this->buildDetailJoinedForCurrentFilters(true);
+        [$detailJoined, $start, $end] = $this->buildDetailJoinedForCurrentFilters(true);
 
         // Mulai Query
         $q = DB::query()
@@ -337,19 +702,30 @@ class WiDailyReport extends Component
             ->orderByRaw("CAST(d.nik AS UNSIGNED) ASC")
             ->get();
 
-        return $rows->map(fn($r) => [
-            'nik'           => (string) $r->nik,
-            'nama'          => (string) $r->nama,
-            'wc'            => (string) $r->wc,
-            'devisi'        => (string) $r->devisi,
-            'min_tanggal'   => (string) $r->min_tanggal,
-            'max_tanggal'   => (string) $r->max_tanggal,
-            'time_wi_sum'   => (float)  $r->time_wi_sum,
-            'time_conf_sum' => (float)  $r->time_conf_sum,
-            'time_qm_sum'   => (float)  $r->time_qm_sum,
-            'kpi_quality_pct' => (float) $r->kpi_quality_pct, // ✅
-            'kpi_qty_pct'     => (float) $r->kpi_qty_pct,     // ✅
-        ])->all();
+        $nikList = $rows->pluck('nik')->map(fn($v) => (string)$v)->all();
+        $remarkMap = $this->remarkMapForNiks($nikList, $start, $end);
+
+
+        return $rows->map(function ($r) use ($remarkMap) {
+            $nik = (string) $r->nik;
+
+            return [
+                'nik'           => $nik,
+                'nama'          => (string) $r->nama,
+                'wc'            => (string) $r->wc,
+                'devisi'        => (string) $r->devisi,
+                'min_tanggal'   => (string) $r->min_tanggal,
+                'max_tanggal'   => (string) $r->max_tanggal,
+                'time_wi_sum'   => (float)  $r->time_wi_sum,
+                'time_conf_sum' => (float)  $r->time_conf_sum,
+                'time_qm_sum'   => (float)  $r->time_qm_sum,
+                'kpi_quality_pct' => (float) $r->kpi_quality_pct,
+                'kpi_qty_pct'     => (float) $r->kpi_qty_pct,
+
+                // ✅ INI YANG BARU
+                'remark_lines'    => $remarkMap[$nik] ?? [],
+            ];
+        })->all();
     }
 
     /**
@@ -946,6 +1322,9 @@ class WiDailyReport extends Component
 
         $wiRows = $wiQ->get();
 
+        // ✅ remark per tanggal
+        $remarkByDate = $this->remarkMapByDateForNik($this->selectedNik, $start, $end);
+
         $wiByDate = $wiRows->keyBy(fn($r) => Carbon::parse($r->tanggal)->toDateString());
 
         $name = optional($qmRows->first())->nama ?? '-';
@@ -1015,7 +1394,8 @@ class WiDailyReport extends Component
                 'time_conf' => $timeConf,
                 'time_qm' => $timeQm,
                 'kpi_quality_pct' => $kpiQ,
-                'kpi_qty_pct' => $kpiQty, // ✅ New
+                'kpi_qty_pct' => $kpiQty,
+                'remark_lines' => $remarkByDate[$key] ?? [],
             ];
 
             $cursor->addDay();
@@ -1116,13 +1496,6 @@ class WiDailyReport extends Component
                 });
             }
 
-            $wcMatch = collect(explode(',', (string)($r->wc_match_list ?? '')))
-                ->map(fn($v) => trim((string)$v))
-                ->filter()
-                ->unique()
-                ->values()
-                ->all();
-
             // Grouping dilakukan SETELAH filter where
             $korlapData = $korlapQuery
                 ->groupBy('nk.nik', 'nk.nama')
@@ -1156,6 +1529,96 @@ class WiDailyReport extends Component
                     ];
                 })
                 ->all();
+
+            $korlapNiksOnPage = collect($korlapData)
+                ->pluck('korlap_nik')
+                ->map(fn($v) => trim((string)$v))
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+
+            $remarkTotalByKorlap = [];
+            $remarkPreviewByKorlap = [];
+
+            if (!empty($korlapNiksOnPage)) {
+
+                // Ambil member NIK per korlap (sesuai filter/search yang sedang aktif)
+                $memberQ = DB::query()
+                    ->from('nik_korlap as nk')
+                    ->whereIn('nk.nik', $korlapNiksOnPage)
+                    ->whereRaw('TRIM(nk.plant) = ?', [trim($this->plant)])
+                    ->leftJoinSub($detailJoined, 'd', function ($join) {
+                        $join->on(DB::raw('1'), '=', DB::raw('1'))
+                            ->whereRaw("JSON_CONTAINS(nk.wc_korlap, JSON_QUOTE(d.wc))");
+                    })
+                    ->selectRaw("nk.nik as korlap_nik, d.nik as nik")
+                    ->whereNotNull('d.nik');
+
+                // samakan filter WI mode dengan summary korlap
+                if ($this->wiMode === 'with') {
+                    $memberQ->where('d.time_wi', '>', 0);
+                } elseif ($this->wiMode === 'without') {
+                    $memberQ->where(function ($q) {
+                        $q->whereNull('d.time_wi')->orWhere('d.time_wi', '=', 0);
+                    });
+                }
+
+                $memberRows = $memberQ->distinct()->get();
+
+                $membersByKorlap = $memberRows
+                    ->groupBy('korlap_nik')
+                    ->map(fn($g) => $g->pluck('nik')
+                        ->map(fn($v) => trim((string)$v))
+                        ->filter()
+                        ->unique()
+                        ->values()
+                        ->all()
+                    )
+                    ->all();
+
+                $allMemberNiks = $memberRows
+                    ->pluck('nik')
+                    ->map(fn($v) => trim((string)$v))
+                    ->filter()
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                // Ambil qty remark per NIK (1x query besar)
+                $qtyMapByNik = $this->remarkQtyMapForNiks($allMemberNiks, $start, $end);
+
+                // total per nik
+                $totalByNik = [];
+                foreach ($qtyMapByNik as $nik => $tagMap) {
+                    $totalByNik[$nik] = array_sum(array_map('intval', $tagMap));
+                }
+
+                // total + preview top tag per korlap
+                foreach ($membersByKorlap as $kNik => $niks) {
+                    $sum = 0;
+                    $tagAgg = [];
+
+                    foreach ($niks as $n) {
+                        $sum += (int)($totalByNik[$n] ?? 0);
+
+                        foreach (($qtyMapByNik[$n] ?? []) as $tag => $qty) {
+                            $tagAgg[$tag] = ($tagAgg[$tag] ?? 0) + (int)$qty;
+                        }
+                    }
+
+                    $remarkTotalByKorlap[$kNik] = $sum;
+                    $remarkPreviewByKorlap[$kNik] = array_slice($this->buildRemarkLines($tagAgg), 0, 3);
+                }
+
+                // Inject ke korlapData
+                $korlapData = array_map(function ($row) use ($remarkTotalByKorlap, $remarkPreviewByKorlap) {
+                    $kNik = (string)($row['korlap_nik'] ?? '');
+                    $row['remark_total'] = (int)($remarkTotalByKorlap[$kNik] ?? 0);
+                    $row['remark_preview_lines'] = $remarkPreviewByKorlap[$kNik] ?? [];
+                    return $row;
+                }, $korlapData);
+            }
 
             return view('livewire.wi-daily-report', [
                 'korlapData' => $korlapData,

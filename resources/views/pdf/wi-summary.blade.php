@@ -91,7 +91,6 @@
                     $kpiQty = isset($row->kpi_qty_pct)
                         ? (float)$row->kpi_qty_pct
                         : ($confSum == 0 ? 0 : (($wiSum / $confSum) * 100));
-
                     $kpiQuality = isset($row->kpi_quality_pct)
                         ? (float)$row->kpi_quality_pct
                         : ($wiSum == 0 ? 0 : (($qmSum / $wiSum) * 100));
