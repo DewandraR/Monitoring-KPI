@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Facades\Excel;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class ReportPdfController extends Controller
 {
@@ -93,7 +94,20 @@ class ReportPdfController extends Controller
             $query->whereBetween('begda', [$start, $end]);
         }
 
-        return $query
+        // === De-duplicate per date (pernr + begda) ===
+        // sub Selects untuk picking one record per date
+        $subSelects = array_merge(
+            ['pernr', 'begda'],
+            array_map(fn($col) => "MAX(`$col`) as `$col`" , array_merge($aggregateColumns, ['cname', 'arbpl', 'desc', 'arbpl2', 'werks', 'role', 'devisi', 'shift']))
+        );
+
+        $subquery = DB::table(DB::raw("({$query->toSql()}) as filtered"))
+            ->mergeBindings($query->getQuery())
+            ->selectRaw(implode(', ', $subSelects))
+            ->groupBy('pernr', 'begda');
+
+        return DB::table(DB::raw("({$subquery->toSql()}) as deduplicated"))
+            ->mergeBindings($subquery)
             ->selectRaw(implode(', ', $selects))
             ->groupBy('pernr')
             ->orderByRaw("COALESCE(NULLIF(TRIM(MAX(`arbpl`)), ''), 'ZZZZ') ASC") // WC Personal dulu (kosong belakangan)

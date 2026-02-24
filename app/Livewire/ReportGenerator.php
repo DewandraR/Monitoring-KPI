@@ -9,6 +9,7 @@ use App\Models\Yppr058SapLog;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
 
 #[Layout('layouts.app')]
 class ReportGenerator extends Component
@@ -719,8 +720,23 @@ class ReportGenerator extends Component
             [$persenVarExpr]
         );
 
+        // === De-duplicate per date (pernr + begda) ===
+        // We pick one record per date before aggregating.
+        // We use MAX() for other columns to be compatible with only_full_group_by.
+        $subSelects = array_merge(
+            ['pernr', 'begda'],
+            array_map(fn($col) => "MAX(`$col`) as `$col`" , array_merge($this->aggregateColumns, ['cname', 'arbpl', 'desc', 'arbpl2', 'werks', 'role', 'devisi', 'shift']))
+        );
+
+        $subquery = DB::table(DB::raw("({$baseQuery->toSql()}) as filtered"))
+            ->mergeBindings($baseQuery->getQuery())
+            ->selectRaw(implode(', ', $subSelects))
+            ->groupBy('pernr', 'begda');
+
         // $reportData UNTUK VIEW (Collection of objects)
-        $reportData = $baseQuery
+        // We query from the deduplicated subquery
+        $reportData = DB::table(DB::raw("({$subquery->toSql()}) as deduplicated"))
+            ->mergeBindings($subquery)
             ->selectRaw(implode(', ', $selects))
             ->groupBy('pernr')
             ->orderByRaw("COALESCE(MAX(`arbpl`), 'ZZZZ') ASC")  // urut WC Personal dulu
@@ -737,7 +753,7 @@ class ReportGenerator extends Component
 
         // simpan VERSI ARRAY ke properti Livewire untuk saveToSap()
         $this->reportDataForSave = $reportData
-            ->map(fn($row) => $row->toArray())
+            ->map(fn($row) => (array) $row)
             ->all();
 
         return view('livewire.report-generator', [
