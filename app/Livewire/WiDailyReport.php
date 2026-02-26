@@ -923,10 +923,10 @@ class WiDailyReport extends Component
                 pernr,
                 begda,
                 MAX(cname) as nama,
-                MAX(arbpl) as wc,
+                GROUP_CONCAT(DISTINCT arbpl SEPARATOR ', ') as wc,
                 MAX(devisi) as devisi,
-                COALESCE(SUM(mintu),0) as time_qm,
-                COALESCE(SUM(mint2),0) as time_conf
+                COALESCE(MAX(mintu),0) as time_qm,
+                COALESCE(MAX(mint2),0) as time_conf
             ")
             ->whereBetween('begda', [$begdaStart, $begdaEnd])
             ->whereRaw("UPPER(TRIM(role)) = 'INDUK'")
@@ -1264,10 +1264,10 @@ class WiDailyReport extends Component
         ->selectRaw("
             begda,
             MAX(cname) as nama,
-            MAX(arbpl) as wc,
+            GROUP_CONCAT(DISTINCT arbpl SEPARATOR ', ') as wc,
             MAX(devisi) as devisi,
-            COALESCE(SUM(mintu),0) as time_qm,
-            COALESCE(SUM(mint2),0) as time_conf
+            COALESCE(MAX(mintu),0) as time_qm,
+            COALESCE(MAX(mint2),0) as time_conf
         ")
             ->where('pernr', $this->selectedNik)
             ->whereBetween('begda', [$begdaStart, $begdaEnd])
@@ -1679,7 +1679,7 @@ class WiDailyReport extends Component
                 MIN(tanggal) as min_tanggal,
                 MAX(tanggal) as max_tanggal,
                 MAX(nama) as nama,
-                MAX(wc) as wc,
+                GROUP_CONCAT(DISTINCT wc SEPARATOR ', ') as wc,
                 MAX(devisi) as devisi,
 
                 COALESCE(SUM(time_wi),0) as time_wi_sum,

@@ -493,10 +493,10 @@ class WiReportPdfController extends Controller
             pernr as nik,
             begda,
             MAX(cname) as nama,
-            MAX(arbpl) as wc,
+            GROUP_CONCAT(DISTINCT arbpl SEPARATOR ', ') as wc,
             MAX(NULLIF(TRIM(devisi),'')) as devisi,
-            COALESCE(SUM(mintu),0) as mintu_sum,
-            COALESCE(SUM(mint2),0) as mint2_sum
+            COALESCE(MAX(mintu),0) as mintu_sum,
+            COALESCE(MAX(mint2),0) as mint2_sum
         ")
         ->groupBy('pernr', 'begda');
         }
