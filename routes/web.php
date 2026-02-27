@@ -38,17 +38,46 @@ Route::middleware(['auth', 'verified', 'data.scope'])->group(function () {
             $scopeArbpl
         ))));
 
-        $query = \App\Models\ReportData::query()
+        $today = \Carbon\Carbon::today();
+        
+        // Cek session untuk filter bulan (default 'this')
+        $monthFilter = session('wi_daily.month_filter', session('yppr058.month_filter', 'this'));
+        
+        if ($monthFilter === 'prev') {
+            $start = $today->copy()->subMonth()->startOfMonth();
+            $end   = $today->copy()->subMonth()->endOfMonth();
+        } else {
+            if ($today->day === 1) {
+                $start = $today->copy()->subMonth()->startOfMonth();
+                $end   = $today->copy()->subMonth()->endOfMonth();
+            } else {
+                $start = $today->copy()->startOfMonth();
+                $end   = $today->copy()->subDay();
+            }
+        }
+        
+        // Khusus untuk WI Daily Report cutoff dataVisibleFrom '2025-12-01'
+        $vfRaw = '2025-12-01';
+        $vf = \Carbon\Carbon::parse($vfRaw)->startOfDay();
+        if ($vf->lte($end) && $start->lt($vf)) {
+            $start = $vf->copy();
+        }
+
+        $begdaStart = $start->format('Ymd');
+        $begdaEnd   = $end->format('Ymd');
+
+        $baseQuery = \App\Models\ReportData::query()
             ->whereNotNull('werks')
-            ->whereRaw("TRIM(werks) <> ''");
+            ->whereRaw("TRIM(werks) <> ''")
+            ->whereBetween('begda', [$begdaStart, $begdaEnd]);
 
         // ===== apply scope (DEVISI / ARBPL) =====
         if (!$scopeAll) {
             if (empty($scopeDevUpper) && empty($scopeArbplUpper)) {
                 // tidak punya akses apa-apa
-                $query->whereRaw('1=0');
+                $baseQuery->whereRaw('1=0');
             } else {
-                $query->where(function ($q) use ($scopeDevUpper, $scopeArbplUpper) {
+                $baseQuery->where(function ($q) use ($scopeDevUpper, $scopeArbplUpper) {
 
                     if (!empty($scopeDevUpper)) {
                         $q->orWhereIn(DB::raw('UPPER(TRIM(devisi))'), $scopeDevUpper);
@@ -63,7 +92,7 @@ Route::middleware(['auth', 'verified', 'data.scope'])->group(function () {
         }
 
         // ===== summary plant hanya dari data yg boleh dilihat user =====
-        $plants = $query
+        $plants = (clone $baseQuery)
             ->selectRaw("UPPER(TRIM(werks)) as werks, COUNT(DISTINCT pernr) as rows_count")
             ->groupBy(DB::raw("UPPER(TRIM(werks))"))
             ->orderByRaw("MIN(CAST(TRIM(werks) AS UNSIGNED)) ASC")
@@ -73,7 +102,12 @@ Route::middleware(['auth', 'verified', 'data.scope'])->group(function () {
         // ======================
         // WI DAILY (GROUPING MENU)
         // ======================
-        $wiPlantsRaw = (clone $query)
+        $wiMode = session('wi_daily.wi_mode', 'with');
+        if ($wiMode === 'has')  $wiMode = 'with';
+        if ($wiMode === 'none') $wiMode = 'without';
+        $wiMode = in_array($wiMode, ['all', 'with', 'without'], true) ? $wiMode : 'all';
+
+        $wiPlantsQuery = (clone $baseQuery)
             ->whereRaw("UPPER(TRIM(role)) = 'INDUK'")
             ->selectRaw("
                 CASE
@@ -81,10 +115,61 @@ Route::middleware(['auth', 'verified', 'data.scope'])->group(function () {
                     WHEN LEFT(TRIM(werks),1)='1' THEN '1000'
                     ELSE CONCAT(LEFT(TRIM(werks),1),'000')
                 END as plant,
-                COUNT(DISTINCT TRIM(pernr)) as rows_count
-            ")
-            ->groupBy('plant')
-            ->orderByRaw("CAST(plant AS UNSIGNED) ASC")
+                pernr
+            ");
+
+        if ($wiMode === 'with' || $wiMode === 'without') {
+            $wiTimeSubQ = \App\Models\DailyTimeWi::query()
+                ->selectRaw("
+                    nik,
+                    CASE
+                        WHEN LEFT(TRIM(kode_laravel),4) IN ('1001','1002','1003','1015') THEN '1001'
+                        WHEN LEFT(TRIM(kode_laravel),1) = '1' THEN '1000'
+                        ELSE CONCAT(LEFT(TRIM(kode_laravel),1),'000')
+                    END as plant,
+                    sum(total_time_wi) as time_wi
+                ")
+                ->whereNotNull('kode_laravel')
+                ->whereRaw("TRIM(kode_laravel) <> ''")
+                ->whereRaw("TRIM(kode_laravel) REGEXP '^[0-9]{4}'")
+                ->whereBetween('tanggal', [$start->toDateString(), $end->toDateString()])
+                ->where('tanggal', '>=', $vf->toDateString()) // matching cutoff from WiDailyReport logic
+                ->groupByRaw("
+                    nik,
+                    CASE
+                        WHEN LEFT(TRIM(kode_laravel),4) IN ('1001','1002','1003','1015') THEN '1001'
+                        WHEN LEFT(TRIM(kode_laravel),1) = '1' THEN '1000'
+                        ELSE CONCAT(LEFT(TRIM(kode_laravel),1),'000')
+                    END
+                ");
+
+            // Apply join
+            $wiPlantsQuery = \Illuminate\Support\Facades\DB::query()
+                ->fromSub($wiPlantsQuery, 'qm_base') // use simply the 'plant' and 'pernr' inner query without any aggregate functions
+                ->leftJoinSub($wiTimeSubQ, 'wi', function ($join) {
+                    $join->on('wi.nik', '=', 'qm_base.pernr')
+                         ->on('wi.plant', '=', 'qm_base.plant');
+                })
+                ->selectRaw("qm_base.plant, COUNT(DISTINCT qm_base.pernr) as rows_count");
+                
+            if ($wiMode === 'with') {
+                $wiPlantsQuery->where('wi.time_wi', '>', 0);
+            } else {
+                $wiPlantsQuery->where(function ($q) {
+                    $q->whereNull('wi.time_wi')
+                      ->orWhere('wi.time_wi', '=', 0);
+                });
+            }
+        } else {
+             // fall-back if wiMode is all: outer count aggregate
+             $wiPlantsQuery = \Illuminate\Support\Facades\DB::query()
+                ->fromSub($wiPlantsQuery, 'qm_base')
+                ->selectRaw("qm_base.plant, COUNT(DISTINCT qm_base.pernr) as rows_count");
+        }
+
+        $wiPlantsRaw = $wiPlantsQuery
+            ->groupBy('qm_base.plant')
+            ->orderByRaw("CAST(qm_base.plant AS UNSIGNED) ASC")
             ->get();
 
         // paksa selalu ada 4 card (biar desktop rapi & ga bolong)
